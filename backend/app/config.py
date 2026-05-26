@@ -18,7 +18,7 @@ class Settings(BaseSettings):
     DEBUG: bool = False
     HOST: str = "0.0.0.0"
     PORT: int = 8000
-    APP_NAME: str = "go-stock-python"
+    APP_NAME: str = "python-stock"
     APP_VERSION: str = "0.1.0"
     API_PREFIX: str = "/api/v1"
 

@@ -58,7 +58,7 @@ async def lifespan(app: FastAPI):
 app = FastAPI(
     title=settings.APP_NAME,
     version=settings.APP_VERSION,
-    description="go-stock Python 后端 - 股票分析应用",
+    description="python-stock 后端服务 - 股票分析应用",
     lifespan=lifespan,
 )
 
