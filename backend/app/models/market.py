@@ -9,14 +9,14 @@ class Telegraph(GormBaseModel):
     """电报/快讯"""
     __tablename__ = "telegraph_list"
 
-    time = Column(String(50))
-    data_time = Column(DateTime, index=True, nullable=True, name="data_time")
-    title = Column(String(500), index=True)
-    content = Column(Text, index=True)
-    is_red = Column(Boolean, default=False, index=True, name="is_red")
-    url = Column(String(500))
-    source = Column(String(100), index=True)
-    sentiment_result = Column(String(50), index=True, name="sentiment_result")
+    time = Column(String(50), comment="发布时间(HH:mm:ss)")
+    data_time = Column(DateTime, index=True, nullable=True, name="data_time", comment="完整日期时间")
+    title = Column(String(500), index=True, comment="快讯标题")
+    content = Column(Text, index=True, comment="快讯内容")
+    is_red = Column(Boolean, default=False, index=True, name="is_red", comment="是否加红/重要")
+    url = Column(String(500), comment="原文链接")
+    source = Column(String(100), index=True, comment="来源: 财联社/华尔街见闻")
+    sentiment_result = Column(String(50), index=True, name="sentiment_result", comment="AI情感分析结果")
 
     telegraph_tags = relationship("TelegraphTags", back_populates="telegraph",
                                    overlaps="tags")
@@ -51,25 +51,25 @@ class Tags(GormBaseModel):
 
 
 class MarketStatistic(Base):
-    """市场统计"""
+    """全市场行情统计"""
     __tablename__ = "market_statistic"
 
     id = Column(BigInteger, primary_key=True, autoincrement=True)
-    data_date = Column(String(10), index=True, name="data_date")
-    data_time = Column(String(8), index=True, name="data_time")
-    up_count = Column(Integer, name="up_count")
-    down_count = Column(Integer, name="down_count")
-    up_ratio = Column(Float, name="up_ratio")
-    up_down_ratio = Column(Float, name="up_down_ratio")
-    sentiment_desc = Column(String(20), name="sentiment_desc")
-    limit_up = Column(Integer, name="limit_up")
-    limit_down = Column(Integer, name="limit_down")
-    limit_ratio = Column(Float, name="limit_ratio")
-    sh_up_count = Column(Integer, name="sh_up_count")
-    sh_down_count = Column(Integer, name="sh_down_count")
-    sz_up_count = Column(Integer, name="sz_up_count")
-    sz_down_count = Column(Integer, name="sz_down_count")
-    created_at = Column(DateTime, default=func.now(), name="created_at")
+    data_date = Column(String(10), index=True, name="data_date", comment="日期(YYYY-MM-DD)")
+    data_time = Column(String(8), index=True, name="data_time", comment="时间(HH:mm:ss)")
+    up_count = Column(Integer, name="up_count", comment="上涨家数")
+    down_count = Column(Integer, name="down_count", comment="下跌家数")
+    up_ratio = Column(Float, name="up_ratio", comment="上涨占比")
+    up_down_ratio = Column(Float, name="up_down_ratio", comment="涨跌比")
+    sentiment_desc = Column(String(20), name="sentiment_desc", comment="情绪描述")
+    limit_up = Column(Integer, name="limit_up", comment="涨停家数")
+    limit_down = Column(Integer, name="limit_down", comment="跌停家数")
+    limit_ratio = Column(Float, name="limit_ratio", comment="涨跌停比")
+    sh_up_count = Column(Integer, name="sh_up_count", comment="沪市上涨")
+    sh_down_count = Column(Integer, name="sh_down_count", comment="沪市下跌")
+    sz_up_count = Column(Integer, name="sz_up_count", comment="深市上涨")
+    sz_down_count = Column(Integer, name="sz_down_count", comment="深市下跌")
+    created_at = Column(DateTime, default=func.now(), name="created_at", comment="记录创建时间")
 
 
 class StockChangeHistory(Base):

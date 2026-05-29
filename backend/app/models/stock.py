@@ -9,8 +9,9 @@ class FollowedStock(Base):
     """关注股票"""
     __tablename__ = "followed_stock"
 
-    # Go 中未使用 gorm.Model，StockCode 作为主键
-    stock_code = Column(String(20), primary_key=True, name="stock_code")
+    id = Column(BigInteger, primary_key=True, autoincrement=True)
+    user_id = Column(String(100), index=True, nullable=True, comment="用户ID")
+    stock_code = Column(String(20), index=True, name="stock_code")
     name = Column(String(50))
     volume = Column(BigInteger)
     cost_price = Column(Float, name="cost_price")
@@ -112,8 +113,9 @@ class StockGroup(GormBaseModel):
     """股票分组"""
     __tablename__ = "stock_groups"
 
-    name = Column(String(100), index=True)
-    sort = Column(Integer, default=0)
+    user_id = Column(String(100), index=True, nullable=True, comment="所属用户ID")
+    name = Column(String(100), index=True, comment="分组名称")
+    sort = Column(Integer, default=0, comment="排序序号")
 
     items = relationship("StockGroupItem", back_populates="group",
                          cascade="all, delete-orphan")
@@ -123,8 +125,8 @@ class StockGroupItem(GormBaseModel):
     """股票分组项"""
     __tablename__ = "group_stock_info"
 
-    stock_code = Column(String(20), index=True, name="stock_code")
-    group_id = Column(BigInteger, ForeignKey("stock_groups.id"), index=True, name="group_id")
+    stock_code = Column(String(20), index=True, name="stock_code", comment="股票代码")
+    group_id = Column(BigInteger, ForeignKey("stock_groups.id"), index=True, name="group_id", comment="分组ID")
 
     group = relationship("StockGroup", back_populates="items")
     stock = relationship("FollowedStock", back_populates="groups",
@@ -196,19 +198,20 @@ class TradingRecord(Base, TimestampMixin):
     __tablename__ = "trading_records"
 
     id = Column(BigInteger, primary_key=True, autoincrement=True)
-    stock_code = Column(String(20), index=True, name="stock_code")
-    stock_name = Column(String(50), name="stock_name")
-    direction = Column(String(10), index=True)
-    price = Column(Float)
-    volume = Column(BigInteger)
-    reason = Column(Text)
-    stop_loss_price = Column(Float, name="stop_loss_price")
-    take_profit_price = Column(Float, name="take_profit_price")
-    fee = Column(Float)
-    market_value = Column(Float, name="market_value")
-    mindset = Column(Text)
-    recorded_close_price = Column(Float, name="recorded_close_price")
-    trading_time = Column(DateTime, index=True, name="trading_time")
+    user_id = Column(String(100), index=True, nullable=True, comment="所属用户ID")
+    stock_code = Column(String(20), index=True, name="stock_code", comment="股票代码")
+    stock_name = Column(String(50), name="stock_name", comment="股票名称")
+    direction = Column(String(10), index=True, comment="交易方向: buy/sell")
+    price = Column(Float, comment="成交价格")
+    volume = Column(BigInteger, comment="成交数量")
+    reason = Column(Text, comment="买入/卖出理由")
+    stop_loss_price = Column(Float, name="stop_loss_price", comment="预设止损价")
+    take_profit_price = Column(Float, name="take_profit_price", comment="预设止盈价")
+    fee = Column(Float, comment="交易手续费")
+    market_value = Column(Float, name="market_value", comment="市值/金额")
+    mindset = Column(Text, comment="交易心态记录")
+    recorded_close_price = Column(Float, name="recorded_close_price", comment="记录时的收盘价")
+    trading_time = Column(DateTime, index=True, name="trading_time", comment="交易成交时间")
 
 
 class BKDict(GormBaseModel):

@@ -9,13 +9,14 @@ from app.config import settings
 
 # 创建异步引擎
 engine = create_async_engine(
-    settings.DATABASE_URL,
-    echo=settings.DEBUG,
+    url=settings.DATABASE_URL,
+    echo=settings.DB_ECHO,
     future=True,
-    # SQLite 特殊配置：允许跨线程使用
-    connect_args={"check_same_thread": False}
-    if "sqlite" in settings.DATABASE_URL
-    else {},
+    # PostgreSQL数据库连接池配置
+    pool_size=settings.DB_POOL_SIZE,
+    max_overflow=settings.DB_MAX_OVERFLOW,
+    pool_pre_ping=True,  # 自动检测并回收断开的连接
+    pool_recycle=3600,   # 每小时回收连接，防止连接被数据库强制断开
 )
 
 # 异步会话工厂

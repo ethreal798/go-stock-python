@@ -3,6 +3,7 @@
 from app.core.database import Base
 
 from .base import TimestampMixin, SoftDeleteMixin, GormBaseModel
+from .user import User
 from .stock import (
     FollowedStock,
     StockBasic,
@@ -52,6 +53,8 @@ __all__ = [
     "TimestampMixin",
     "SoftDeleteMixin",
     "GormBaseModel",
+    #user
+    "User",
     # stock
     "FollowedStock",
     "StockBasic",

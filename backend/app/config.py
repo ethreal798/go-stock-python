@@ -23,7 +23,10 @@ class Settings(BaseSettings):
     API_PREFIX: str = "/api/v1"
 
     # ---- 数据库配置 ----
-    DATABASE_URL: str = "sqlite+aiosqlite:///./go_stock.db"
+    DATABASE_URL: str = "postgresql+asyncpg://postgres:postgres@localhost:5432/go_stock"
+    DB_POOL_SIZE: int = 20
+    DB_MAX_OVERFLOW: int = 10
+    DB_ECHO: bool = False
 
     # ---- Redis 配置 ----
     REDIS_URL: str = "redis://localhost:6379/0"
