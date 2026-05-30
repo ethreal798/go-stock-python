@@ -22,6 +22,11 @@ class Settings(BaseSettings):
     APP_VERSION: str = "0.1.0"
     API_PREFIX: str = "/api/v1"
 
+    # ---- 安全与认证配置 ----
+    SECRET_KEY: str = "your-secret-key-here-please-change-it-in-production"
+    ALGORITHM: str = "HS256"
+    ACCESS_TOKEN_EXPIRE_MINUTES: int = 60 * 24 * 7  # 默认 7 天
+
     # ---- 数据库配置 ----
     DATABASE_URL: str = "postgresql+asyncpg://postgres:123456@localhost:5432/py_stock"
     DB_POOL_SIZE: int = 20
