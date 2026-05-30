@@ -30,8 +30,8 @@ class FollowedStock(Base):
     stop_loss_price = Column(Float, name="stop_loss_price")
 
     groups = relationship("StockGroupItem", back_populates="stock",
-                          foreign_keys="StockGroupItem.stock_code",
-                          primaryjoin="FollowedStock.stock_code == StockGroupItem.stock_code")
+                          primaryjoin="FollowedStock.stock_code == StockGroupItem.stock_code",
+                          foreign_keys="StockGroupItem.stock_code")
 
 
 class StockBasic(GormBaseModel):
@@ -130,8 +130,9 @@ class StockGroupItem(GormBaseModel):
 
     group = relationship("StockGroup", back_populates="items")
     stock = relationship("FollowedStock", back_populates="groups",
-                         foreign_keys="FollowedStock.stock_code",
-                         primaryjoin="StockGroupItem.stock_code == FollowedStock.stock_code")
+                         primaryjoin="StockGroupItem.stock_code == FollowedStock.stock_code",
+                         foreign_keys=[stock_code],
+                         uselist=False)
 
 
 class StockInfo(GormBaseModel):

@@ -7,7 +7,7 @@ from alembic import context
 from sqlalchemy import pool
 from sqlalchemy.ext.asyncio import async_engine_from_config
 
-from app.core.database import Base
+from app.models import Base
 from app.config import settings
 
 # Alembic Config 对象，提供 .ini 文件中的配置

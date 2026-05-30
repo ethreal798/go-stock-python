@@ -23,7 +23,7 @@ class Settings(BaseSettings):
     API_PREFIX: str = "/api/v1"
 
     # ---- 数据库配置 ----
-    DATABASE_URL: str = "postgresql+asyncpg://postgres:postgres@localhost:5432/go_stock"
+    DATABASE_URL: str = "postgresql+asyncpg://postgres:123456@localhost:5432/py_stock"
     DB_POOL_SIZE: int = 20
     DB_MAX_OVERFLOW: int = 10
     DB_ECHO: bool = False
