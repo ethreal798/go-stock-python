@@ -30,28 +30,20 @@ const LoadingFallback = () => (
 const AppRouter: React.FC = () => {
   return (
     <Suspense fallback={<LoadingFallback />}>
-      <Routes>
-        <Route path="/login" element={<Login />} />
-        <Route
-          path="*"
-          element={
-            <AuthGuard>
-              <Routes>
-                <Route path="/" element={<Dashboard />} />
-                <Route path="/market" element={<Market />} />
-                <Route path="/agent" element={<Agent />} />
-                <Route path="/news" element={<News />} />
-                <Route path="/fund" element={<Fund />} />
-                <Route path="/cron-tasks" element={<CronTasks />} />
-                <Route path="/settings" element={<Settings />} />
-                <Route path="/about" element={<About />} />
-              </Routes>
-            </AuthGuard>
-          }
-        />
-      </Routes>
+      <AuthGuard>
+        <Routes>
+          <Route path="/" element={<Dashboard />} />
+          <Route path="/market" element={<Market />} />
+          <Route path="/agent" element={<Agent />} />
+          <Route path="/news" element={<News />} />
+          <Route path="/fund" element={<Fund />} />
+          <Route path="/cron-tasks" element={<CronTasks />} />
+          <Route path="/settings" element={<Settings />} />
+          <Route path="/about" element={<About />} />
+        </Routes>
+      </AuthGuard>
     </Suspense>
-  );
-};
+  )
+}
 
 export default AppRouter;
