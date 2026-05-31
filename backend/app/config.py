@@ -18,12 +18,20 @@ class Settings(BaseSettings):
     DEBUG: bool = False
     HOST: str = "0.0.0.0"
     PORT: int = 8000
-    APP_NAME: str = "go-stock-python"
+    APP_NAME: str = "python-stock"
     APP_VERSION: str = "0.1.0"
     API_PREFIX: str = "/api/v1"
 
+    # ---- 安全与认证配置 ----
+    SECRET_KEY: str = "your-secret-key-here-please-change-it-in-production"
+    ALGORITHM: str = "HS256"
+    ACCESS_TOKEN_EXPIRE_MINUTES: int = 60 * 24 * 7  # 默认 7 天
+
     # ---- 数据库配置 ----
-    DATABASE_URL: str = "sqlite+aiosqlite:///./go_stock.db"
+    DATABASE_URL: str = "postgresql+asyncpg://postgres:123456@localhost:5432/py_stock"
+    DB_POOL_SIZE: int = 20
+    DB_MAX_OVERFLOW: int = 10
+    DB_ECHO: bool = False
 
     # ---- Redis 配置 ----
     REDIS_URL: str = "redis://localhost:6379/0"
