@@ -11,19 +11,21 @@ from app.services.news_service import NewsService
 
 router = APIRouter(prefix="/news", tags=["news"])
 
+
 def get_news_service(db: AsyncSession = Depends(get_db)) -> NewsService:
     return NewsService(db)
+
 
 @router.get("/telegraph", response_model=list[TelegraphResponse], summary="7x24快讯")
 async def get_telegraph(
     count: int = Query(20, ge=1, le=100, description="返回数量"),
     page: int = Query(1, ge=1, description="页码"),
-    source: str = Query("eastmoney", description="数据源: eastmoney / cls"),
+    source: str = Query("all", description="数据源: all / eastmoney / cls / wscn / sina"),
     service: NewsService = Depends(get_news_service),
 ) -> list[TelegraphResponse]:
-    """获取7x24小时财经快讯。"""
+    """获取7x24小时财经快讯(从数据库读取)。"""
 
-    return await service.get_telegraph(source=source, limit=count, page=page)
+    return await service.get_telegraphs(source=source, limit=count, page=page)
 
 
 @router.get("/market", summary="市场要闻")

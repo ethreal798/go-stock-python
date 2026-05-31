@@ -19,7 +19,7 @@ class Telegraph(GormBaseModel):
     sentiment_result = Column(String(50), index=True, name="sentiment_result", comment="AI情感分析结果")
 
     telegraph_tags = relationship("TelegraphTags", back_populates="telegraph",
-                                   overlaps="tags")
+                        overlaps="tags")
     tags = relationship("Tags", secondary="telegraph_tags",
                         back_populates="telegraphs", overlaps="telegraph_tags")
 

@@ -31,6 +31,14 @@ async def lifespan(app: FastAPI):
 
     # 启动调度器
     scheduler_service.start()
+
+    # 添加默认任务
+    await scheduler_service.add_job(
+        job_id="news_crawl_all",
+        task_type="news_crawl",
+        trigger_config={"interval_seconds": 60},
+        params={"source": "all"}
+    )
     logger.info("Scheduler started")
 
     yield  # 应用运行中

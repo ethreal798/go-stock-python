@@ -11,6 +11,8 @@ from apscheduler.triggers.cron import CronTrigger
 from apscheduler.triggers.interval import IntervalTrigger
 
 from app.config import settings
+from app.core.database import async_session_factory
+from app.services.news_service import NewsService
 
 logger = logging.getLogger(__name__)
 
@@ -149,13 +151,25 @@ class SchedulerService:
     async def _execute_task(task_type: str, params: dict) -> None:
         """执行定时任务的统一入口。"""
         logger.info("Executing task: type=%s, params=%s", task_type, params)
-        # TODO: 根据 task_type 分发到具体执行逻辑
-        if task_type == "refresh_quotes":
-            pass  # await stock_service.refresh_all_quotes()
-        elif task_type == "alert_check":
-            pass  # await alert_service.check_alerts()
-        elif task_type == "news_crawl":
-            pass  # await news_service.crawl_latest_news()
+
+        async with async_session_factory() as db:
+            try:
+                if task_type == "refresh_quotes":
+                    pass
+                elif task_type == "alert_check":
+                    pass
+                elif task_type == "news_crawl":
+                    service = NewsService(db)
+                    source = params.get("source", "all")
+                    if source == "all":
+                        await service.fetch_all_sources()
+                    else:
+                        await service.fetch_remote_news(source)
+
+                await db.commit()
+            except Exception as e:
+                logger.error("Error executing task %s: %s", task_type, e)
+                await db.rollback()
 
 
 # 全局调度器实例
