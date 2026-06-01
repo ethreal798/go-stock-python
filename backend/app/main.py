@@ -13,7 +13,7 @@ from app.config import settings
 from app.core.database import close_db, init_db
 from app.core.redis import close_redis
 from app.core.websocket import ws_manager
-from app.routers import agent, cron_tasks, kline, market, news, settings as settings_router, stocks
+from app.routers import agent, auth, cron_tasks, kline, market, news, settings as settings_router, stocks
 from app.services.scheduler_service import scheduler_service
 
 logger = logging.getLogger(__name__)
@@ -31,6 +31,14 @@ async def lifespan(app: FastAPI):
 
     # 启动调度器
     scheduler_service.start()
+
+    # 添加默认任务
+    await scheduler_service.add_job(
+        job_id="news_crawl_all",
+        task_type="news_crawl",
+        trigger_config={"interval_seconds": 60},
+        params={"source": "all"}
+    )
     logger.info("Scheduler started")
 
     yield  # 应用运行中
@@ -58,7 +66,7 @@ async def lifespan(app: FastAPI):
 app = FastAPI(
     title=settings.APP_NAME,
     version=settings.APP_VERSION,
-    description="go-stock Python 后端 - 股票分析应用",
+    description="python-stock 后端服务 - 股票分析应用",
     lifespan=lifespan,
 )
 
@@ -72,6 +80,7 @@ app.add_middleware(
 )
 
 # ---- 注册路由 ----
+app.include_router(auth.router, prefix=settings.API_PREFIX)
 app.include_router(stocks.router, prefix=settings.API_PREFIX)
 app.include_router(market.router, prefix=settings.API_PREFIX)
 app.include_router(agent.router, prefix=settings.API_PREFIX)
