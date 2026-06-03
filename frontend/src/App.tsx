@@ -43,7 +43,7 @@ const AppLayout: React.FC = () => {
   const [collapsed, setCollapsed] = useState(false);
   const navigate = useNavigate();
   const location = useLocation();
-  const { user, isAuthenticated, logout } = useAuthStore();
+  const { token_type, isAuthenticated, logout } = useAuthStore();
 
   const userMenuItems: MenuProps["items"] = [
     {
@@ -117,7 +117,7 @@ const AppLayout: React.FC = () => {
           </span>
 
           <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
-            {isAuthenticated && user ? (
+            {isAuthenticated && token_type ? (  
               <Dropdown menu={{ items: userMenuItems }} placement="bottomRight">
                 <Space style={{ cursor: "pointer", padding: "0 8px" }}>
                   <Avatar
@@ -128,9 +128,9 @@ const AppLayout: React.FC = () => {
                   <Text
                     strong
                     style={{ maxWidth: 100 }}
-                    ellipsis={{ tooltip: user.username }}
+                    ellipsis={{ tooltip: token_type }}
                   >
-                    {user.username}
+                    {token_type}
                   </Text>
                 </Space>
               </Dropdown>

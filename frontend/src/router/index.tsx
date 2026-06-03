@@ -41,6 +41,7 @@ const AppRouter: React.FC = () => {
           <Route path="/settings" element={<Settings />} />
           <Route path="/about" element={<About />} />
         </Routes>
+        
       </AuthGuard>
     </Suspense>
   )

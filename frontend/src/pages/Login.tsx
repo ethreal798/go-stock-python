@@ -1,5 +1,5 @@
 import React, { useState } from 'react'
-import { Form, Input, Button, Card, Row, Col, Typography, message, Divider } from 'antd'
+import { Form, Input, Button, Col, Typography, message, Divider } from 'antd'
 import { UserOutlined, LockOutlined, MailOutlined } from '@ant-design/icons'
 import { useNavigate } from 'react-router-dom'
 import { useAuthStore } from '@/stores/authStore'
@@ -24,22 +24,24 @@ const Login: React.FC = () => {
           username: values.username,
           password: values.password,
         })
-        const { token, user } = res.data.data
-        loginStore(token, user)
+        // TODO: 处理注册成功后的逻辑
+        const { access_token, token_type } = res.data
+        loginStore(access_token, token_type)
         message.success('注册并登录成功')
       } else {
         // 登录逻辑
         const formData = new FormData()
-        formData.append('email', values.email)
+        formData.append('username', values.email)
         formData.append('password', values.password)
         
         const res = await login(formData)
-        const { token, user } = res.data.data
-        loginStore(token, user)
+        const { access_token, token_type } = res.data
+        loginStore(access_token, token_type)
         message.success('登录成功')
       }
       navigate('/')
     } catch (error: any) {
+      console.log(error)
       if (error.response?.status === 401) {
         message.error(error.response.data.detail || '邮箱或密码错误')
       } else {
