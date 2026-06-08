@@ -28,13 +28,14 @@ async def get_telegraph(
     return await service.get_telegraphs(source=source, limit=count, page=page)
 
 
-@router.get("/market", summary="市场要闻")
+@router.get("/market", response_model=list[TelegraphResponse], summary="市场要闻")
 async def get_market_news(
     count: int = Query(20, ge=1, le=100, description="返回数量"),
-) -> list[dict]:
-    """获取市场重要新闻资讯。"""
-    # TODO: 调用新闻服务
-    return []
+    page: int = Query(1, ge=1, description="页码"),
+    service: NewsService = Depends(get_news_service),
+) -> list[TelegraphResponse]:
+    """获取市场重要新闻资讯（从数据库读取）。"""
+    return await service.get_telegraphs(type="news", limit=count, page=page)
 
 
 @router.get("/stock/{code}", summary="个股新闻")
