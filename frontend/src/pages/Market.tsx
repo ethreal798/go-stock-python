@@ -68,7 +68,7 @@ const Market: React.FC = () => {
   const loadDragonTiger = () => {
     setTabLoading('dragon', true)
     getDragonTiger()
-      .then((res) => {
+      .then((res: any) => {
         const data = (res.data as { data?: { list: unknown[] } })?.data?.list ?? []
         setDragonTiger(data)
       })

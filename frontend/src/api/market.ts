@@ -1,6 +1,9 @@
 import request from './index'
 import type { MarketIndex, HotStock, NewsItem } from '@/types'
 
+// 获取龙虎榜数据
+export const getDragonTiger = ()=>
+  request.get('/market/dragon-tiger')
 // 获取市场主要指数
 export const getMarketIndexes = () =>
   request.get<{ data: MarketIndex[] }>('/market/indexes')
