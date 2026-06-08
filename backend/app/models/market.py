@@ -16,6 +16,7 @@ class Telegraph(GormBaseModel):
     is_red = Column(Boolean, default=False, index=True, name="is_red", comment="是否加红/重要")
     url = Column(String(500), comment="原文链接")
     source = Column(String(100), index=True, comment="来源: 财联社/华尔街见闻")
+    type = Column(String(20), default="fast", index=True)  # fast: 快讯, news: 要闻
     sentiment_result = Column(String(50), index=True, name="sentiment_result", comment="AI情感分析结果")
 
     telegraph_tags = relationship("TelegraphTags", back_populates="telegraph",
