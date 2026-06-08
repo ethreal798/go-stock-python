@@ -3,9 +3,11 @@
 from typing import Optional
 
 from fastapi import APIRouter, Depends, Query
+from fastapi.responses import StreamingResponse
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.database import get_db
+from app.core.sse import sse_manager
 from app.schemas.news import TelegraphResponse
 from app.services.news_service import NewsService
 
@@ -26,6 +28,20 @@ async def get_telegraph(
     """获取7x24小时财经快讯(从数据库读取)。"""
 
     return await service.get_telegraphs(source=source, limit=count, page=page)
+
+
+@router.get("/stream", summary="新闻实时通知流 (SSE)")
+async def news_stream():
+    """SSE 端点，当有新新闻入库时发送 'refresh' 信号。"""
+    return StreamingResponse(
+        sse_manager.subscribe(),
+        media_type="text/event-stream",
+        headers={
+            "Cache-Control": "no-cache",
+            "Connection": "keep-alive",
+            "Transfer-Encoding": "chunked",
+        }
+    )
 
 
 @router.get("/market", response_model=list[TelegraphResponse], summary="市场要闻")

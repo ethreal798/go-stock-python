@@ -14,6 +14,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.market import Telegraph, Tags, TelegraphTags
 from app.schemas.news import TelegraphResponse
+from app.core.sse import sse_manager
 
 logger = logging.getLogger(__name__)
 
@@ -223,6 +224,8 @@ class NewsService:
         if count > 0:
             await self.db.commit()
             logger.info(f"Successfully fetched {count} {type} news from {source_name}")
+            # 发送 SSE 信号通知前端刷新
+            await sse_manager.broadcast("refresh")
 
         return count
 
