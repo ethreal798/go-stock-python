@@ -47,12 +47,16 @@ from .system import (
     VersionInfo,
 )
 from .strategy import CustomStrategy
+from .fund import Fund, FollowedFund
 
 __all__ = [
     "Base",
     "TimestampMixin",
     "SoftDeleteMixin",
     "GormBaseModel",
+    # fund
+    "Fund",
+    "FollowedFund",
     #user
     "User",
     # stock

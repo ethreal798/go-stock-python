@@ -16,7 +16,13 @@ class Telegraph(GormBaseModel):
     is_red = Column(Boolean, default=False, index=True, name="is_red", comment="是否加红/重要")
     url = Column(String(500), comment="原文链接")
     source = Column(String(100), index=True, comment="来源: 财联社/华尔街见闻")
+    type = Column(String(20), default="fast", index=True)  # fast: 快讯, news: 要闻
     sentiment_result = Column(String(50), index=True, name="sentiment_result", comment="AI情感分析结果")
+    
+    # 新增：金融相关性字段
+    is_relevant = Column(Boolean, default=True, index=True, name="is_relevant", comment="是否为金融相关新闻")
+    relevance_score = Column(Integer, default=0, index=True, name="relevance_score", comment="相关性评分 0-100")
+    category = Column(String(50), index=True, name="category", comment="新闻分类: macro/industry/company/regulatory/international/other")
 
     telegraph_tags = relationship("TelegraphTags", back_populates="telegraph",
                         overlaps="tags")

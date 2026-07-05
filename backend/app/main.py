@@ -13,7 +13,7 @@ from app.config import settings
 from app.core.database import close_db, init_db
 from app.core.redis import close_redis
 from app.core.websocket import ws_manager
-from app.routers import agent, auth, cron_tasks, kline, market, news, settings as settings_router, stocks
+from app.routers import agent, auth, cron_tasks, funds, kline, market, news, settings as settings_router, stocks
 from app.services.scheduler_service import scheduler_service
 
 logger = logging.getLogger(__name__)
@@ -82,6 +82,7 @@ app.add_middleware(
 # ---- 注册路由 ----
 app.include_router(auth.router, prefix=settings.API_PREFIX)
 app.include_router(stocks.router, prefix=settings.API_PREFIX)
+app.include_router(funds.router, prefix=settings.API_PREFIX)
 app.include_router(market.router, prefix=settings.API_PREFIX)
 app.include_router(agent.router, prefix=settings.API_PREFIX)
 app.include_router(news.router, prefix=settings.API_PREFIX)
