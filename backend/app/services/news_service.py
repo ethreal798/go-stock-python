@@ -15,6 +15,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.models.market import Telegraph, Tags, TelegraphTags
 from app.schemas.news import TelegraphResponse
 from app.core.sse import sse_manager
+from app.services.news_filter_service import NewsFilterService
 
 logger = logging.getLogger(__name__)
 
@@ -39,7 +40,8 @@ class NewsService:
             source: str = "all",
             type: str = "fast",
             limit: int = 20,
-            page: int = 1
+            page: int = 1,
+            relevant_only: bool = True
     ) -> List[TelegraphResponse]:
         """获取电报快讯或市场要闻（纯查库）。"""
         stmt = select(Telegraph).where(Telegraph.type == type)
@@ -47,6 +49,9 @@ class NewsService:
         if source != "all" and source in self.SOURCES:
             source_name = self.SOURCES[source]["name"]
             stmt = stmt.where(Telegraph.source.contains(source_name))
+        
+        if relevant_only:
+            stmt = stmt.where(Telegraph.is_relevant == True)
 
         stmt = stmt.order_by(desc(Telegraph.data_time)).limit(limit).offset((page - 1) * limit)
 
@@ -65,7 +70,10 @@ class NewsService:
                 source=t.source,
                 sentiment_result=t.sentiment_result or "Neutral",
                 subjects=[],
-                stocks=[]
+                stocks=[],
+                is_relevant=t.is_relevant,
+                relevance_score=t.relevance_score or 0,
+                category=t.category
             ) for t in telegraphs
         ]
 
@@ -207,6 +215,12 @@ class NewsService:
             if result.scalar_one_or_none():
                 continue
 
+            # 使用过滤服务分析新闻
+            is_relevant, relevance_score, category = NewsFilterService.analyze(
+                parsed["title"] or "",
+                parsed["content"]
+            )
+
             new_news = Telegraph(
                 title=parsed["title"],
                 content=parsed["content"],
@@ -216,7 +230,10 @@ class NewsService:
                 source=source_name,
                 is_red=parsed["is_red"],
                 type=type,
-                sentiment_result="Neutral"
+                sentiment_result="Neutral",
+                is_relevant=is_relevant,
+                relevance_score=relevance_score,
+                category=category
             )
             self.db.add(new_news)
             count += 1

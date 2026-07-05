@@ -23,11 +23,12 @@ async def get_telegraph(
     count: int = Query(20, ge=1, le=100, description="返回数量"),
     page: int = Query(1, ge=1, description="页码"),
     source: str = Query("all", description="数据源: all / eastmoney / cls / wscn / sina"),
+    relevant_only: bool = Query(True, description="仅返回金融相关新闻"),
     service: NewsService = Depends(get_news_service),
 ) -> list[TelegraphResponse]:
     """获取7x24小时财经快讯(从数据库读取)。"""
 
-    return await service.get_telegraphs(source=source, limit=count, page=page)
+    return await service.get_telegraphs(source=source, limit=count, page=page, relevant_only=relevant_only)
 
 
 @router.get("/stream", summary="新闻实时通知流 (SSE)")
@@ -48,10 +49,11 @@ async def news_stream():
 async def get_market_news(
     count: int = Query(20, ge=1, le=100, description="返回数量"),
     page: int = Query(1, ge=1, description="页码"),
+    relevant_only: bool = Query(True, description="仅返回金融相关新闻"),
     service: NewsService = Depends(get_news_service),
 ) -> list[TelegraphResponse]:
     """获取市场重要新闻资讯（从数据库读取）。"""
-    return await service.get_telegraphs(type="news", limit=count, page=page)
+    return await service.get_telegraphs(type="news", limit=count, page=page, relevant_only=relevant_only)
 
 
 @router.get("/stock/{code}", summary="个股新闻")
