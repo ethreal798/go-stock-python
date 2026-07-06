@@ -69,6 +69,9 @@ export interface NewsItem {
   sentiment_result: string;
   subjects: string[];
   stocks: string[];
+  is_relevant: boolean;
+  relevant_score?: number;
+  category?: string;
 }
 
 // 基金

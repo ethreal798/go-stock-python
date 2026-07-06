@@ -30,9 +30,16 @@ const News: React.FC = () => {
   const [newsLoading, setNewsLoading] = useState(false);
   const [currentTime, setCurrentTime] = useState(dayjs());
   const [onlyImportant, setOnlyImportant] = useState(false);
-  const [page, setPage] = useState(1);
-  const [hasMore, setHasMore] = useState(true);
-  const scrollRef = useRef<HTMLDivElement>(null);
+  
+  // 快讯分页状态
+  const [flashPage, setFlashPage] = useState(1);
+  const [flashHasMore, setFlashHasMore] = useState(true);
+  const flashScrollRef = useRef<HTMLDivElement>(null);
+  
+  // 新闻分页状态
+  const [newsPage, setNewsPage] = useState(1);
+  const [newsHasMore, setNewsHasMore] = useState(true);
+  const newsScrollRef = useRef<HTMLDivElement>(null);
 
   // 更新实时时间
   useEffect(() => {
@@ -58,12 +65,12 @@ const News: React.FC = () => {
 
         if (isRefresh) {
           setFlashNews(data);
-          setPage(1);
-          setHasMore(data.length > 0);
+          setFlashPage(1);
+          setFlashHasMore(data.length > 0);
         } else {
           setFlashNews((prev) => [...prev, ...data]);
           if (data.length === 0) {
-            setHasMore(false);
+            setFlashHasMore(false);
           }
         }
       } catch {
@@ -75,34 +82,87 @@ const News: React.FC = () => {
     [flashLoading],
   );
 
-  // 获取普通新闻
-  const fetchNews = useCallback(async () => {
-    setNewsLoading(true);
-    try {
-      const res = await getNewsList({ count: 20, page: 1, source: "all" });
-      const data = res.data || [];
-      setNewsList(data);
-    } catch {
-      // ignore
-    } finally {
-      setNewsLoading(false);
-    }
-  }, []);
+  // 获取普通新闻数据
+  const fetchNews = useCallback(
+    async (pageNum: number, isRefresh = false) => {
+      if (newsLoading) return;
+      setNewsLoading(true);
+      try {
+        const res = await getNewsList({ count: 20, page: pageNum });
+        const data = res.data || [];
+        console.log(res);
+
+        if (isRefresh) {
+          setNewsList(data);
+          setNewsPage(1);
+          setNewsHasMore(data.length > 0);
+        } else {
+          setNewsList((prev) => [...prev, ...data]);
+          if (data.length === 0) {
+            setNewsHasMore(false);
+          }
+        }
+      } catch {
+        // ignore
+      } finally {
+        setNewsLoading(false);
+      }
+    },
+    [newsLoading],
+  );
+
+
 
   useEffect(() => {
     fetchFlash(1, true);
-    fetchNews();
+    fetchNews(1, true);
   }, []);
 
-  // 触底加载逻辑
-  const handleScroll = (e: React.UIEvent<HTMLDivElement>) => {
+  // SSE 实时监听新快讯
+  useEffect(() => {
+    // 使用代理路径：http://localhost:3000/api/v1/news/stream -> http://localhost:8000/api/v1/news/stream
+    const eventSource = new EventSource("/api/v1/news/stream");
+
+    eventSource.onmessage = (event) => {
+      console.log("SSE 收到消息:", event.data);
+      // 如果后端直接发数据或者发 refresh 信号，都在这里处理
+      if (event.data === "refresh" || event.data) {
+        // 收到 refresh 信号，手动刷新列表
+        fetchFlash(1, true);
+        fetchNews(1, true);  
+      }
+    };
+
+    eventSource.onerror = (error) => {
+      console.error("SSE 连接错误:", error);
+      // 可以不用做特殊处理，EventSource 会自动重连
+    };
+
+    return () => {
+      eventSource.close(); // 组件卸载时关闭连接
+    };
+  }, []); // 空依赖数组，挂载时建立一次
+
+  // 快讯触底加载逻辑
+  const handleFlashScroll = (e: React.UIEvent<HTMLDivElement>) => {
     const target = e.currentTarget;
-    // 距离底部 50px 时加载更多
     if (target.scrollHeight - target.scrollTop - target.clientHeight < 50) {
-      if (hasMore && !flashLoading) {
-        const nextPage = page + 1;
-        setPage(nextPage);
+      if (flashHasMore && !flashLoading) {
+        const nextPage = flashPage + 1;
+        setFlashPage(nextPage);
         fetchFlash(nextPage);
+      }
+    }
+  };
+
+  // 新闻触底加载逻辑
+  const handleNewsScroll = (e: React.UIEvent<HTMLDivElement>) => {
+    const target = e.currentTarget;
+    if (target.scrollHeight - target.scrollTop - target.clientHeight < 50) {
+      if (newsHasMore && !newsLoading) {
+        const nextPage = newsPage + 1;
+        setNewsPage(nextPage);
+        fetchNews(nextPage);
       }
     }
   };
@@ -172,8 +232,8 @@ const News: React.FC = () => {
   // 快讯列表内容
   const flashContent = (
     <div
-      ref={scrollRef}
-      onScroll={handleScroll}
+      ref={flashScrollRef}
+      onScroll={handleFlashScroll}
       style={{
         height: "calc(100vh - 200px)",
         minHeight: "400px",
@@ -191,7 +251,7 @@ const News: React.FC = () => {
           <Spin size="small" tip="加载中..." />
         </div>
       )}
-      {!hasMore && flashNews.length > 0 && (
+      {!flashHasMore && flashNews.length > 0 && (
         <div
           style={{ textAlign: "center", padding: "24px 0", color: "#bfbfbf" }}
         >
@@ -225,6 +285,8 @@ const News: React.FC = () => {
       ),
       children: (
         <div
+          ref={newsScrollRef}
+          onScroll={handleNewsScroll}
           style={{
             padding: "0 16px",
             height: "calc(100vh - 200px)",
@@ -232,8 +294,8 @@ const News: React.FC = () => {
           }}
         >
           <List
-            loading={newsLoading}
             dataSource={newsList}
+            split={false}
             renderItem={(item) => (
               <List.Item>
                 <List.Item.Meta
@@ -250,6 +312,21 @@ const News: React.FC = () => {
               </List.Item>
             )}
           />
+          {newsLoading && (
+            <div style={{ textAlign: "center", padding: "16px 0" }}>
+              <Spin size="small" tip="加载中..." />
+            </div>
+          )}
+          {!newsHasMore && newsList.length > 0 && (
+            <div
+              style={{ textAlign: "center", padding: "24px 0", color: "#bfbfbf" }}
+            >
+              当前已是最后一页
+            </div>
+          )}
+          {!newsLoading && newsList.length === 0 && (
+            <Empty image={Empty.PRESENTED_IMAGE_SIMPLE} />
+          )}
         </div>
       ),
     },
