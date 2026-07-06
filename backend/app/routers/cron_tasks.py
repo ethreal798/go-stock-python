@@ -1,8 +1,7 @@
 """定时任务路由。"""
 
-from typing import Optional
 
-from fastapi import APIRouter, HTTPException, Query
+from fastapi import APIRouter, HTTPException
 
 from app.services.scheduler_service import scheduler_service
 

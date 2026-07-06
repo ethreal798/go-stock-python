@@ -1,6 +1,6 @@
 """基础模型类和 Mixin"""
 
-from sqlalchemy import Column, BigInteger, DateTime, func, Integer
+from sqlalchemy import Column, BigInteger, DateTime, func
 
 # 复用项目已有的声明基类，保证 Alembic env.py 中的 target_metadata 一致
 from app.core.database import Base

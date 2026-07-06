@@ -1,6 +1,6 @@
 """AI 相关模型"""
 
-from sqlalchemy import Column, BigInteger, String, DateTime, Integer, Boolean, Float, Text, Index, func
+from sqlalchemy import Column, BigInteger, String, DateTime, Integer, Boolean, Float, Text, func
 from .base import Base, GormBaseModel, TimestampMixin
 
 

@@ -2,7 +2,7 @@
 
 from sqlalchemy import Column, BigInteger, String, Integer, Boolean, Float, DateTime, Text, ForeignKey, Index, func
 from sqlalchemy.orm import relationship
-from .base import Base, GormBaseModel, TimestampMixin
+from .base import Base, GormBaseModel
 
 
 class Telegraph(GormBaseModel):

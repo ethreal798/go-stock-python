@@ -1,6 +1,5 @@
 """新闻资讯路由。"""
 
-from typing import Optional
 
 from fastapi import APIRouter, Depends, Query
 from fastapi.responses import StreamingResponse

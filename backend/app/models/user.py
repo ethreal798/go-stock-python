@@ -1,6 +1,6 @@
 """用户模型。"""
 
-from sqlalchemy import Column, String, Boolean, DateTime, func
+from sqlalchemy import Column, String, Boolean, DateTime
 from .base import GormBaseModel
 
 

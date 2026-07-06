@@ -12,7 +12,7 @@ from typing import List, Optional, Dict, Any
 from sqlalchemy import select, desc
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.models.market import Telegraph, Tags, TelegraphTags
+from app.models.market import Telegraph
 from app.schemas.news import TelegraphResponse
 from app.core.sse import sse_manager
 from app.services.news_filter_service import NewsFilterService
@@ -55,7 +55,7 @@ class NewsService:
             stmt = stmt.where(Telegraph.source.contains(source_name))
 
         if relevant_only:
-            stmt = stmt.where(Telegraph.is_relevant == True)
+            stmt = stmt.where(Telegraph.is_relevant == 1)
 
         stmt = stmt.order_by(desc(Telegraph.data_time)).limit(limit).offset((page - 1) * limit)
 
@@ -119,7 +119,8 @@ class NewsService:
         url = self.SOURCES["cls"]["url"]
         headers = {
             "Referer": "https://www.cls.cn/",
-            "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/119.0.0.0 Safari/537.36",
+            "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
+            "AppleWebKit/537.36 (KHTML, like Gecko) Chrome/119.0.0.0 Safari/537.36",
         }
 
         async with httpx.AsyncClient(timeout=10.0) as client:
@@ -140,7 +141,8 @@ class NewsService:
         """抓取华尔街见闻快讯。"""
         params = {"channel": "global-channel", "client": "pc", "limit": 20}
         headers = {
-            "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
+            "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
+            "AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
         }
 
         async with httpx.AsyncClient(timeout=10.0) as client:
@@ -181,7 +183,8 @@ class NewsService:
         """抓取东方财富快讯。"""
         url = self.SOURCES["eastmoney"]["url"]
         headers = {
-            "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
+            "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
+            "AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
             "Referer": "https://kuaixun.eastmoney.com/",
         }
 
@@ -193,7 +196,7 @@ class NewsService:
                 if not json_match:
                     try:
                         data = response.json()
-                    except:
+                    except Exception:
                         return 0
                 else:
                     import json
@@ -283,7 +286,7 @@ class NewsService:
                 create_time = item.get("create_time", "")
                 try:
                     dt = datetime.strptime(create_time, "%Y-%m-%d %H:%M:%S")
-                except:
+                except Exception:
                     dt = datetime.now()
                 return {
                     "title": "",

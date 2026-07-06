@@ -5,7 +5,7 @@
 
 import re
 import logging
-from typing import Dict, Tuple, Optional
+from typing import Tuple
 
 logger = logging.getLogger(__name__)
 

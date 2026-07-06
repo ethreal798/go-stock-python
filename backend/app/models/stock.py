@@ -1,8 +1,8 @@
 """股票相关模型"""
 
-from sqlalchemy import Column, BigInteger, String, Float, DateTime, Integer, Boolean, ForeignKey, Text, Index
+from sqlalchemy import Column, BigInteger, String, Float, DateTime, Integer, ForeignKey, Text
 from sqlalchemy.orm import relationship
-from .base import Base, GormBaseModel, TimestampMixin, SoftDeleteMixin
+from .base import Base, GormBaseModel, TimestampMixin
 
 
 class FollowedStock(Base):

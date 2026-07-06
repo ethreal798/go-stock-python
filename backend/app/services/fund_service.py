@@ -7,11 +7,10 @@ import httpx
 from typing import List, Optional, Dict, Any
 from datetime import datetime
 
-from sqlalchemy import select, or_, desc
+from sqlalchemy import select, or_
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.fund import Fund, FollowedFund
-from app.schemas.fund import FundResponse
 
 logger = logging.getLogger(__name__)
 
@@ -59,7 +58,8 @@ class FundService:
                     match = re.search(r'content:"(.*?)",', resp.text)
                     if match:
                         content = match.group(1)
-                        # 提取第一行数据: <td>2026-06-08</td><td class='tor bold'>1.2400</td><td class='tor bold'>3.8130</td><td class='tor bold grn'>-2.82%</td>
+                        # 提取第一行数据: <td>2026-06-08</td><td class='tor bold'>1.2400</td>
+                        # <td class='tor bold'>3.8130</td><td class='tor bold grn'>-2.82%</td>
                         row_match = re.search(
                             r"<td>(.*?)</td><td.*?>(.*?)</td><td.*?>(.*?)</td><td.*?>(.*?)</td>", content
                         )
@@ -100,7 +100,7 @@ class FundService:
                                 val_str = re.sub(r"<[^>]+>", "", match.group(1)).strip()
                                 val = float(val_str)
                                 setattr(fund, attr, val)
-                            except:
+                            except Exception:
                                 pass
 
                     # 尝试解析基金经理 (更加宽松的正则)
@@ -200,7 +200,8 @@ class FundService:
     async def sync_all_fund_basics(self) -> int:
         """从天天基金同步全量基金基础信息。"""
         headers = {
-            "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
+            "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
+                          "AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
             "Referer": "http://fund.eastmoney.com/",
         }
 

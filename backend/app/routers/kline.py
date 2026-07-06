@@ -4,7 +4,6 @@ from fastapi import APIRouter, Depends, Query
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.database import get_db
-from app.schemas.stock import KlineRequest
 from app.services.stock_service import StockService
 
 router = APIRouter(prefix="/kline", tags=["kline"])

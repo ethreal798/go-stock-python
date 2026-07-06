@@ -8,7 +8,6 @@ from app.core.database import get_db
 from app.schemas.agent import (
     ChatHistoryResponse,
     ChatRequest,
-    ChatResponse,
     ConversationSummary,
 )
 from app.services.agent_service import AgentService

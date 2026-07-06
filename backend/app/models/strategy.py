@@ -1,6 +1,6 @@
 """策略模型"""
 
-from sqlalchemy import Column, BigInteger, String, Integer, DateTime, Text
+from sqlalchemy import Column, BigInteger, String, Integer, Text
 from .base import Base, TimestampMixin
 
 

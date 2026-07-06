@@ -1,7 +1,7 @@
 """基金相关模型"""
 
-from sqlalchemy import Column, String, Float, DateTime, BigInteger, Index
-from .base import GormBaseModel, Base, TimestampMixin
+from sqlalchemy import Column, String, Float, DateTime, BigInteger
+from .base import GormBaseModel
 
 
 class Fund(GormBaseModel):
