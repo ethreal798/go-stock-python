@@ -36,11 +36,10 @@ export const getMarginData = (params?: { page?: number; pageSize?: number }) =>
 
 // 获取新闻列表
 export const getNewsList = (params?: {
-  source?: string;
+  count:number;
   page?: number;
-  pageSize?: number;
-  keyword?: string;
-}) => request.get<NewsItem[]>("/market/news", { params });
+  relevant_only?:boolean;
+}) => request.get<NewsItem[]>("/news/market", { params });
 
 // 获取快讯/电报
 export const getFlashNews = (params?: {
