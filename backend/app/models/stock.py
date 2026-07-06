@@ -7,6 +7,7 @@ from .base import Base, GormBaseModel, TimestampMixin, SoftDeleteMixin
 
 class FollowedStock(Base):
     """关注股票"""
+
     __tablename__ = "followed_stock"
 
     id = Column(BigInteger, primary_key=True, autoincrement=True)
@@ -29,13 +30,17 @@ class FollowedStock(Base):
     take_profit_price = Column(Float, name="take_profit_price")
     stop_loss_price = Column(Float, name="stop_loss_price")
 
-    groups = relationship("StockGroupItem", back_populates="stock",
-                          primaryjoin="FollowedStock.stock_code == StockGroupItem.stock_code",
-                          foreign_keys="StockGroupItem.stock_code")
+    groups = relationship(
+        "StockGroupItem",
+        back_populates="stock",
+        primaryjoin="FollowedStock.stock_code == StockGroupItem.stock_code",
+        foreign_keys="StockGroupItem.stock_code",
+    )
 
 
 class StockBasic(GormBaseModel):
     """股票基础信息"""
+
     __tablename__ = "stock_basics"
 
     ts_code = Column(String(50), index=True, name="ts_code")
@@ -61,6 +66,7 @@ class StockBasic(GormBaseModel):
 
 class AllStockInfo(GormBaseModel):
     """全量股票信息"""
+
     __tablename__ = "all_stock_info"
 
     secucode = Column(String(50), index=True, name="secucode")
@@ -83,6 +89,7 @@ class AllStockInfo(GormBaseModel):
 
 class StockInfoHK(GormBaseModel):
     """港股基础信息"""
+
     __tablename__ = "stock_base_info_hk"
 
     code = Column(String(20), index=True)
@@ -96,6 +103,7 @@ class StockInfoHK(GormBaseModel):
 
 class StockInfoUS(GormBaseModel):
     """美股基础信息"""
+
     __tablename__ = "stock_base_info_us"
 
     code = Column(String(20), index=True)
@@ -111,32 +119,37 @@ class StockInfoUS(GormBaseModel):
 
 class StockGroup(GormBaseModel):
     """股票分组"""
+
     __tablename__ = "stock_groups"
 
     user_id = Column(String(100), index=True, nullable=True, comment="所属用户ID")
     name = Column(String(100), index=True, comment="分组名称")
     sort = Column(Integer, default=0, comment="排序序号")
 
-    items = relationship("StockGroupItem", back_populates="group",
-                         cascade="all, delete-orphan")
+    items = relationship("StockGroupItem", back_populates="group", cascade="all, delete-orphan")
 
 
 class StockGroupItem(GormBaseModel):
     """股票分组项"""
+
     __tablename__ = "group_stock_info"
 
     stock_code = Column(String(20), index=True, name="stock_code", comment="股票代码")
     group_id = Column(BigInteger, ForeignKey("stock_groups.id"), index=True, name="group_id", comment="分组ID")
 
     group = relationship("StockGroup", back_populates="items")
-    stock = relationship("FollowedStock", back_populates="groups",
-                         primaryjoin="StockGroupItem.stock_code == FollowedStock.stock_code",
-                         foreign_keys=[stock_code],
-                         uselist=False)
+    stock = relationship(
+        "FollowedStock",
+        back_populates="groups",
+        primaryjoin="StockGroupItem.stock_code == FollowedStock.stock_code",
+        foreign_keys=[stock_code],
+        uselist=False,
+    )
 
 
 class StockInfo(GormBaseModel):
     """实时股票信息"""
+
     __tablename__ = "stock_infos"
 
     date = Column(String(20), index=True)
@@ -177,6 +190,7 @@ class StockInfo(GormBaseModel):
 
 class IndexBasic(GormBaseModel):
     """指数基础信息"""
+
     __tablename__ = "tushare_index_basic"
 
     ts_code = Column(String(50), index=True, name="ts_code")
@@ -196,6 +210,7 @@ class IndexBasic(GormBaseModel):
 
 class TradingRecord(Base, TimestampMixin):
     """交易记录"""
+
     __tablename__ = "trading_records"
 
     id = Column(BigInteger, primary_key=True, autoincrement=True)
@@ -217,6 +232,7 @@ class TradingRecord(Base, TimestampMixin):
 
 class BKDict(GormBaseModel):
     """板块字典"""
+
     __tablename__ = "bk_dict"
 
     bk_code = Column(String(50), name="bk_code")

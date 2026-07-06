@@ -6,6 +6,7 @@ from .base import GormBaseModel, Base, TimestampMixin
 
 class Fund(GormBaseModel):
     """基金基础信息"""
+
     __tablename__ = "funds"
 
     code = Column(String(20), unique=True, index=True, nullable=False, comment="基金代码")
@@ -26,6 +27,7 @@ class Fund(GormBaseModel):
 
 class FollowedFund(GormBaseModel):
     """关注基金"""
+
     __tablename__ = "followed_funds"
 
     user_id = Column(BigInteger, index=True, comment="用户ID")

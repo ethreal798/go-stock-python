@@ -25,7 +25,7 @@ class SseManager:
         async with self._lock:
             self._clients.add(queue)
             logger.info(f"New SSE client subscribed. Total clients: {len(self._clients)}")
-        
+
         try:
             while True:
                 # 等待信号
@@ -45,7 +45,7 @@ class SseManager:
         async with self._lock:
             if not self._clients:
                 return
-                
+
             logger.debug(f"Broadcasting SSE signal: {message} to {len(self._clients)} clients")
             # 批量将消息放入所有队列
             for queue in self._clients:

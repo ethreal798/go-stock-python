@@ -15,25 +15,25 @@ async def list_cron_tasks() -> list[dict]:
     return await scheduler_service.list_jobs()
 
 
-@router.post("", summary="创建定时任务")
-async def create_cron_task(
-    job_id: str = Query(..., description="任务唯一ID"),
-    task_type: str = Query(..., description="任务类型: refresh_quotes / alert_check / news_crawl"),
-    trigger_config: dict = Query(..., description="触发器配置"),
-    params: Optional[dict] = None,
-    enabled: bool = True,
-) -> dict:
-    """创建一个新的定时任务。"""
-    existing = await scheduler_service.get_job(job_id)
-    if existing:
-        raise HTTPException(status_code=409, detail=f"Job '{job_id}' already exists")
-    return await scheduler_service.add_job(
-        job_id=job_id,
-        task_type=task_type,
-        trigger_config=trigger_config,
-        params=params,
-        enabled=enabled,
-    )
+# @router.post("", summary="创建定时任务")
+# async def create_cron_task(
+#     job_id: str = Query(..., description="任务唯一ID"),
+#     task_type: str = Query(..., description="任务类型: refresh_quotes / alert_check / news_crawl"),
+#     trigger_config: dict = Query(..., description="触发器配置"),
+#     params: Optional[dict] = None,
+#     enabled: bool = True,
+# ) -> dict:
+#     """创建一个新的定时任务。"""
+#     existing = await scheduler_service.get_job(job_id)
+#     if existing:
+#         raise HTTPException(status_code=409, detail=f"Job '{job_id}' already exists")
+#     return await scheduler_service.add_job(
+#         job_id=job_id,
+#         task_type=task_type,
+#         trigger_config=trigger_config,
+#         params=params,
+#         enabled=enabled,
+#     )
 
 
 @router.get("/{job_id}", summary="获取任务详情")

@@ -42,6 +42,7 @@ async def get_funds(
 # 自选基金相关
 # ============================================================
 
+
 @router.get("/followed/list", response_model=List[FollowedFundResponse], summary="获取自选基金列表")
 async def get_followed_funds(
     current_user: User = Depends(get_current_user),
@@ -58,11 +59,7 @@ async def follow_fund(
     service: FundService = Depends(get_fund_service),
 ) -> FollowedFundResponse:
     """将基金加入自选列表。"""
-    return await service.follow_fund(
-        user_id=current_user.id, 
-        fund_code=fund_in.fund_code, 
-        remark=fund_in.remark
-    )
+    return await service.follow_fund(user_id=current_user.id, fund_code=fund_in.fund_code, remark=fund_in.remark)
 
 
 @router.delete("/follow/{code}", summary="取消关注基金")

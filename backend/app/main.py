@@ -37,7 +37,7 @@ async def lifespan(app: FastAPI):
         job_id="news_crawl_all",
         task_type="news_crawl",
         trigger_config={"interval_seconds": 60},
-        params={"source": "all"}
+        params={"source": "all"},
     )
     logger.info("Scheduler started")
 
@@ -95,6 +95,7 @@ app.include_router(kline.router, prefix=settings.API_PREFIX)
 # WebSocket 端点
 # ============================================================
 
+
 @app.websocket("/ws/{channel}")
 async def websocket_endpoint(websocket: WebSocket, channel: str) -> None:
     """WebSocket 连接端点。
@@ -118,6 +119,7 @@ async def websocket_endpoint(websocket: WebSocket, channel: str) -> None:
 # ============================================================
 # 健康检查
 # ============================================================
+
 
 @app.get("/health", tags=["health"])
 async def health_check() -> dict:

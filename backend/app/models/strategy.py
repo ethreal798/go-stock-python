@@ -6,6 +6,7 @@ from .base import Base, TimestampMixin
 
 class CustomStrategy(Base, TimestampMixin):
     """自定义策略"""
+
     __tablename__ = "custom_strategies"
 
     id = Column(BigInteger, primary_key=True, autoincrement=True)

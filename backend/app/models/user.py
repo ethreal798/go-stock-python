@@ -6,6 +6,7 @@ from .base import GormBaseModel
 
 class User(GormBaseModel):
     """系统用户"""
+
     __tablename__ = "users"
 
     username = Column(String(100), unique=True, index=True, nullable=False, comment="用户名")

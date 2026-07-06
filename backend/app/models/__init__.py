@@ -57,7 +57,7 @@ __all__ = [
     # fund
     "Fund",
     "FollowedFund",
-    #user
+    # user
     "User",
     # stock
     "FollowedStock",

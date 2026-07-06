@@ -41,7 +41,7 @@ async def news_stream():
             "Cache-Control": "no-cache",
             "Connection": "keep-alive",
             "Transfer-Encoding": "chunked",
-        }
+        },
     )
 
 

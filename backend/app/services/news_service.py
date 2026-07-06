@@ -27,21 +27,25 @@ class NewsService:
     SOURCES = {
         "cls": {"name": "财联社", "url": "https://www.cls.cn/nodeapi/telegraphList"},
         "wscn": {"name": "华尔街见闻", "url": "https://api-one-wscn.awtmt.com/apiv1/content/lives"},
-        "sina": {"name": "新浪财经快讯", "url": "https://zhibo.sina.com.cn/api/zhibo/feed?page=1&page_size=20&zhibo_id=152"},
-        "eastmoney": {"name": "东方财富快讯", "url": "https://newsapi.eastmoney.com/kuaixun/v1/getlist_102_6_20_1.html"},
-        "sina_market": {"name": "新浪市场要闻", "url": "https://feed.mix.sina.com.cn/api/roll/get?pageid=153&lid=2509&num=20&page=1"}
+        "sina": {
+            "name": "新浪财经快讯",
+            "url": "https://zhibo.sina.com.cn/api/zhibo/feed?page=1&page_size=20&zhibo_id=152",
+        },
+        "eastmoney": {
+            "name": "东方财富快讯",
+            "url": "https://newsapi.eastmoney.com/kuaixun/v1/getlist_102_6_20_1.html",
+        },
+        "sina_market": {
+            "name": "新浪市场要闻",
+            "url": "https://feed.mix.sina.com.cn/api/roll/get?pageid=153&lid=2509&num=20&page=1",
+        },
     }
 
     def __init__(self, db: AsyncSession) -> None:
         self.db = db
 
     async def get_telegraphs(
-            self,
-            source: str = "all",
-            type: str = "fast",
-            limit: int = 20,
-            page: int = 1,
-            relevant_only: bool = True
+        self, source: str = "all", type: str = "fast", limit: int = 20, page: int = 1, relevant_only: bool = True
     ) -> List[TelegraphResponse]:
         """获取电报快讯或市场要闻（纯查库）。"""
         stmt = select(Telegraph).where(Telegraph.type == type)
@@ -49,7 +53,7 @@ class NewsService:
         if source != "all" and source in self.SOURCES:
             source_name = self.SOURCES[source]["name"]
             stmt = stmt.where(Telegraph.source.contains(source_name))
-        
+
         if relevant_only:
             stmt = stmt.where(Telegraph.is_relevant == True)
 
@@ -73,8 +77,9 @@ class NewsService:
                 stocks=[],
                 is_relevant=t.is_relevant,
                 relevance_score=t.relevance_score or 0,
-                category=t.category
-            ) for t in telegraphs
+                category=t.category,
+            )
+            for t in telegraphs
         ]
 
     async def fetch_all_sources(self) -> Dict[str, int]:
@@ -84,11 +89,11 @@ class NewsService:
         for source_key in ["cls", "wscn", "sina", "eastmoney"]:
             count = await self.fetch_remote_news(source_key, type="fast")
             results[source_key] = count
-        
+
         # 抓取要闻
         market_count = await self.fetch_remote_news("sina_market", type="news")
         results["sina_market"] = market_count
-        
+
         return results
 
     async def fetch_remote_news(self, source: str, type: str = "fast") -> int:
@@ -114,7 +119,7 @@ class NewsService:
         url = self.SOURCES["cls"]["url"]
         headers = {
             "Referer": "https://www.cls.cn/",
-            "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/119.0.0.0 Safari/537.36"
+            "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/119.0.0.0 Safari/537.36",
         }
 
         async with httpx.AsyncClient(timeout=10.0) as client:
@@ -177,14 +182,14 @@ class NewsService:
         url = self.SOURCES["eastmoney"]["url"]
         headers = {
             "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
-            "Referer": "https://kuaixun.eastmoney.com/"
+            "Referer": "https://kuaixun.eastmoney.com/",
         }
 
         async with httpx.AsyncClient(timeout=10.0) as client:
             try:
                 response = await client.get(url, headers=headers)
                 text = response.text
-                json_match = re.search(r'var\s+.*?=(.*);', text)
+                json_match = re.search(r"var\s+.*?=(.*);", text)
                 if not json_match:
                     try:
                         data = response.json()
@@ -192,6 +197,7 @@ class NewsService:
                         return 0
                 else:
                     import json
+
                     data = json.loads(json_match.group(1))
 
                 items = data.get("LivesList", [])
@@ -216,10 +222,7 @@ class NewsService:
                 continue
 
             # 使用过滤服务分析新闻
-            is_relevant, relevance_score, category = NewsFilterService.analyze(
-                parsed["title"] or "",
-                parsed["content"]
-            )
+            is_relevant, relevance_score, category = NewsFilterService.analyze(parsed["title"] or "", parsed["content"])
 
             new_news = Telegraph(
                 title=parsed["title"],
@@ -233,7 +236,7 @@ class NewsService:
                 sentiment_result="Neutral",
                 is_relevant=is_relevant,
                 relevance_score=relevance_score,
-                category=category
+                category=category,
             )
             self.db.add(new_news)
             count += 1
@@ -256,7 +259,7 @@ class NewsService:
                     "content": self._clean_html(content),
                     "data_time": datetime.strptime(item.get("showtime", ""), "%Y-%m-%d %H:%M:%S"),
                     "url": item.get("url", ""),
-                    "is_red": False
+                    "is_red": False,
                 }
             elif source == "cls":
                 return {
@@ -264,7 +267,7 @@ class NewsService:
                     "content": self._clean_html(item.get("content", "")),
                     "data_time": datetime.fromtimestamp(item.get("ctime", 0)),
                     "url": item.get("shareurl", ""),
-                    "is_red": item.get("level", "") != "C"
+                    "is_red": item.get("level", "") != "C",
                 }
             elif source == "wscn":
                 content = item.get("content_text", "") or item.get("content", "")
@@ -273,7 +276,7 @@ class NewsService:
                     "content": self._clean_html(content),
                     "data_time": datetime.fromtimestamp(item.get("display_time", 0)),
                     "url": item.get("uri", ""),
-                    "is_red": item.get("score", 0) > 1
+                    "is_red": item.get("score", 0) > 1,
                 }
             elif source == "sina":
                 content = item.get("rich_text", "")
@@ -287,7 +290,7 @@ class NewsService:
                     "content": self._clean_html(content),
                     "data_time": dt,
                     "url": "",
-                    "is_red": "焦点" in item.get("tag", [])
+                    "is_red": "焦点" in item.get("tag", []),
                 }
             elif source == "sina_market":
                 content = item.get("intro", "") or item.get("title", "")
@@ -297,7 +300,7 @@ class NewsService:
                     "content": self._clean_html(content),
                     "data_time": dt,
                     "url": item.get("url", ""),
-                    "is_red": False
+                    "is_red": False,
                 }
         except Exception as e:
             logger.warning(f"Parse error for {source}: {e}")
@@ -307,6 +310,6 @@ class NewsService:
         """清理 HTML 标签和多余空格。"""
         if not text:
             return ""
-        text = re.sub(r'<[^>]+>', '', text)
+        text = re.sub(r"<[^>]+>", "", text)
         text = text.replace("&nbsp;", " ").strip()
         return text
