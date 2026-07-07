@@ -10,7 +10,7 @@ from fastapi import FastAPI, WebSocket, WebSocketDisconnect
 from fastapi.middleware.cors import CORSMiddleware
 
 from app.config import settings
-from app.core.database import close_db, init_db
+from app.core.database import close_db
 from app.core.redis import close_redis
 from app.core.websocket import ws_manager
 from app.routers import agent, auth, cron_tasks, funds, kline, market, news, settings as settings_router, stocks
@@ -24,10 +24,6 @@ async def lifespan(app: FastAPI):
     """应用生命周期管理：启动和关闭。"""
     # ---- 启动 ----
     logger.info("Starting %s v%s ...", settings.APP_NAME, settings.APP_VERSION)
-
-    # 初始化数据库
-    await init_db()
-    logger.info("Database initialized")
 
     # 启动调度器
     scheduler_service.start()

@@ -46,8 +46,6 @@ class FollowedFundCreate(BaseModel):
 
     fund_code: str = Field(..., description="基金代码")
     remark: Optional[str] = Field(None, description="备注")
-    hold_units: Optional[float] = Field(0.0, description="持有份额")
-    cost_price: Optional[float] = Field(0.0, description="持仓成本")
 
 
 class FollowedFundResponse(BaseModel):

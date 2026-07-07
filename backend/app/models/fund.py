@@ -33,7 +33,3 @@ class FollowedFund(GormBaseModel):
     user_id = Column(BigInteger, index=True, comment="用户ID")
     fund_code = Column(String(20), index=True, nullable=False, comment="基金代码")
     remark = Column(String(200), comment="备注")
-
-    # 可以考虑增加持仓相关字段
-    hold_units = Column(Float, default=0.0, comment="持有份额")
-    cost_price = Column(Float, default=0.0, comment="持仓成本")
