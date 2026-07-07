@@ -223,7 +223,7 @@ class FundService:
         """从天天基金同步全量基金基础信息。"""
         headers = {
             "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
-                          "AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
+            "AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
             "Referer": "http://fund.eastmoney.com/",
         }
 
@@ -257,7 +257,7 @@ class FundService:
         # 为了性能，我们分批处理
         batch_size = 500
         for i in range(0, total, batch_size):
-            batch = fund_items[i: i + batch_size]
+            batch = fund_items[i : i + batch_size]
 
             for item in batch:
                 # item 格式: [代码, 拼音缩写, 名称, 类型, 全拼]
