@@ -128,6 +128,30 @@ class FundService:
         result = await self.db.execute(stmt)
         return list(result.scalars().all())
 
+    async def search_funds(self, keyword: str, limit: int = 20, page: int = 1) -> List[Fund]:
+        """专门的搜索基金接口，支持代码和名称模糊匹配。
+        Args:
+            keyword: 搜索关键词
+            limit: 每页数量
+            page: 页码
+        Returns:
+            基金列表
+        """
+        stmt = select(Fund)
+
+        # 支持代码和名称模糊搜索
+        stmt = stmt.where(or_(Fund.code.ilike(f"%{keyword}%"), Fund.name.ilike(f"%{keyword}%")))
+
+        # 优化排序：优先匹配代码精确前缀的，再按名称排序
+        stmt = (
+            stmt.order_by(Fund.code.ilike(f"{keyword}%").desc(), Fund.name.ilike(f"{keyword}%").desc(), Fund.code)
+            .limit(limit)
+            .offset((page - 1) * limit)
+        )
+
+        result = await self.db.execute(stmt)
+        return list(result.scalars().all())
+
     # ============================================================
     # 自选基金相关
     # ============================================================
@@ -150,8 +174,6 @@ class FundService:
                 "user_id": record.user_id,
                 "fund_code": record.fund_code,
                 "remark": record.remark,
-                "hold_units": record.hold_units,
-                "cost_price": record.cost_price,
                 "created_at": record.created_at,
                 "updated_at": record.updated_at,
                 "fund_info": fund,
@@ -201,7 +223,7 @@ class FundService:
         """从天天基金同步全量基金基础信息。"""
         headers = {
             "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
-            "AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
+                          "AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
             "Referer": "http://fund.eastmoney.com/",
         }
 
@@ -235,7 +257,7 @@ class FundService:
         # 为了性能，我们分批处理
         batch_size = 500
         for i in range(0, total, batch_size):
-            batch = fund_items[i : i + batch_size]
+            batch = fund_items[i: i + batch_size]
 
             for item in batch:
                 # item 格式: [代码, 拼音缩写, 名称, 类型, 全拼]

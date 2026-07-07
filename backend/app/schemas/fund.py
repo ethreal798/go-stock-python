@@ -55,8 +55,6 @@ class FollowedFundResponse(BaseModel):
     user_id: int
     fund_code: str
     remark: Optional[str] = None
-    hold_units: float
-    cost_price: float
 
     # 嵌套基金基础信息
     fund_info: Optional[FundResponse] = None

@@ -38,6 +38,17 @@ async def get_funds(
     return await service.get_funds(keyword=keyword, page=page, limit=limit)
 
 
+@router.get("/search", response_model=List[FundResponse], summary="搜索基金")
+async def search_funds(
+    keyword: str = Query(..., description="搜索关键词(代码/名称)"),
+    page: int = Query(1, ge=1, description="页码"),
+    limit: int = Query(20, ge=1, le=100, description="每页数量"),
+    service: FundService = Depends(get_fund_service),
+) -> List[FundResponse]:
+    """搜索基金，支持代码和名称模糊匹配。"""
+    return await service.search_funds(keyword=keyword, page=page, limit=limit)
+
+
 # ============================================================
 # 自选基金相关
 # ============================================================
