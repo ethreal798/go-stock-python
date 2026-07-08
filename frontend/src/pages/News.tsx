@@ -40,6 +40,20 @@ const News: React.FC = () => {
   const [newsPage, setNewsPage] = useState(1);
   const [newsHasMore, setNewsHasMore] = useState(true);
   const newsScrollRef = useRef<HTMLDivElement>(null);
+  
+  // 用于避免 useEffect 依赖项问题的 refs
+  const flashLoadingRef = useRef(flashLoading);
+  const newsLoadingRef = useRef(newsLoading);
+  const fetchFlashRef = useRef<typeof fetchFlash>();
+  const fetchNewsRef = useRef<typeof fetchNews>();
+  
+  // 同步状态到 ref
+  useEffect(() => {
+    flashLoadingRef.current = flashLoading;
+    newsLoadingRef.current = newsLoading;
+    fetchFlashRef.current = fetchFlash;
+    fetchNewsRef.current = fetchNews;
+  });
 
   // 更新实时时间
   useEffect(() => {
@@ -52,7 +66,7 @@ const News: React.FC = () => {
   // 获取快讯数据
   const fetchFlash = useCallback(
     async (pageNum: number, isRefresh = false) => {
-      if (flashLoading) return;
+      if (flashLoadingRef.current) return;
       setFlashLoading(true);
       try {
         const res = await getFlashNews({
@@ -79,13 +93,13 @@ const News: React.FC = () => {
         setFlashLoading(false);
       }
     },
-    [flashLoading],
+    [], // 依赖项现在是空的，用 ref 读 loading
   );
 
   // 获取普通新闻数据
   const fetchNews = useCallback(
     async (pageNum: number, isRefresh = false) => {
-      if (newsLoading) return;
+      if (newsLoadingRef.current) return;
       setNewsLoading(true);
       try {
         const res = await getNewsList({ count: 20, page: pageNum });
@@ -108,7 +122,7 @@ const News: React.FC = () => {
         setNewsLoading(false);
       }
     },
-    [newsLoading],
+    [], // 依赖项现在是空的
   );
 
 
@@ -116,7 +130,7 @@ const News: React.FC = () => {
   useEffect(() => {
     fetchFlash(1, true);
     fetchNews(1, true);
-  }, []);
+  }, [fetchFlash, fetchNews]); // 目前可以安全地依赖了
 
   // SSE 实时监听新快讯
   useEffect(() => {
@@ -125,23 +139,20 @@ const News: React.FC = () => {
 
     eventSource.onmessage = (event) => {
       console.log("SSE 收到消息:", event.data);
-      // 如果后端直接发数据或者发 refresh 信号，都在这里处理
       if (event.data === "refresh" || event.data) {
-        // 收到 refresh 信号，手动刷新列表
-        fetchFlash(1, true);
-        fetchNews(1, true);  
+        fetchFlashRef.current?.(1, true);
+        fetchNewsRef.current?.(1, true);
       }
     };
 
     eventSource.onerror = (error) => {
       console.error("SSE 连接错误:", error);
-      // 可以不用做特殊处理，EventSource 会自动重连
     };
 
     return () => {
-      eventSource.close(); // 组件卸载时关闭连接
+      eventSource.close();
     };
-  }, []); // 空依赖数组，挂载时建立一次
+  }, []); // 保持依赖项为空，因为我们用 ref 调用函数
 
   // 快讯触底加载逻辑
   const handleFlashScroll = (e: React.UIEvent<HTMLDivElement>) => {
