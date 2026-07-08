@@ -55,7 +55,7 @@ class NewsService:
             stmt = stmt.where(Telegraph.source.contains(source_name))
 
         if relevant_only:
-            stmt = stmt.where(Telegraph.is_relevant == 1)
+            stmt = stmt.where(Telegraph.is_relevant == bool(1))
 
         stmt = stmt.order_by(desc(Telegraph.data_time)).limit(limit).offset((page - 1) * limit)
 
