@@ -13,7 +13,7 @@ import reactHooks from "eslint-plugin-react-hooks";
 import reactRefresh from "eslint-plugin-react-refresh";
 import tseslint from "typescript-eslint";
 
-export default [
+export default tseslint.config(
   // 构建产物和依赖目录不进行代码检查
   {
     ignores: ["dist", "node_modules"],
@@ -69,4 +69,4 @@ export default [
       "prefer-arrow-callback": "warn",
     },
   },
-];
+);
