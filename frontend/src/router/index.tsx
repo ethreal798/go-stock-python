@@ -10,7 +10,6 @@ const Fund = lazy(() => import("@/pages/Fund"));
 const CronTasks = lazy(() => import("@/pages/CronTasks"));
 const Settings = lazy(() => import("@/pages/Settings"));
 const About = lazy(() => import("@/pages/About"));
-const Login = lazy(() => import("@/pages/Login"));
 
 import AuthGuard from "@/components/AuthGuard";
 
