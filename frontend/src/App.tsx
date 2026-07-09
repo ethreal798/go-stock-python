@@ -33,7 +33,15 @@ const menuItems: MenuProps["items"] = [
   { key: "/market", icon: <StockOutlined />, label: "行情中心" },
   { key: "/agent", icon: <RobotOutlined />, label: "AI 对话" },
   { key: "/news", icon: <NotificationOutlined />, label: "新闻资讯" },
-  { key: "/fund", icon: <FundOutlined />, label: "基金" },
+  { 
+    key: "/fund", 
+    icon: <FundOutlined />, 
+    label: "基金",
+    children: [
+      { key: "/fund", label: "我的关注" },
+      { key: "/fund/market", label: "基金市场" }
+    ]
+  },
   { key: "/cron-tasks", icon: <ClockCircleOutlined />, label: "定时任务" },
   { key: "/settings", icon: <SettingOutlined />, label: "设置" },
   { key: "/about", icon: <InfoCircleOutlined />, label: "关于" },
