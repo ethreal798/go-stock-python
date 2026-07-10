@@ -7,7 +7,6 @@ import {
   Avatar,
   Space,
   Tooltip,
-  Select,
   Typography,
   Spin,
   Divider,
@@ -32,7 +31,6 @@ import {
   clearSession,
 } from "@/api/agent";
 import type { ChatMessage, ChatSession } from "@/types";
-import dayjs from "dayjs";
 
 const { TextArea } = Input;
 const { Text } = Typography;

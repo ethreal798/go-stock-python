@@ -6,11 +6,10 @@ const Dashboard = lazy(() => import("@/pages/Dashboard"));
 const Market = lazy(() => import("@/pages/Market"));
 const Agent = lazy(() => import("@/pages/Agent"));
 const News = lazy(() => import("@/pages/News"));
-const Fund = lazy(() => import("@/pages/Fund"));
+const Fund = lazy(() => import("@/pages/Fund/index")); 
 const CronTasks = lazy(() => import("@/pages/CronTasks"));
 const Settings = lazy(() => import("@/pages/Settings"));
 const About = lazy(() => import("@/pages/About"));
-const Login = lazy(() => import("@/pages/Login"));
 
 import AuthGuard from "@/components/AuthGuard";
 
@@ -37,14 +36,14 @@ const AppRouter: React.FC = () => {
           <Route path="/agent" element={<Agent />} />
           <Route path="/news" element={<News />} />
           <Route path="/fund" element={<Fund />} />
+          <Route path="/fund/market" element={<Fund />} />
           <Route path="/cron-tasks" element={<CronTasks />} />
           <Route path="/settings" element={<Settings />} />
           <Route path="/about" element={<About />} />
         </Routes>
-        
       </AuthGuard>
     </Suspense>
-  )
-}
+  );
+};
 
 export default AppRouter;

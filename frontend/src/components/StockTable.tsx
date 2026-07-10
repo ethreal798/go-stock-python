@@ -21,10 +21,10 @@ interface StockTableProps {
 const formatNumber = (v: number, digits = 2) =>
   v == null ? "-" : v.toFixed(digits);
 
-const formatAmount = (v: number) => {
+const formatAmount = (v: number):string => {
   if (v == null) return "-";
-  if (v >= 1e8) return (v / 1e8).toFixed(2) + "亿";
-  if (v >= 1e4) return (v / 1e4).toFixed(2) + "万";
+  if (v >= 1e8) return `${(v / 1e8).toFixed(2)  }亿`;
+  if (v >= 1e4) return `${(v / 1e4).toFixed(2)  }万`;
   return v.toFixed(0);
 };
 

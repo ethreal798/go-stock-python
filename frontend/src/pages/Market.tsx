@@ -1,5 +1,5 @@
-import React, { useEffect, useState } from 'react'
-import { Card, Tabs, Table, Tag, Space, Badge, Statistic, Row, Col } from 'antd'
+import React, { useEffect, useState, useCallback } from 'react'
+import { Card, Tabs, Table, Tag, Statistic, Row, Col } from 'antd'
 import { ArrowUpOutlined, ArrowDownOutlined, FireOutlined } from '@ant-design/icons'
 import type { ColumnsType } from 'antd/es/table'
 import { getHotStocks, getLimitUpStocks, getAbnormalStocks, getDragonTiger, getMarketIndexes } from '@/api/market'
@@ -43,8 +43,8 @@ const Market: React.FC = () => {
       .catch(() => {})
   }, [])
 
-  const loadHot = () => {
-    setTabLoading('hot', true)
+  const loadHot = useCallback(() => {
+      setTabLoading('hot', true)
     getHotStocks()
       .then((res) => {
         const data = (res.data as { data?: HotStockRow[] })?.data ?? []
@@ -52,7 +52,7 @@ const Market: React.FC = () => {
       })
       .catch(() => {})
       .finally(() => setTabLoading('hot', false))
-  }
+  }, [])
 
   const loadLimitUp = () => {
     setTabLoading('limitUp', true)
@@ -87,7 +87,7 @@ const Market: React.FC = () => {
       .finally(() => setTabLoading('abnormal', false))
   }
 
-  useEffect(() => { loadHot() }, [])
+  useEffect(() => { loadHot() }, [loadHot])
 
   const hotColumns: ColumnsType<HotStockRow> = [
     { title: '排名', dataIndex: 'rank', width: 60, render: (v: number) => <Tag color={v <= 3 ? 'gold' : 'default'}>{v}</Tag> },
