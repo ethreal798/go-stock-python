@@ -1,11 +1,12 @@
 """用户模型。"""
 
-from sqlalchemy import Column, String, Boolean, DateTime, func
+from sqlalchemy import Column, String, Boolean, DateTime
 from .base import GormBaseModel
 
 
 class User(GormBaseModel):
     """系统用户"""
+
     __tablename__ = "users"
 
     username = Column(String(100), unique=True, index=True, nullable=False, comment="用户名")

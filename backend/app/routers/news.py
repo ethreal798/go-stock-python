@@ -1,7 +1,5 @@
 """新闻资讯路由。"""
 
-from typing import Optional
-
 from fastapi import APIRouter, Depends, Query
 from fastapi.responses import StreamingResponse
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -41,7 +39,7 @@ async def news_stream():
             "Cache-Control": "no-cache",
             "Connection": "keep-alive",
             "Transfer-Encoding": "chunked",
-        }
+        },
     )
 
 

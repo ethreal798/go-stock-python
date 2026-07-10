@@ -2,11 +2,12 @@
 
 from sqlalchemy import Column, BigInteger, String, Integer, Boolean, Float, DateTime, Text, ForeignKey, Index, func
 from sqlalchemy.orm import relationship
-from .base import Base, GormBaseModel, TimestampMixin
+from .base import Base, GormBaseModel
 
 
 class Telegraph(GormBaseModel):
     """电报/快讯"""
+
     __tablename__ = "telegraph_list"
 
     time = Column(String(50), comment="发布时间(HH:mm:ss)")
@@ -18,46 +19,48 @@ class Telegraph(GormBaseModel):
     source = Column(String(100), index=True, comment="来源: 财联社/华尔街见闻")
     type = Column(String(20), default="fast", index=True)  # fast: 快讯, news: 要闻
     sentiment_result = Column(String(50), index=True, name="sentiment_result", comment="AI情感分析结果")
-    
+
     # 新增：金融相关性字段
     is_relevant = Column(Boolean, default=True, index=True, name="is_relevant", comment="是否为金融相关新闻")
     relevance_score = Column(Integer, default=0, index=True, name="relevance_score", comment="相关性评分 0-100")
-    category = Column(String(50), index=True, name="category", comment="新闻分类: macro/industry/company/regulatory/international/other")
+    category = Column(
+        String(50),
+        index=True,
+        name="category",
+        comment="新闻分类: macro/industry/company/regulatory/international/other",
+    )
 
-    telegraph_tags = relationship("TelegraphTags", back_populates="telegraph",
-                        overlaps="tags")
-    tags = relationship("Tags", secondary="telegraph_tags",
-                        back_populates="telegraphs", overlaps="telegraph_tags")
+    telegraph_tags = relationship("TelegraphTags", back_populates="telegraph", overlaps="tags")
+    tags = relationship("Tags", secondary="telegraph_tags", back_populates="telegraphs", overlaps="telegraph_tags")
 
 
 class TelegraphTags(GormBaseModel):
     """电报标签关联"""
+
     __tablename__ = "telegraph_tags"
 
     tag_id = Column(BigInteger, ForeignKey("tags.id"), name="tag_id")
     telegraph_id = Column(BigInteger, ForeignKey("telegraph_list.id"), name="telegraph_id")
 
-    telegraph = relationship("Telegraph", back_populates="telegraph_tags",
-                              overlaps="tags")
-    tag = relationship("Tags", back_populates="telegraph_tags",
-                        overlaps="telegraphs")
+    telegraph = relationship("Telegraph", back_populates="telegraph_tags", overlaps="tags")
+    tag = relationship("Tags", back_populates="telegraph_tags", overlaps="telegraphs")
 
 
 class Tags(GormBaseModel):
     """标签"""
+
     __tablename__ = "tags"
 
     name = Column(String(100))
     type = Column(String(50))
 
-    telegraph_tags = relationship("TelegraphTags", back_populates="tag",
-                                   overlaps="telegraphs")
-    telegraphs = relationship("Telegraph", secondary="telegraph_tags",
-                              back_populates="tags", overlaps="telegraph_tags")
+    telegraph_tags = relationship("TelegraphTags", back_populates="tag", overlaps="telegraphs")
+    telegraphs = relationship("Telegraph", secondary="telegraph_tags", back_populates="tags", overlaps="telegraph_tags")
 
 
 class MarketStatistic(Base):
     """全市场行情统计"""
+
     __tablename__ = "market_statistic"
 
     id = Column(BigInteger, primary_key=True, autoincrement=True)
@@ -80,6 +83,7 @@ class MarketStatistic(Base):
 
 class StockChangeHistory(Base):
     """股票异动历史"""
+
     __tablename__ = "stock_change_history"
 
     id = Column(BigInteger, primary_key=True, autoincrement=True)
@@ -99,13 +103,24 @@ class StockChangeHistory(Base):
     created_at = Column(DateTime, default=func.now(), name="created_at")
 
     __table_args__ = (
-        Index("idx_unique_change", "change_time", "change_date", "stock_code",
-              "change_type", "volume", "price", "change_rate", "amount", unique=True),
+        Index(
+            "idx_unique_change",
+            "change_time",
+            "change_date",
+            "stock_code",
+            "change_type",
+            "volume",
+            "price",
+            "change_rate",
+            "amount",
+            unique=True,
+        ),
     )
 
 
 class WordAnalyze(GormBaseModel):
     """词频分析"""
+
     __tablename__ = "word_analyzes"
 
     data_time = Column(DateTime, index=True, default=func.now(), name="data_time")
@@ -117,6 +132,7 @@ class WordAnalyze(GormBaseModel):
 
 class SentimentResultAnalyze(GormBaseModel):
     """情感分析结果"""
+
     __tablename__ = "sentiment_result_analyzes"
 
     data_time = Column(DateTime, index=True, default=func.now(), name="data_time")
@@ -129,6 +145,7 @@ class SentimentResultAnalyze(GormBaseModel):
 
 class GlobalStockIndex(GormBaseModel):
     """全球股票指数"""
+
     __tablename__ = "global_stock_index"
 
     code = Column(String(20), index=True)
@@ -145,6 +162,7 @@ class GlobalStockIndex(GormBaseModel):
 
 class LongTigerRankData(GormBaseModel):
     """龙虎榜数据"""
+
     __tablename__ = "long_tiger_rank"
 
     accum_amount = Column(Float, name="accum_amount")

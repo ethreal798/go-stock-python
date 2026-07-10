@@ -57,9 +57,7 @@ async def follow_stock(
     service: StockService = Depends(get_stock_service),
 ) -> StockResponse:
     """添加一只股票到关注列表。"""
-    result = await service.follow_stock(
-        code=stock.code, name=stock.name, group=stock.group_name
-    )
+    result = await service.follow_stock(code=stock.code, name=stock.name, group=stock.group_name)
     return result  # type: ignore[return-value]
 
 

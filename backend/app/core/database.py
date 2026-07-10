@@ -16,7 +16,7 @@ engine = create_async_engine(
     pool_size=settings.DB_POOL_SIZE,
     max_overflow=settings.DB_MAX_OVERFLOW,
     pool_pre_ping=True,  # 自动检测并回收断开的连接
-    pool_recycle=3600,   # 每小时回收连接，防止连接被数据库强制断开
+    pool_recycle=3600,  # 每小时回收连接，防止连接被数据库强制断开
 )
 
 # 异步会话工厂

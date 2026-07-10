@@ -10,7 +10,7 @@ from fastapi import FastAPI, WebSocket, WebSocketDisconnect
 from fastapi.middleware.cors import CORSMiddleware
 
 from app.config import settings
-from app.core.database import close_db, init_db
+from app.core.database import close_db
 from app.core.redis import close_redis
 from app.core.websocket import ws_manager
 from app.routers import agent, auth, cron_tasks, funds, kline, market, news, settings as settings_router, stocks
@@ -25,10 +25,6 @@ async def lifespan(app: FastAPI):
     # ---- 启动 ----
     logger.info("Starting %s v%s ...", settings.APP_NAME, settings.APP_VERSION)
 
-    # 初始化数据库
-    await init_db()
-    logger.info("Database initialized")
-
     # 启动调度器
     scheduler_service.start()
 
@@ -37,7 +33,7 @@ async def lifespan(app: FastAPI):
         job_id="news_crawl_all",
         task_type="news_crawl",
         trigger_config={"interval_seconds": 60},
-        params={"source": "all"}
+        params={"source": "all"},
     )
     logger.info("Scheduler started")
 
@@ -95,6 +91,7 @@ app.include_router(kline.router, prefix=settings.API_PREFIX)
 # WebSocket 端点
 # ============================================================
 
+
 @app.websocket("/ws/{channel}")
 async def websocket_endpoint(websocket: WebSocket, channel: str) -> None:
     """WebSocket 连接端点。
@@ -118,6 +115,7 @@ async def websocket_endpoint(websocket: WebSocket, channel: str) -> None:
 # ============================================================
 # 健康检查
 # ============================================================
+
 
 @app.get("/health", tags=["health"])
 async def health_check() -> dict:

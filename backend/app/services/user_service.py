@@ -35,7 +35,7 @@ class UserService:
             return None
         if not verify_password(password, user.hashed_password):
             return None
-        
+
         # 更新最后登录时间
         user.last_login = datetime.now()
         await self.db.commit()
@@ -50,7 +50,7 @@ class UserService:
                 status_code=status.HTTP_400_BAD_REQUEST,
                 detail="该邮箱已被注册",
             )
-        
+
         # 创建新用户
         db_user = User(
             email=user_in.email,
@@ -72,22 +72,20 @@ class UserService:
             headers={"WWW-Authenticate": "Bearer"},
         )
         try:
-            payload = jwt.decode(
-                token, settings.SECRET_KEY, algorithms=[settings.ALGORITHM]
-            )
+            payload = jwt.decode(token, settings.SECRET_KEY, algorithms=[settings.ALGORITHM])
             user_id: str = payload.get("sub")
             if user_id is None:
                 raise credentials_exception
             token_data = TokenPayload(sub=int(user_id))
         except (JWTError, ValueError):
             raise credentials_exception
-        
+
         result = await self.db.execute(select(User).where(User.id == token_data.sub))
         user = result.scalars().first()
-        
+
         if user is None:
             raise credentials_exception
         if not user.is_active:
             raise HTTPException(status_code=400, detail="用户已被禁用")
-            
+
         return user

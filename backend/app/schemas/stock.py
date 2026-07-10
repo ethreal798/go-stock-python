@@ -5,10 +5,10 @@ from typing import Optional
 
 from pydantic import BaseModel, Field
 
-
 # ============================================================
 # 基础模型
 # ============================================================
+
 
 class StockBase(BaseModel):
     """股票基础信息。"""
@@ -42,6 +42,7 @@ class StockResponse(StockBase):
 # 实时行情
 # ============================================================
 
+
 class StockRealTimePrice(BaseModel):
     """股票实时行情。"""
 
@@ -68,6 +69,7 @@ class StockRealTimePrice(BaseModel):
 # 搜索
 # ============================================================
 
+
 class StockSearchResult(BaseModel):
     """股票搜索结果。"""
 
@@ -80,6 +82,7 @@ class StockSearchResult(BaseModel):
 # ============================================================
 # K线
 # ============================================================
+
 
 class KlineRequest(BaseModel):
     """K线数据请求。"""

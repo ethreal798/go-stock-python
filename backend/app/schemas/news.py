@@ -20,7 +20,7 @@ class TelegraphResponse(BaseModel):
     sentiment_result: Optional[str] = Field(None, description="情感分析结果")
     subjects: list[str] = Field(default_factory=list, description="相关板块/主题")
     stocks: list[str] = Field(default_factory=list, description="相关股票")
-    
+
     # 新增字段
     is_relevant: bool = Field(True, description="是否为金融相关新闻")
     relevance_score: int = Field(0, description="相关性评分 0-100")

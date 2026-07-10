@@ -6,11 +6,9 @@
 import logging
 import uuid
 from collections.abc import AsyncGenerator
-from typing import Optional
 
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.config import settings
 from app.schemas.agent import (
     ChatMessage,
     ChatRequest,

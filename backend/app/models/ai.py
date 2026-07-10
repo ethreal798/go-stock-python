@@ -1,11 +1,12 @@
 """AI 相关模型"""
 
-from sqlalchemy import Column, BigInteger, String, DateTime, Integer, Boolean, Float, Text, Index, func
+from sqlalchemy import Column, BigInteger, String, DateTime, Integer, Boolean, Float, Text, func
 from .base import Base, GormBaseModel, TimestampMixin
 
 
 class AIResponseResult(GormBaseModel):
     """AI 响应结果"""
+
     __tablename__ = "ai_response_result"
 
     chat_id = Column(String(100), name="chat_id")
@@ -19,6 +20,7 @@ class AIResponseResult(GormBaseModel):
 
 class AIRecommendStocks(GormBaseModel):
     """AI 推荐股票"""
+
     __tablename__ = "ai_recommend_stocks"
 
     data_time = Column(DateTime, index=True, name="data_time")
@@ -48,6 +50,7 @@ class AIRecommendStocks(GormBaseModel):
 
 class PromptTemplate(Base, TimestampMixin):
     """提示词模板"""
+
     __tablename__ = "prompt_templates"
 
     id = Column(Integer, primary_key=True, autoincrement=True)
@@ -58,6 +61,7 @@ class PromptTemplate(Base, TimestampMixin):
 
 class ChatMemory(Base):
     """聊天记忆"""
+
     __tablename__ = "chat_memory"
 
     id = Column(BigInteger, primary_key=True, autoincrement=True)

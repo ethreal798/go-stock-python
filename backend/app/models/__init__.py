@@ -23,6 +23,13 @@ from .ai import (
     PromptTemplate,
     ChatMemory,
 )
+from .rag import (
+    RagDocument,
+    RagChunk,
+    RagChunkEmbedding,
+    RagEntity,
+    RagQueryLog,
+)
 from .market import (
     Telegraph,
     TelegraphTags,
@@ -57,7 +64,7 @@ __all__ = [
     # fund
     "Fund",
     "FollowedFund",
-    #user
+    # user
     "User",
     # stock
     "FollowedStock",
@@ -76,6 +83,11 @@ __all__ = [
     "AIRecommendStocks",
     "PromptTemplate",
     "ChatMemory",
+    "RagDocument",
+    "RagChunk",
+    "RagChunkEmbedding",
+    "RagEntity",
+    "RagQueryLog",
     # market
     "Telegraph",
     "TelegraphTags",

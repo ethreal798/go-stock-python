@@ -1,11 +1,12 @@
 """基金相关模型"""
 
-from sqlalchemy import Column, String, Float, DateTime, BigInteger, Index
-from .base import GormBaseModel, Base, TimestampMixin
+from sqlalchemy import Column, String, Float, DateTime, BigInteger
+from .base import GormBaseModel
 
 
 class Fund(GormBaseModel):
     """基金基础信息"""
+
     __tablename__ = "funds"
 
     code = Column(String(20), unique=True, index=True, nullable=False, comment="基金代码")
@@ -26,12 +27,9 @@ class Fund(GormBaseModel):
 
 class FollowedFund(GormBaseModel):
     """关注基金"""
+
     __tablename__ = "followed_funds"
 
     user_id = Column(BigInteger, index=True, comment="用户ID")
     fund_code = Column(String(20), index=True, nullable=False, comment="基金代码")
     remark = Column(String(200), comment="备注")
-
-    # 可以考虑增加持仓相关字段
-    hold_units = Column(Float, default=0.0, comment="持有份额")
-    cost_price = Column(Float, default=0.0, comment="持仓成本")

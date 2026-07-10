@@ -7,6 +7,7 @@ from .base import Base, GormBaseModel, TimestampMixin
 
 class Settings(GormBaseModel):
     """系统设置"""
+
     __tablename__ = "settings"
 
     tushare_token = Column(String(255), name="tushare_token")
@@ -44,6 +45,7 @@ class Settings(GormBaseModel):
 
 class CronTask(Base, TimestampMixin):
     """定时任务"""
+
     __tablename__ = "cron_tasks"
 
     id = Column(BigInteger, primary_key=True, autoincrement=True)
@@ -60,12 +62,12 @@ class CronTask(Base, TimestampMixin):
     description = Column(String(500))
     last_run_result = Column(String(500), name="last_run_result")
 
-    execution_logs = relationship("CronTaskExecutionLog", back_populates="task",
-                                   cascade="all, delete-orphan")
+    execution_logs = relationship("CronTaskExecutionLog", back_populates="task", cascade="all, delete-orphan")
 
 
 class CronTaskExecutionLog(Base):
     """定时任务执行日志"""
+
     __tablename__ = "cron_task_execution_logs"
 
     id = Column(BigInteger, primary_key=True, autoincrement=True)
@@ -82,6 +84,7 @@ class CronTaskExecutionLog(Base):
 
 class MCPServer(Base, TimestampMixin):
     """MCP 服务器配置"""
+
     __tablename__ = "mcp_servers"
 
     id = Column(BigInteger, primary_key=True, autoincrement=True)
@@ -95,17 +98,16 @@ class MCPServer(Base, TimestampMixin):
     status = Column(String(20), default="stopped", server_default="'stopped'")
     test_result = Column(String(500), name="test_result")
 
-    tools = relationship("MCPServerTool", back_populates="server",
-                          cascade="all, delete-orphan")
+    tools = relationship("MCPServerTool", back_populates="server", cascade="all, delete-orphan")
 
 
 class MCPServerTool(Base, TimestampMixin):
     """MCP 服务器工具"""
+
     __tablename__ = "mcp_server_tools"
 
     id = Column(BigInteger, primary_key=True, autoincrement=True)
-    mcp_server_id = Column(BigInteger, ForeignKey("mcp_servers.id"), nullable=False,
-                            index=True, name="mcp_server_id")
+    mcp_server_id = Column(BigInteger, ForeignKey("mcp_servers.id"), nullable=False, index=True, name="mcp_server_id")
     tool_name = Column(String(255), nullable=False, name="tool_name")
     description = Column(Text)
     params_schema = Column(Text, name="params_schema")
@@ -115,6 +117,7 @@ class MCPServerTool(Base, TimestampMixin):
 
 class Skill(Base, TimestampMixin):
     """技能配置"""
+
     __tablename__ = "skills"
 
     id = Column(BigInteger, primary_key=True, autoincrement=True)
@@ -128,17 +131,16 @@ class Skill(Base, TimestampMixin):
     enable = Column(Boolean, default=True, server_default="1")
     sort_order = Column(Integer, default=0, server_default="0", name="sort_order")
 
-    configs = relationship("SkillConfig", back_populates="skill",
-                            cascade="all, delete-orphan")
+    configs = relationship("SkillConfig", back_populates="skill", cascade="all, delete-orphan")
 
 
 class SkillConfig(Base, TimestampMixin):
     """技能扩展配置"""
+
     __tablename__ = "skill_configs"
 
     id = Column(BigInteger, primary_key=True, autoincrement=True)
-    skill_id = Column(BigInteger, ForeignKey("skills.id"), nullable=False,
-                       name="skill_id")
+    skill_id = Column(BigInteger, ForeignKey("skills.id"), nullable=False, name="skill_id")
     config_key = Column(String(100), nullable=False, name="config_key")
     config_value = Column(Text, name="config_value")
 
@@ -147,6 +149,7 @@ class SkillConfig(Base, TimestampMixin):
 
 class AiAssistantSession(Base, TimestampMixin):
     """AI 助手会话"""
+
     __tablename__ = "ai_assistant_sessions"
 
     id = Column(BigInteger, primary_key=True, autoincrement=True)
@@ -156,6 +159,7 @@ class AiAssistantSession(Base, TimestampMixin):
 
 class AIConfig(Base, TimestampMixin):
     """AI 配置"""
+
     __tablename__ = "ai_config"
 
     id = Column(BigInteger, primary_key=True, autoincrement=True)
@@ -174,6 +178,7 @@ class AIConfig(Base, TimestampMixin):
 
 class VersionInfo(GormBaseModel):
     """版本信息"""
+
     __tablename__ = "version_info"
 
     version = Column(String(50))
