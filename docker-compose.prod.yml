@@ -23,7 +23,7 @@ services:
     restart: unless-stopped
 
   redis:
-    image: redis:7-alpine
+    image: redis:alpine
     volumes:
       - redis_data:/data
     restart: unless-stopped
