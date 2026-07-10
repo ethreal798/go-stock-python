@@ -114,8 +114,8 @@ class FundService:
             logger.error(f"Error refreshing fund {fund.code}: {e}")
             return False
 
-    async def get_funds(self, keyword: Optional[str] = None, limit: int = 20, page: int = 1) -> List[Fund]:
-        """查询基金列表（支持搜索）。"""
+    async def get_funds(self, keyword: Optional[str] = None, limit: int = 20, page: int = 1, user_id: Optional[int] = None) -> List[Dict[str, Any]]:
+        """查询基金列表（支持搜索），带关注状态。"""
         stmt = select(Fund)
 
         if keyword:
@@ -126,16 +126,46 @@ class FundService:
         stmt = stmt.order_by(Fund.code).limit(limit).offset((page - 1) * limit)
 
         result = await self.db.execute(stmt)
-        return list(result.scalars().all())
+        funds = list(result.scalars().all())
+        
+        # 组装返回结果，包含关注状态
+        followed_codes = set()
+        if user_id:
+            followed_stmt = select(FollowedFund).where(FollowedFund.user_id == user_id)
+            followed_result = await self.db.execute(followed_stmt)
+            followed_codes = {f.fund_code for f in followed_result.scalars().all()}
+        
+        return [
+            {
+                "id": fund.id,
+                "code": fund.code,
+                "name": fund.name,
+                "type": fund.type,
+                "nav": fund.nav,
+                "acc_nav": fund.acc_nav,
+                "day_growth": fund.day_growth,
+                "week_growth": fund.week_growth,
+                "month_growth": fund.month_growth,
+                "three_month_growth": fund.three_month_growth,
+                "six_month_growth": fund.six_month_growth,
+                "year_growth": fund.year_growth,
+                "current_year_growth": fund.current_year_growth,
+                "manager": fund.manager,
+                "last_update": fund.last_update,
+                "is_followed": fund.code in followed_codes
+            }
+            for fund in funds
+        ]
 
-    async def search_funds(self, keyword: str, limit: int = 20, page: int = 1) -> List[Fund]:
-        """专门的搜索基金接口，支持代码和名称模糊匹配。
+    async def search_funds(self, keyword: str, limit: int = 20, page: int = 1, user_id: Optional[int] = None) -> List[Dict[str, Any]]:
+        """专门的搜索基金接口，支持代码和名称模糊匹配，带关注状态。
         Args:
             keyword: 搜索关键词
             limit: 每页数量
             page: 页码
+            user_id: 可选的用户ID，用于判断关注状态
         Returns:
-            基金列表
+            基金列表，包含关注状态
         """
         stmt = select(Fund)
 
@@ -150,7 +180,36 @@ class FundService:
         )
 
         result = await self.db.execute(stmt)
-        return list(result.scalars().all())
+        funds = list(result.scalars().all())
+        
+        # 组装返回结果，包含关注状态
+        followed_codes = set()
+        if user_id:
+            followed_stmt = select(FollowedFund).where(FollowedFund.user_id == user_id)
+            followed_result = await self.db.execute(followed_stmt)
+            followed_codes = {f.fund_code for f in followed_result.scalars().all()}
+        
+        return [
+            {
+                "id": fund.id,
+                "code": fund.code,
+                "name": fund.name,
+                "type": fund.type,
+                "nav": fund.nav,
+                "acc_nav": fund.acc_nav,
+                "day_growth": fund.day_growth,
+                "week_growth": fund.week_growth,
+                "month_growth": fund.month_growth,
+                "three_month_growth": fund.three_month_growth,
+                "six_month_growth": fund.six_month_growth,
+                "year_growth": fund.year_growth,
+                "current_year_growth": fund.current_year_growth,
+                "manager": fund.manager,
+                "last_update": fund.last_update,
+                "is_followed": fund.code in followed_codes
+            }
+            for fund in funds
+        ]
 
     # ============================================================
     # 自选基金相关

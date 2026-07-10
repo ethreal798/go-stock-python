@@ -32,6 +32,7 @@ class FundResponse(FundBase):
     current_year_growth: Optional[float] = Field(None, description="今年以来增长率(%)")
     manager: Optional[str] = Field(None, description="基金经理")
     last_update: Optional[datetime] = Field(None, description="最后更新时间")
+    is_followed: Optional[bool] = Field(False, description="是否已关注")
 
     model_config = {"from_attributes": True}
 

@@ -23,6 +23,19 @@ async def get_current_user(
     return await user_service.get_current_user(token)
 
 
+async def get_optional_current_user(
+    token: Optional[str] = Depends(oauth2_scheme),
+    user_service: UserService = Depends(get_user_service),
+) -> Optional[User]:
+    """获取当前登录用户的依赖项（可选）。"""
+    if not token:
+        return None
+    try:
+        return await user_service.get_current_user(token)
+    except Exception:
+        return None
+
+
 def get_fund_service(db: AsyncSession = Depends(get_db)) -> FundService:
     return FundService(db)
 
@@ -32,10 +45,12 @@ async def get_funds(
     keyword: Optional[str] = Query(None, description="搜索关键词(代码/名称)"),
     page: int = Query(1, ge=1, description="页码"),
     limit: int = Query(20, ge=1, le=100, description="每页数量"),
+    current_user: Optional[User] = Depends(get_optional_current_user),
     service: FundService = Depends(get_fund_service),
 ) -> List[FundResponse]:
     """获取全量基金列表，支持模糊搜索。"""
-    return await service.get_funds(keyword=keyword, page=page, limit=limit)
+    user_id = current_user.id if current_user else None
+    return await service.get_funds(keyword=keyword, page=page, limit=limit, user_id=user_id)
 
 
 @router.get("/search", response_model=List[FundResponse], summary="搜索基金")
@@ -43,10 +58,12 @@ async def search_funds(
     keyword: str = Query(..., description="搜索关键词(代码/名称)"),
     page: int = Query(1, ge=1, description="页码"),
     limit: int = Query(20, ge=1, le=100, description="每页数量"),
+    current_user: Optional[User] = Depends(get_optional_current_user),
     service: FundService = Depends(get_fund_service),
 ) -> List[FundResponse]:
     """搜索基金，支持代码和名称模糊匹配。"""
-    return await service.search_funds(keyword=keyword, page=page, limit=limit)
+    user_id = current_user.id if current_user else None
+    return await service.search_funds(keyword=keyword, page=page, limit=limit, user_id=user_id)
 
 
 # ============================================================
