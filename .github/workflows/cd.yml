@@ -106,7 +106,7 @@ jobs:
 
             DEPLOY_PATH="${{ secrets.DEPLOY_PATH }}"
             if [ -z "$DEPLOY_PATH" ]; then
-              DEPLOY_PATH="/home/${{ secrets.SERVER_USER }}/go-stock-python"
+              DEPLOY_PATH="/opt/${{ secrets.SERVER_USER }}/go-stock-python"
             fi
 
             IMAGE_TAG="$(echo "${{ github.event.pull_request.base.ref || github.ref_name }}" | tr '/' '-')"
