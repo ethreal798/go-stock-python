@@ -24,7 +24,9 @@ def upgrade() -> None:
 
     op.create_table(
         "rag_documents",
-        sa.Column("source_type", sa.String(length=50), nullable=False, comment="来源类型: telegraph/news/notice/report"),
+        sa.Column(
+            "source_type", sa.String(length=50), nullable=False, comment="来源类型: telegraph/news/notice/report"
+        ),
         sa.Column("source_id", sa.BigInteger(), nullable=False, comment="来源记录ID"),
         sa.Column("title", sa.String(length=500), nullable=True, comment="文档标题"),
         sa.Column("content", sa.Text(), nullable=False, comment="文档正文"),
@@ -116,7 +118,9 @@ def upgrade() -> None:
         "rag_entities",
         sa.Column("document_id", sa.BigInteger(), nullable=False),
         sa.Column("chunk_id", sa.BigInteger(), nullable=True),
-        sa.Column("entity_type", sa.String(length=50), nullable=False, comment="stock/industry/concept/macro/person/org"),
+        sa.Column(
+            "entity_type", sa.String(length=50), nullable=False, comment="stock/industry/concept/macro/person/org"
+        ),
         sa.Column("entity_name", sa.String(length=200), nullable=False),
         sa.Column("entity_code", sa.String(length=50), nullable=True),
         sa.Column("alias", sa.String(length=200), nullable=True),

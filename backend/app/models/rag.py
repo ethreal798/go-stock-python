@@ -31,9 +31,7 @@ class RagDocument(GormBaseModel):
     chunks = relationship("RagChunk", back_populates="document", cascade="all, delete-orphan")
     entities = relationship("RagEntity", back_populates="document", cascade="all, delete-orphan")
 
-    __table_args__ = (
-        Index("idx_rag_documents_source", "source_type", "source_id"),
-    )
+    __table_args__ = (Index("idx_rag_documents_source", "source_type", "source_id"),)
 
 
 class RagChunk(GormBaseModel):
@@ -59,9 +57,7 @@ class RagChunk(GormBaseModel):
     embeddings = relationship("RagChunkEmbedding", back_populates="chunk", cascade="all, delete-orphan")
     entities = relationship("RagEntity", back_populates="chunk", cascade="all, delete-orphan")
 
-    __table_args__ = (
-        Index("idx_rag_chunks_doc_chunk", "document_id", "chunk_index", unique=True),
-    )
+    __table_args__ = (Index("idx_rag_chunks_doc_chunk", "document_id", "chunk_index", unique=True),)
 
 
 class RagChunkEmbedding(Base):
@@ -78,9 +74,7 @@ class RagChunkEmbedding(Base):
 
     chunk = relationship("RagChunk", back_populates="embeddings")
 
-    __table_args__ = (
-        Index("idx_rag_chunk_embeddings_chunk_model", "chunk_id", "embedding_model", unique=True),
-    )
+    __table_args__ = (Index("idx_rag_chunk_embeddings_chunk_model", "chunk_id", "embedding_model", unique=True),)
 
 
 class RagEntity(GormBaseModel):
@@ -100,9 +94,7 @@ class RagEntity(GormBaseModel):
     document = relationship("RagDocument", back_populates="entities")
     chunk = relationship("RagChunk", back_populates="entities")
 
-    __table_args__ = (
-        Index("idx_rag_entities_type_name", "entity_type", "entity_name"),
-    )
+    __table_args__ = (Index("idx_rag_entities_type_name", "entity_type", "entity_name"),)
 
 
 class RagQueryLog(Base):
