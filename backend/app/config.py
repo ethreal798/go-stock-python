@@ -1,17 +1,23 @@
 """应用配置模块，使用 pydantic-settings 管理所有配置项。"""
 
+import os
 from typing import Optional
 
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
 class Settings(BaseSettings):
-    """应用全局配置，支持从环境变量和 .env 文件加载。"""
+    """应用全局配置，支持从环境变量和 .env 文件加载。
+
+    重要：所有敏感配置（数据库连接、密钥等）都应该通过环境变量设置，
+         不要依赖默认值，确保生产环境安全。
+    """
 
     model_config = SettingsConfigDict(
         env_file=".env",
         env_file_encoding="utf-8",
         case_sensitive=False,
+        extra="ignore",
     )
 
     # ---- 应用基本配置 ----
@@ -23,12 +29,13 @@ class Settings(BaseSettings):
     API_PREFIX: str = "/api/v1"
 
     # ---- 安全与认证配置 ----
-    SECRET_KEY: str = "your-secret-key-here-please-change-it-in-production"
+    SECRET_KEY: str = ""
     ALGORITHM: str = "HS256"
     ACCESS_TOKEN_EXPIRE_MINUTES: int = 60 * 24 * 7  # 默认 7 天
 
     # ---- 数据库配置 ----
-    DATABASE_URL: str = "postgresql+asyncpg://postgres:123456@localhost:5432/py_stock"
+    # 默认使用 SQLite 作为开发环境，生产环境必须通过环境变量设置
+    DATABASE_URL: str = "sqlite+aiosqlite:///./go_stock.db"
     DB_POOL_SIZE: int = 20
     DB_MAX_OVERFLOW: int = 10
     DB_ECHO: bool = False
@@ -52,12 +59,12 @@ class Settings(BaseSettings):
     AI_DEEPSEEK_MODEL: str = "deepseek-chat"
 
     # ---- CORS 配置 ----
-    CORS_ORIGINS: list[str] = [
-        "http://localhost:5173",
-        "http://localhost:3000",
-        "http://127.0.0.1:5173",
-        "http://127.0.0.1:3000",
-    ]
+    # 从环境变量读取，格式：http://localhost:5173,http://localhost:3000
+    CORS_ORIGINS_STR: str = "http://localhost:5173,http://localhost:3000,http://127.0.0.1:5173,http://127.0.0.1:3000"
+
+    @property
+    def CORS_ORIGINS(self) -> list[str]:
+        return [origin.strip() for origin in self.CORS_ORIGINS_STR.split(",") if origin.strip()]
 
     # ---- 定时任务配置 ----
     SCHEDULER_TIMEZONE: str = "Asia/Shanghai"
@@ -68,5 +75,17 @@ class Settings(BaseSettings):
     TUSHARE_API_BASE: str = "https://api.tushare.pro"
     TUSHARE_TOKEN: str = ""
 
+    def validate_required_settings(self) -> None:
+        """验证必需的配置项，在生产环境必须设置。"""
+        if not self.DEBUG:
+            if not self.SECRET_KEY:
+                raise ValueError("在非 DEBUG 模式下，SECRET_KEY 环境变量必须设置")
+            if self.DATABASE_URL.startswith("sqlite"):
+                raise ValueError("在非 DEBUG 模式下，不建议使用 SQLite，请设置 DATABASE_URL 环境变量")
+
 
 settings = Settings()
+
+# 仅在生产环境验证必需配置
+if not settings.DEBUG:
+    settings.validate_required_settings()

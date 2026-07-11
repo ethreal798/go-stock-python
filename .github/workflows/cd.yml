@@ -50,6 +50,7 @@ jobs:
           tags: |
             type=ref,event=branch
             type=sha,prefix={{branch}}-
+            type=raw,value=latest,enable={{is_default_branch}}
 
       - name: Extract frontend metadata
         id: meta-frontend
@@ -59,6 +60,7 @@ jobs:
           tags: |
             type=ref,event=branch
             type=sha,prefix={{branch}}-
+            type=raw,value=latest,enable={{is_default_branch}}
 
       - name: Build and push backend image
         uses: docker/build-push-action@v5
@@ -94,6 +96,29 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
+      - name: Copy docker-compose.prod.yml to server
+        uses: appleboy/scp-action@v0.1.7
+        with:
+          host: ${{ secrets.SERVER_HOST }}
+          username: ${{ secrets.SERVER_USER }}
+          key: ${{ secrets.SERVER_SSH_KEY }}
+          port: ${{ secrets.SERVER_PORT || 22 }}
+          source: "docker-compose.prod.yml"
+          target: "${{ secrets.DEPLOY_PATH || '/opt/go-stock-python' }}"
+          strip_components: 1
+
+      - name: Copy nginx.conf to server (if exists)
+        uses: appleboy/scp-action@v0.1.7
+        with:
+          host: ${{ secrets.SERVER_HOST }}
+          username: ${{ secrets.SERVER_USER }}
+          key: ${{ secrets.SERVER_SSH_KEY }}
+          port: ${{ secrets.SERVER_PORT || 22 }}
+          source: "nginx.conf"
+          target: "${{ secrets.DEPLOY_PATH || '/opt/go-stock-python' }}"
+          strip_components: 1
+        continue-on-error: true
+
       - name: Deploy to server
         uses: appleboy/ssh-action@v1.0.3
         with:
@@ -115,18 +140,60 @@ jobs:
 
             cd "$DEPLOY_PATH"
 
-            echo "${{ secrets.GHCR_TOKEN }}" | docker login ghcr.io -u "${{ secrets.GHCR_USERNAME }}" --password-stdin
+            echo "${{ secrets.GHCR_TOKEN }}" | docker login ghcr.io -u "${{ secrets.GHCR_USER }}" --password-stdin
 
+            # ================================================================
+            # 关键修复：生成完整的 .deploy.env 文件，包含所有必要配置
+            # ================================================================
             cat > .deploy.env <<EOF
+            # Docker 镜像
             BACKEND_IMAGE=${BACKEND_IMAGE}
             FRONTEND_IMAGE=${FRONTEND_IMAGE}
+            
+            # PostgreSQL 配置
+            POSTGRES_USER=${{ secrets.POSTGRES_USER }}
+            POSTGRES_PASSWORD=${{ secrets.POSTGRES_PASSWORD }}
+            POSTGRES_DB=${{ secrets.POSTGRES_DB }}
+            
+            # 应用配置（从 GitHub Secrets 读取）
+            DATABASE_URL=postgresql+asyncpg://${{ secrets.POSTGRES_USER }}:${{ secrets.POSTGRES_PASSWORD }}@postgres:5432/${{ secrets.POSTGRES_DB }}
+            REDIS_URL=redis://redis:6379/0
+            DEBUG=false
+            SECRET_KEY=${{ secrets.SECRET_KEY }}
+            AI_API_KEY=${{ secrets.AI_API_KEY }}
+            AI_BASE_URL=${{ secrets.AI_BASE_URL }}
+            AI_MODEL_NAME=${{ secrets.AI_MODEL_NAME }}
+            CORS_ORIGINS_STR=${{ secrets.CORS_ORIGINS_STR }}
             EOF
 
+            # ================================================================
+            # 1. 拉取最新镜像
+            # ================================================================
             docker compose --env-file .deploy.env -f docker-compose.prod.yml pull
+
+            # ================================================================
+            # 2. 启动服务（会自动等待 postgres 健康
+            # ================================================================
             docker compose --env-file .deploy.env -f docker-compose.prod.yml up -d
+
+            # ================================================================
+            # 3. 等待服务完全启动后运行数据库迁移
+            # ================================================================
+            echo "等待数据库就绪..."
+            sleep 20
+            
+            # 直接在 backend 容器内运行 alembic
             docker compose --env-file .deploy.env -f docker-compose.prod.yml exec -T backend alembic upgrade head
 
-            sleep 15
-            curl -f http://localhost/health
+            # ================================================================
+            # 4. 验证部署
+            # ================================================================
+            sleep 10
+            echo "检查服务健康状态..."
+            curl -f http://localhost/health || echo "警告：健康检查失败，但服务可能仍在启动中"
+            
+            echo "部署完成！当前运行状态："
             docker compose --env-file .deploy.env -f docker-compose.prod.yml ps
+            
+            # 清理旧镜像
             docker image prune -f
