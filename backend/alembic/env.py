@@ -10,12 +10,13 @@ from alembic import context
 from sqlalchemy import pool
 from sqlalchemy.ext.asyncio import async_engine_from_config
 
+from app.models import Base
+from app.config import settings
+
 # 添加项目根目录到 Python 路径
 backend_dir = Path(__file__).parent.parent
 sys.path.insert(0, str(backend_dir))
 
-from app.models import Base
-from app.config import settings
 
 # Alembic Config 对象，提供 .ini 文件中的配置
 config = context.config
@@ -88,7 +89,6 @@ def run_migrations_online() -> None:
     if url.startswith("postgresql+asyncpg"):
         # 对于 Alembic，我们使用同步驱动
         from sqlalchemy import create_engine
-        from sqlalchemy.engine import Connection
 
         connectable = create_engine(url.replace("postgresql+asyncpg", "postgresql+psycopg2"))
 
