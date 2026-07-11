@@ -1,6 +1,5 @@
 """应用配置模块，使用 pydantic-settings 管理所有配置项。"""
 
-import os
 from typing import Optional
 
 from pydantic_settings import BaseSettings, SettingsConfigDict
