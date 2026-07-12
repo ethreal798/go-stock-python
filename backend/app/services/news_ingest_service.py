@@ -18,7 +18,9 @@ class NewsIngestService:
     def __init__(self, db: AsyncSession) -> None:
         self.db = db
 
-    async def ingest_telegraphs(self, limit: int = 100, news_type: str = "all", relevant_only: bool = True) -> dict[str, int]:
+    async def ingest_telegraphs(
+        self, limit: int = 100, news_type: str = "all", relevant_only: bool = True
+    ) -> dict[str, int]:
         """将 telegraph_list 中的新闻同步到 rag_documents。"""
         stmt = self._build_telegraph_query(limit=limit, news_type=news_type, relevant_only=relevant_only)
         result = await self.db.execute(stmt)
