@@ -1,50 +1,49 @@
-"""Alembic 异步迁移环境配置。"""
+"""Alembic 迁移环境配置。
 
-import asyncio
+注意：Alembic 本身是同步工具，所以数据库迁移统一使用同步驱动，
+即使 FastAPI 应用用的是异步。
+"""
+
 import os
 import sys
 from logging.config import fileConfig
 from pathlib import Path
 
 from alembic import context
-from sqlalchemy import pool
-from sqlalchemy.ext.asyncio import async_engine_from_config
+from sqlalchemy import create_engine, pool
 
 from app.models import Base
 from app.config import settings
 
-# 添加项目根目录到 Python 路径
+# 添加项目根目录到 Python 路径，保证能导入 app
 backend_dir = Path(__file__).parent.parent
 sys.path.insert(0, str(backend_dir))
 
 
-# Alembic Config 对象，提供 .ini 文件中的配置
+# Alembic Config 对象
 config = context.config
 
-# 优先从环境变量读取数据库 URL，如果没有则使用 settings.DATABASE_URL
+# 读取数据库 URL
 database_url = os.getenv("DATABASE_URL", settings.DATABASE_URL)
 
-# 如果是异步驱动，需要转换为同步驱动用于 Alembic（因为 Alembic 主要是同步运行的）
-# 注意：Alembic 迁移通常使用同步连接，即使应用是异步的
+# 关键：统一转成同步驱动！！！
+# Alembic 是同步工具，必须用同步驱动
 if database_url.startswith("postgresql+asyncpg"):
     database_url = database_url.replace("postgresql+asyncpg", "postgresql+psycopg2")
 
-# 设置 sqlalchemy.url（覆盖 .ini 中的值）
+# 设置 sqlalchemy.url
 config.set_main_option("sqlalchemy.url", database_url)
 
-# 解析 Python 日志配置
+# 配置日志
 if config.config_file_name is not None:
     fileConfig(config.config_file_name)
 
-# 设置 MetaData 目标，用于 autogenerate
+# MetaData
 target_metadata = Base.metadata
 
 
 def run_migrations_offline() -> None:
-    """离线模式运行迁移。
-
-    仅生成 SQL 脚本，不连接数据库。
-    """
+    """离线模式运行迁移。"""
     url = config.get_main_option("sqlalchemy.url")
     context.configure(
         url=url,
@@ -57,52 +56,22 @@ def run_migrations_offline() -> None:
         context.run_migrations()
 
 
-def do_run_migrations(connection) -> None:
-    """执行迁移的内部函数。"""
-    context.configure(
-        connection=connection,
-        target_metadata=target_metadata,
-    )
-
-    with context.begin_transaction():
-        context.run_migrations()
-
-
-async def run_async_migrations() -> None:
-    """在线模式运行异步迁移。"""
-    connectable = async_engine_from_config(
-        config.get_section(config.config_ini_section, {}),
-        prefix="sqlalchemy.",
+def run_migrations_online() -> None:
+    """在线模式运行迁移。"""
+    # Alembic 统一使用同步引擎，简单直接
+    connectable = create_engine(
+        config.get_main_option("sqlalchemy.url"),
         poolclass=pool.NullPool,
     )
 
-    async with connectable.connect() as connection:
-        await connection.run_sync(do_run_migrations)
+    with connectable.connect() as connection:
+        context.configure(
+            connection=connection,
+            target_metadata=target_metadata,
+        )
 
-    await connectable.dispose()
-
-
-def run_migrations_online() -> None:
-    """在线模式入口。"""
-    # 检查是否是异步 URL，如果是则使用同步版本
-    url = config.get_main_option("sqlalchemy.url")
-    if url.startswith("postgresql+asyncpg"):
-        # 对于 Alembic，我们使用同步驱动
-        from sqlalchemy import create_engine
-
-        connectable = create_engine(url.replace("postgresql+asyncpg", "postgresql+psycopg2"))
-
-        with connectable.connect() as connection:
-            context.configure(
-                connection=connection,
-                target_metadata=target_metadata,
-            )
-
-            with context.begin_transaction():
-                context.run_migrations()
-    else:
-        # 对于 SQLite 等，可以直接用异步方式
-        asyncio.run(run_async_migrations())
+        with context.begin_transaction():
+            context.run_migrations()
 
 
 if context.is_offline_mode():
