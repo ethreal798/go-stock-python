@@ -2,8 +2,10 @@ name: CD
 
 on:
   pull_request:
-    branches: [dev/1.0]
-    types: [closed]
+    branches:
+      - dev/1.0
+    types:
+      - closed
   workflow_dispatch:
 
 permissions:
@@ -13,25 +15,40 @@ permissions:
 env:
   REGISTRY: ghcr.io
   IMAGE_PREFIX: ${{ github.repository }}
+  RELEASE_TAG: release-${{ github.run_id }}-${{ github.run_attempt }}
+
+# 同一时间只允许一个生产部署，避免多个任务同时操作服务器。
+concurrency:
+  group: cd-dev-1.0
+  cancel-in-progress: false
 
 jobs:
   build:
     name: Build ${{ matrix.service }}
+
+    # PR 合并后执行；手动触发时也执行。
     if: |
       github.event_name == 'workflow_dispatch' ||
       github.event.pull_request.merged == true
+
     runs-on: ubuntu-latest
     timeout-minutes: 20
+
     strategy:
       fail-fast: false
       matrix:
-        service: [backend, frontend]
+        service:
+          - backend
+          - frontend
 
     steps:
       - name: Checkout production branch
         uses: actions/checkout@v4
         with:
           ref: dev/1.0
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
 
       - name: Login to GHCR
         uses: docker/login-action@v3
@@ -40,9 +57,6 @@ jobs:
           username: ${{ github.actor }}
           password: ${{ github.token }}
 
-      - name: Set up Docker Buildx
-        uses: docker/setup-buildx-action@v3
-
       - name: Build and push ${{ matrix.service }}
         uses: docker/build-push-action@v6
         with:
@@ -50,14 +64,16 @@ jobs:
           file: ./${{ matrix.service }}/Dockerfile
           push: true
           tags: |
+            ${{ env.REGISTRY }}/${{ env.IMAGE_PREFIX }}-${{ matrix.service }}:${{ env.RELEASE_TAG }}
             ${{ env.REGISTRY }}/${{ env.IMAGE_PREFIX }}-${{ matrix.service }}:dev-1.0
-            ${{ env.REGISTRY }}/${{ env.IMAGE_PREFIX }}-${{ matrix.service }}:${{ github.sha }}
-          cache-from: type=gha,scope=${{ matrix.service }}
-          cache-to: type=gha,mode=max,scope=${{ matrix.service }}
+          cache-from: type=gha,scope=go-stock-python-${{ matrix.service }}
+          cache-to: type=gha,mode=min,scope=go-stock-python-${{ matrix.service }},ignore-error=true
 
   deploy:
     name: Deploy to server
-    needs: build
+    needs:
+      - build
+
     runs-on: ubuntu-latest
     timeout-minutes: 12
     environment: production
@@ -90,12 +106,15 @@ jobs:
             set -Eeuo pipefail
 
             DEPLOY_PATH="${{ secrets.DEPLOY_PATH }}"
-            [ -n "$DEPLOY_PATH" ] || DEPLOY_PATH="/opt/go-stock-python"
+            if [ -z "$DEPLOY_PATH" ]; then
+              DEPLOY_PATH="/opt/go-stock-python"
+            fi
+
             cd "$DEPLOY_PATH"
 
             cat > .env <<EOF
-            BACKEND_IMAGE=ghcr.io/${{ github.repository }}-backend:dev-1.0
-            FRONTEND_IMAGE=ghcr.io/${{ github.repository }}-frontend:dev-1.0
+            BACKEND_IMAGE=ghcr.io/${{ github.repository }}-backend:${{ env.RELEASE_TAG }}
+            FRONTEND_IMAGE=ghcr.io/${{ github.repository }}-frontend:${{ env.RELEASE_TAG }}
             POSTGRES_USER=${{ secrets.POSTGRES_USER }}
             POSTGRES_PASSWORD=${{ secrets.POSTGRES_PASSWORD }}
             POSTGRES_DB=${{ secrets.POSTGRES_DB }}
@@ -109,52 +128,85 @@ jobs:
             CORS_ORIGINS_STR=${{ secrets.CORS_ORIGINS_STR }}
             EOF
 
+            chmod 600 .env
+
             compose() {
-              docker compose --env-file .env -f docker-compose.prod.yml "$@"
+              docker compose \
+                --env-file .env \
+                -f docker-compose.prod.yml \
+                "$@"
             }
 
             diagnostics() {
+              echo "部署失败，输出容器状态和日志..."
               compose ps || true
               compose logs --tail=150 || true
             }
+
             trap diagnostics ERR
 
             echo "${{ github.token }}" |
-              docker login ghcr.io -u "${{ github.actor }}" --password-stdin
+              docker login ghcr.io \
+                -u "${{ github.actor }}" \
+                --password-stdin
 
-            echo "拉取最新镜像..."
-            timeout 5m docker compose --env-file .env \
-              -f docker-compose.prod.yml pull
+            echo "拉取本次发布的镜像..."
+            timeout 5m compose pull
 
             echo "启动服务..."
-            timeout 3m docker compose --env-file .env \
-              -f docker-compose.prod.yml up -d --no-build --remove-orphans
+            timeout 3m compose up \
+              -d \
+              --no-build \
+              --remove-orphans
 
             echo "等待后端容器运行..."
             BACKEND_READY=0
+
             for i in $(seq 1 30); do
               if [ -n "$(compose ps --status running -q backend)" ]; then
                 BACKEND_READY=1
                 break
               fi
+
+              echo "后端尚未运行，等待 5 秒（${i}/30）..."
               sleep 5
             done
-            [ "$BACKEND_READY" = "1" ]
+
+            if [ "$BACKEND_READY" != "1" ]; then
+              echo "后端容器未能正常运行"
+              exit 1
+            fi
 
             echo "执行数据库迁移..."
             compose exec -T backend alembic upgrade head
 
-            echo "等待健康检查..."
+            echo "等待应用健康检查..."
             HEALTHY=0
+
             for i in $(seq 1 30); do
-              if curl -fsS --max-time 5 http://localhost/health >/dev/null; then
+              if curl \
+                -fsS \
+                --max-time 5 \
+                http://localhost/health \
+                >/dev/null; then
                 HEALTHY=1
                 break
               fi
+
+              echo "健康检查尚未通过，等待 5 秒（${i}/30）..."
               sleep 5
             done
-            [ "$HEALTHY" = "1" ]
+
+            if [ "$HEALTHY" != "1" ]; then
+              echo "应用健康检查失败"
+              exit 1
+            fi
+
+            echo "清理未使用的旧镜像..."
+            docker image prune -f || true
 
             compose ps
-            docker logout ghcr.io
-            echo "部署成功"
+            docker logout ghcr.io || true
+
+            trap - ERR
+            echo "部署成功：${{ env.RELEASE_TAG }}"
