@@ -140,7 +140,7 @@ jobs:
 
             cd "$DEPLOY_PATH"
 
-            echo "${{ secrets.GHCR_TOKEN }}" | docker login ghcr.io -u "${{ secrets.GHCR_USER }}" --password-stdin
+            echo "${{ secrets.GHCR_TOKEN }}" | docker login ghcr.io -u "${{ secrets.GHCR_USERNAME }}" --password-stdin
 
             # ================================================================
             # 关键修复：生成完整的 .deploy.env 文件，包含所有必要配置
