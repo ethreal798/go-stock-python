@@ -1,6 +1,6 @@
 services:
   postgres:
-    image: postgres:15-alpine
+    image: pgvector/pgvector:pg15
     environment:
       POSTGRES_USER: ${POSTGRES_USER:-postgres}
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-postgres}
@@ -18,7 +18,7 @@ services:
   backend:
     image: ${BACKEND_IMAGE}
     env_file:
-      - ./.deploy.env
+      - ./.env
     depends_on:
       postgres:
         condition: service_healthy
