@@ -12,12 +12,13 @@ from pathlib import Path
 from alembic import context
 from sqlalchemy import create_engine, pool
 
+from app.models import Base
+from app.config import settings
+
 # 添加项目根目录到 Python 路径，保证能导入 app
 backend_dir = Path(__file__).parent.parent
 sys.path.insert(0, str(backend_dir))
 
-from app.models import Base
-from app.config import settings
 
 # Alembic Config 对象
 config = context.config
