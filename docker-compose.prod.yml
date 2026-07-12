@@ -18,7 +18,7 @@ services:
   backend:
     image: ${BACKEND_IMAGE}
     env_file:
-      - ./backend/.env
+      - ./.deploy.env
     depends_on:
       postgres:
         condition: service_healthy
