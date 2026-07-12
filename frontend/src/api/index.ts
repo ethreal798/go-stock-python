@@ -13,8 +13,17 @@ const request = axios.create({
 // 请求拦截器
 request.interceptors.request.use(
   (config) => {
-    // 检查是否有token，不可以绕开token请求
-    const token = localStorage.getItem('token')
+    // 从 auth-storage 中获取 token（Zustand persist 格式）
+    let token: string | null = null
+    try {
+      const authStorage = localStorage.getItem('auth-storage')
+      if (authStorage) {
+        const parsed = JSON.parse(authStorage)
+        token = parsed.state?.access_token || null
+      }
+    } catch (e) {
+      console.error('解析 auth-storage 失败:', e)
+    }
     if (token) {
       config.headers['Authorization'] = `Bearer ${token}`
     }
