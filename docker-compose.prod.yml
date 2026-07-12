@@ -1,8 +1,6 @@
 services:
   postgres:
-    # 如果拉取慢，可以用国内镜像源：
-    image: registry.cn-hangzhou.aliyuncs.com/library/postgres:15-alpine
-    # image: postgres:15-alpine
+    image: postgres:15-alpine
     environment:
       POSTGRES_USER: ${POSTGRES_USER:-postgres}
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-postgres}
@@ -41,8 +39,6 @@ services:
     restart: unless-stopped
 
   redis:
-    # 如果拉取慢，可以用国内镜像源：
-    # image: registry.cn-hangzhou.aliyuncs.com/library/redis:alpine
     image: redis:alpine
     volumes:
       - redis_data:/data
@@ -55,8 +51,6 @@ services:
     command: redis-server --appendonly yes
 
   nginx:
-    # 如果拉取慢，可以用国内镜像源：
-    # image: registry.cn-hangzhou.aliyuncs.com/library/nginx:alpine
     image: nginx:alpine
     ports:
       - "80:80"
