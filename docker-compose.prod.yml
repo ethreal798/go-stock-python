@@ -16,7 +16,10 @@ services:
       start_period: 30s
 
   backend:
-    image: ${BACKEND_IMAGE}
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    image: go-stock-python-backend:latest
     env_file:
       - ./.env
     depends_on:
@@ -33,7 +36,10 @@ services:
       start_period: 40s
 
   frontend:
-    image: ${FRONTEND_IMAGE}
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+    image: go-stock-python-frontend:latest
     depends_on:
       - backend
     restart: unless-stopped
