@@ -30,8 +30,13 @@ class Telegraph(GormBaseModel):
         comment="新闻分类: macro/industry/company/regulatory/international/other",
     )
 
-    telegraph_tags = relationship("TelegraphTags", back_populates="telegraph", overlaps="tags")
-    tags = relationship("Tags", secondary="telegraph_tags", back_populates="telegraphs", overlaps="telegraph_tags")
+    telegraph_tags = relationship("TelegraphTags", back_populates="telegraph", cascade="all, delete-orphan")
+    tags = relationship(
+        "Tags",
+        secondary="telegraph_tags",
+        back_populates="telegraphs",
+        viewonly=True,
+    )
 
 
 class TelegraphTags(GormBaseModel):
@@ -42,8 +47,8 @@ class TelegraphTags(GormBaseModel):
     tag_id = Column(BigInteger, ForeignKey("tags.id"), name="tag_id")
     telegraph_id = Column(BigInteger, ForeignKey("telegraph_list.id"), name="telegraph_id")
 
-    telegraph = relationship("Telegraph", back_populates="telegraph_tags", overlaps="tags")
-    tag = relationship("Tags", back_populates="telegraph_tags", overlaps="telegraphs")
+    telegraph = relationship("Telegraph", back_populates="telegraph_tags")
+    tag = relationship("Tags", back_populates="telegraph_tags")
 
 
 class Tags(GormBaseModel):
@@ -54,8 +59,13 @@ class Tags(GormBaseModel):
     name = Column(String(100))
     type = Column(String(50))
 
-    telegraph_tags = relationship("TelegraphTags", back_populates="tag", overlaps="telegraphs")
-    telegraphs = relationship("Telegraph", secondary="telegraph_tags", back_populates="tags", overlaps="telegraph_tags")
+    telegraph_tags = relationship("TelegraphTags", back_populates="tag", cascade="all, delete-orphan")
+    telegraphs = relationship(
+        "Telegraph",
+        secondary="telegraph_tags",
+        back_populates="tags",
+        viewonly=True,
+    )
 
 
 class MarketStatistic(Base):
