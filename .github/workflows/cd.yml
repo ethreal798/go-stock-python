@@ -138,23 +138,50 @@ jobs:
             }
 
             diagnostics() {
-              echo "部署失败，输出容器状态和日志..."
+              EXIT_CODE=$?
+
+              echo "部署失败，退出代码：${EXIT_CODE}"
+              echo "输出 Compose 配置检查结果..."
+              compose config --quiet || true
+
+              echo "输出容器状态..."
               compose ps || true
+
+              echo "输出最近的容器日志..."
               compose logs --tail=150 || true
+
+              docker logout ghcr.io >/dev/null 2>&1 || true
+              exit "$EXIT_CODE"
             }
 
             trap diagnostics ERR
 
+            echo "检查 Docker Compose..."
+            docker compose version
+
+            echo "检查部署配置..."
+            if ! compose config --quiet; then
+              echo "docker-compose.prod.yml 配置无效，请检查重复字段或缩进"
+              exit 1
+            fi
+
+            echo "登录 GitHub Container Registry..."
             echo "${{ github.token }}" |
               docker login ghcr.io \
                 -u "${{ github.actor }}" \
                 --password-stdin
 
             echo "拉取本次发布的镜像..."
-            timeout 5m compose pull
+            timeout 5m docker compose \
+              --env-file .env \
+              -f docker-compose.prod.yml \
+              pull
 
             echo "启动服务..."
-            timeout 3m compose up \
+            timeout 3m docker compose \
+              --env-file .env \
+              -f docker-compose.prod.yml \
+              up \
               -d \
               --no-build \
               --remove-orphans
@@ -205,7 +232,9 @@ jobs:
             echo "清理未使用的旧镜像..."
             docker image prune -f || true
 
+            echo "当前服务状态："
             compose ps
+
             docker logout ghcr.io || true
 
             trap - ERR
