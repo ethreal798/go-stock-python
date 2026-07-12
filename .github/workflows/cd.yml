@@ -167,9 +167,23 @@ jobs:
             EOF
 
             # ================================================================
-            # 1. 拉取最新镜像
+            # 1. 拉取最新镜像（带重试机制）
             # ================================================================
-            docker compose --env-file .deploy.env -f docker-compose.prod.yml pull
+            echo "开始拉取镜像，最多重试 5 次..."
+            for i in 1 2 3 4 5; do
+              echo "尝试第 $i 次拉取镜像..."
+              if docker compose --env-file .deploy.env -f docker-compose.prod.yml pull; then
+                echo "镜像拉取成功！"
+                break
+              else
+                echo "镜像拉取失败，等待 10 秒后重试..."
+                sleep 10
+              fi
+              if [ $i -eq 5 ]; then
+                echo "镜像拉取失败 5 次，终止部署！"
+                exit 1
+              fi
+            done
 
             # ================================================================
             # 2. 启动服务（会自动等待 postgres 健康
