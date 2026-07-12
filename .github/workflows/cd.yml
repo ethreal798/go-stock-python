@@ -48,6 +48,7 @@ jobs:
           username: ${{ secrets.SERVER_USER }}
           key: ${{ secrets.SERVER_SSH_KEY }}
           port: ${{ secrets.SERVER_PORT || 22 }}
+          command_timeout: 30m
           script: |
             set -e
 
@@ -74,7 +75,7 @@ jobs:
             EOF
 
             echo "开始基于服务器最新代码构建镜像..."
-            docker compose --env-file .env -f docker-compose.prod.yml build --pull backend frontend
+            docker compose --env-file .env -f docker-compose.prod.yml build backend frontend
 
             echo "启动最新服务..."
             docker compose --env-file .env -f docker-compose.prod.yml up -d --remove-orphans
@@ -88,5 +89,3 @@ jobs:
             echo "检查服务状态..."
             docker compose --env-file .env -f docker-compose.prod.yml ps
             curl -f http://localhost/health || echo "警告：健康检查暂未通过，请继续检查容器日志"
-
-            docker image prune -f
