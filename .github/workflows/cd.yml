@@ -141,6 +141,7 @@ jobs:
               EXIT_CODE=$?
 
               echo "部署失败，退出代码：${EXIT_CODE}"
+
               echo "输出 Compose 配置检查结果..."
               compose config --quiet || true
 
@@ -177,7 +178,52 @@ jobs:
               -f docker-compose.prod.yml \
               pull
 
-            echo "启动服务..."
+            # 第一步：只启动数据库和 Redis。
+            echo "启动 PostgreSQL 和 Redis..."
+            timeout 2m docker compose \
+              --env-file .env \
+              -f docker-compose.prod.yml \
+              up \
+              -d \
+              --no-build \
+              postgres \
+              redis
+
+            # 第二步：等待 PostgreSQL 真正可以接受连接。
+            echo "等待 PostgreSQL 就绪..."
+            POSTGRES_READY=0
+
+            for i in $(seq 1 30); do
+              if compose exec -T postgres sh -c \
+                'pg_isready -U "$POSTGRES_USER" -d "$POSTGRES_DB"' \
+                >/dev/null 2>&1; then
+                POSTGRES_READY=1
+                break
+              fi
+
+              echo "PostgreSQL 尚未就绪，等待 5 秒（${i}/30）..."
+              sleep 5
+            done
+
+            if [ "$POSTGRES_READY" != "1" ]; then
+              echo "PostgreSQL 未能在规定时间内就绪"
+              exit 1
+            fi
+
+            # 第三步：使用一次性后端容器执行迁移。
+            # 此时正式后端服务尚未启动，因此不会因为缺少数据表而启动失败。
+            echo "执行数据库迁移..."
+            timeout 3m docker compose \
+              --env-file .env \
+              -f docker-compose.prod.yml \
+              run \
+              --rm \
+              --no-deps \
+              backend \
+              alembic upgrade head
+
+            # 第四步：迁移成功后再启动全部服务。
+            echo "启动全部服务..."
             timeout 3m docker compose \
               --env-file .env \
               -f docker-compose.prod.yml \
@@ -203,9 +249,6 @@ jobs:
               echo "后端容器未能正常运行"
               exit 1
             fi
-
-            echo "执行数据库迁移..."
-            compose exec -T backend alembic upgrade head
 
             echo "等待应用健康检查..."
             HEALTHY=0
