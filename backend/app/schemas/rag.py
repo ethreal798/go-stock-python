@@ -105,3 +105,40 @@ class RagEmbedResponse(BaseModel):
     skipped_invalid: int = 0
     model: str
     embedding_dim: int
+
+
+class RagRetrieveRequest(BaseModel):
+    """RAG 检索请求。"""
+
+    query: str = Field(..., min_length=1, description="用户查询")
+    top_k: int = Field(8, ge=1, le=50, description="返回 chunk 数量")
+    days: Optional[int] = Field(7, ge=1, le=365, description="检索最近多少天的数据")
+    model: Optional[str] = Field(None, description="Embedding 模型名称，默认使用配置项")
+    use_vector: bool = Field(True, description="是否启用向量召回")
+
+
+class RagRetrieveItem(BaseModel):
+    """RAG 检索结果项。"""
+
+    chunk_id: int
+    document_id: int
+    chunk_index: int
+    title: Optional[str] = None
+    content: str
+    source_name: Optional[str] = None
+    url: Optional[str] = None
+    published_at: Optional[datetime] = None
+    category: Optional[str] = None
+    sentiment: Optional[str] = None
+    score: float
+    match_type: str
+
+
+class RagRetrieveResponse(BaseModel):
+    """RAG 检索响应。"""
+
+    query: str
+    top_k: int
+    days: Optional[int] = None
+    model: str
+    items: list[RagRetrieveItem] = Field(default_factory=list)

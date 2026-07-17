@@ -13,10 +13,13 @@ from app.schemas.rag import (
     RagEmbedResponse,
     RagNewsIngestRequest,
     RagNewsIngestResponse,
+    RagRetrieveRequest,
+    RagRetrieveResponse,
 )
 from app.services.chunk_service import ChunkService
 from app.services.embedding_service import EmbeddingService
 from app.services.news_ingest_service import NewsIngestService
+from app.services.retrieval_service import RetrievalService
 
 router = APIRouter(prefix="/ai/rag", tags=["ai-rag"])
 
@@ -31,6 +34,10 @@ def get_chunk_service(db: AsyncSession = Depends(get_db)) -> ChunkService:
 
 def get_embedding_service(db: AsyncSession = Depends(get_db)) -> EmbeddingService:
     return EmbeddingService(db)
+
+
+def get_retrieval_service(db: AsyncSession = Depends(get_db)) -> RetrievalService:
+    return RetrievalService(db)
 
 
 @router.post("/ingest/news", response_model=RagNewsIngestResponse, summary="将新闻同步到 RAG 文档表")
@@ -84,3 +91,18 @@ async def embed_chunks(
 ) -> RagEmbedResponse:
     stats = await service.embed_pending_chunks(limit=request.limit, model=request.model)
     return RagEmbedResponse(success=True, **stats)
+
+
+@router.post("/retrieve", response_model=RagRetrieveResponse, summary="检索 RAG chunk")
+async def retrieve_chunks(
+    request: RagRetrieveRequest,
+    service: RetrievalService = Depends(get_retrieval_service),
+) -> RagRetrieveResponse:
+    result = await service.retrieve(
+        query=request.query,
+        top_k=request.top_k,
+        days=request.days,
+        model=request.model,
+        use_vector=request.use_vector,
+    )
+    return RagRetrieveResponse.model_validate(result)
