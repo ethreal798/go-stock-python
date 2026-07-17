@@ -142,3 +142,40 @@ class RagRetrieveResponse(BaseModel):
     days: Optional[int] = None
     model: str
     items: list[RagRetrieveItem] = Field(default_factory=list)
+
+
+class RagCitation(BaseModel):
+    """RAG 回答引用来源。"""
+
+    index: int
+    chunk_id: int
+    document_id: int
+    title: Optional[str] = None
+    source_name: Optional[str] = None
+    url: Optional[str] = None
+    published_at: Optional[datetime] = None
+    score: Optional[float] = None
+    match_type: Optional[str] = None
+
+
+class RagChatRequest(BaseModel):
+    """RAG 问答请求。"""
+
+    message: str = Field(..., min_length=1, description="用户问题")
+    conversation_id: Optional[str] = Field(None, description="会话ID，为空则新建")
+    top_k: int = Field(8, ge=1, le=50, description="用于回答的召回 chunk 数")
+    days: Optional[int] = Field(7, ge=1, le=365, description="检索最近多少天的数据")
+    model: Optional[str] = Field(None, description="回答模型名称")
+    embedding_model: Optional[str] = Field(None, description="Embedding 模型名称")
+    use_vector: bool = Field(True, description="是否启用向量召回")
+
+
+class RagChatResponse(BaseModel):
+    """RAG 问答响应。"""
+
+    conversation_id: str
+    answer: str
+    citations: list[RagCitation] = Field(default_factory=list)
+    retrieved_count: int = 0
+    model: str
+    usage: Optional[dict] = None

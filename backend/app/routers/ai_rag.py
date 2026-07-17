@@ -5,6 +5,8 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.database import get_db
 from app.schemas.rag import (
+    RagChatRequest,
+    RagChatResponse,
     RagChunkBatchResponse,
     RagChunkRequest,
     RagChunkResponse,
@@ -19,6 +21,7 @@ from app.schemas.rag import (
 from app.services.chunk_service import ChunkService
 from app.services.embedding_service import EmbeddingService
 from app.services.news_ingest_service import NewsIngestService
+from app.services.rag_service import RagService
 from app.services.retrieval_service import RetrievalService
 
 router = APIRouter(prefix="/ai/rag", tags=["ai-rag"])
@@ -38,6 +41,10 @@ def get_embedding_service(db: AsyncSession = Depends(get_db)) -> EmbeddingServic
 
 def get_retrieval_service(db: AsyncSession = Depends(get_db)) -> RetrievalService:
     return RetrievalService(db)
+
+
+def get_rag_service(db: AsyncSession = Depends(get_db)) -> RagService:
+    return RagService(db)
 
 
 @router.post("/ingest/news", response_model=RagNewsIngestResponse, summary="将新闻同步到 RAG 文档表")
@@ -106,3 +113,20 @@ async def retrieve_chunks(
         use_vector=request.use_vector,
     )
     return RagRetrieveResponse.model_validate(result)
+
+
+@router.post("/chat", response_model=RagChatResponse, summary="RAG 新闻问答")
+async def chat(
+    request: RagChatRequest,
+    service: RagService = Depends(get_rag_service),
+) -> RagChatResponse:
+    result = await service.answer(
+        message=request.message,
+        conversation_id=request.conversation_id,
+        top_k=request.top_k,
+        days=request.days,
+        model=request.model,
+        embedding_model=request.embedding_model,
+        use_vector=request.use_vector,
+    )
+    return RagChatResponse.model_validate(result)
