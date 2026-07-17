@@ -15,12 +15,15 @@ from app.schemas.rag import (
     RagEmbedResponse,
     RagNewsIngestRequest,
     RagNewsIngestResponse,
+    RagNewsPipelineRequest,
+    RagNewsPipelineResponse,
     RagRetrieveRequest,
     RagRetrieveResponse,
 )
 from app.services.chunk_service import ChunkService
 from app.services.embedding_service import EmbeddingService
 from app.services.news_ingest_service import NewsIngestService
+from app.services.rag_pipeline_service import RagPipelineService
 from app.services.rag_service import RagService
 from app.services.retrieval_service import RetrievalService
 
@@ -45,6 +48,10 @@ def get_retrieval_service(db: AsyncSession = Depends(get_db)) -> RetrievalServic
 
 def get_rag_service(db: AsyncSession = Depends(get_db)) -> RagService:
     return RagService(db)
+
+
+def get_rag_pipeline_service(db: AsyncSession = Depends(get_db)) -> RagPipelineService:
+    return RagPipelineService(db)
 
 
 @router.post("/ingest/news", response_model=RagNewsIngestResponse, summary="将新闻同步到 RAG 文档表")
@@ -98,6 +105,48 @@ async def embed_chunks(
 ) -> RagEmbedResponse:
     stats = await service.embed_pending_chunks(limit=request.limit, model=request.model)
     return RagEmbedResponse(success=True, **stats)
+
+
+@router.post("/pipeline/news", response_model=RagNewsPipelineResponse, summary="一键执行新闻 RAG 流水线")
+async def run_news_pipeline(
+    request: RagNewsPipelineRequest,
+    service: RagPipelineService = Depends(get_rag_pipeline_service),
+) -> RagNewsPipelineResponse:
+    result = await service.run_news_pipeline(
+        news_limit=request.news_limit,
+        news_type=request.news_type,
+        relevant_only=request.relevant_only,
+        chunk_limit=request.chunk_limit,
+        max_chars=request.max_chars,
+        overlap_chars=request.overlap_chars,
+        embed_limit=request.embed_limit,
+        embedding_model=request.embedding_model,
+    )
+
+    ingest = (
+        RagNewsIngestResponse(success=result["failed_stage"] != "ingest", **result["ingest"])
+        if result["ingest"]
+        else None
+    )
+    chunk = (
+        RagChunkBatchResponse(success=result["failed_stage"] != "chunk", **result["chunk"])
+        if result["chunk"]
+        else None
+    )
+    embed = (
+        RagEmbedResponse(success=result["failed_stage"] != "embed", **result["embed"])
+        if result["embed"]
+        else None
+    )
+
+    return RagNewsPipelineResponse(
+        success=result["success"],
+        failed_stage=result["failed_stage"],
+        error=result["error"],
+        ingest=ingest,
+        chunk=chunk,
+        embed=embed,
+    )
 
 
 @router.post("/retrieve", response_model=RagRetrieveResponse, summary="检索 RAG chunk")

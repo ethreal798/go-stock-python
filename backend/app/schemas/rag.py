@@ -107,6 +107,30 @@ class RagEmbedResponse(BaseModel):
     embedding_dim: int
 
 
+class RagNewsPipelineRequest(BaseModel):
+    """新闻 RAG 一键流水线请求。"""
+
+    news_limit: int = Field(100, ge=1, le=1000, description="本次最多同步多少条新闻")
+    news_type: str = Field("all", description="新闻类型: all / fast / news")
+    relevant_only: bool = Field(True, description="是否仅处理金融相关资讯")
+    chunk_limit: int = Field(100, ge=1, le=1000, description="本次最多切分多少篇文档")
+    max_chars: int = Field(800, ge=200, le=4000, description="每个 chunk 最大字符数")
+    overlap_chars: int = Field(120, ge=0, le=1000, description="相邻 chunk 重叠字符数")
+    embed_limit: int = Field(100, ge=1, le=1000, description="本次最多向量化多少个 chunk")
+    embedding_model: Optional[str] = Field(None, description="Embedding 模型名称，默认使用配置项")
+
+
+class RagNewsPipelineResponse(BaseModel):
+    """新闻 RAG 一键流水线响应。"""
+
+    success: bool = True
+    failed_stage: Optional[str] = None
+    error: Optional[str] = None
+    ingest: Optional[RagNewsIngestResponse] = None
+    chunk: Optional[RagChunkBatchResponse] = None
+    embed: Optional[RagEmbedResponse] = None
+
+
 class RagRetrieveRequest(BaseModel):
     """RAG 检索请求。"""
 
