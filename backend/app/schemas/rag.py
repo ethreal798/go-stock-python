@@ -29,6 +29,28 @@ class RagDocumentResponse(BaseModel):
     model_config = {"from_attributes": True}
 
 
+class RagChunkResponse(BaseModel):
+    """RAG 分块响应。"""
+
+    id: int
+    document_id: int
+    chunk_index: int
+    chunk_text: str
+    chunk_hash: str
+    token_count: int = 0
+    start_offset: int = 0
+    end_offset: int = 0
+    published_at: Optional[datetime] = None
+    source_name: Optional[str] = None
+    category: Optional[str] = None
+    importance_score: int = 0
+    sentiment: Optional[str] = None
+    created_at: Optional[datetime] = None
+    updated_at: Optional[datetime] = None
+
+    model_config = {"from_attributes": True}
+
+
 class RagNewsIngestRequest(BaseModel):
     """新闻入库请求。"""
 
@@ -43,5 +65,24 @@ class RagNewsIngestResponse(BaseModel):
     success: bool = True
     scanned: int = 0
     ingested: int = 0
+    skipped_existing: int = 0
+    skipped_invalid: int = 0
+
+
+class RagChunkRequest(BaseModel):
+    """RAG 文档切块请求。"""
+
+    limit: int = Field(100, ge=1, le=1000, description="本次最多处理多少篇文档")
+    max_chars: int = Field(800, ge=200, le=4000, description="每个 chunk 最大字符数")
+    overlap_chars: int = Field(120, ge=0, le=1000, description="相邻 chunk 重叠字符数")
+
+
+class RagChunkBatchResponse(BaseModel):
+    """RAG 文档切块响应。"""
+
+    success: bool = True
+    scanned: int = 0
+    chunked_documents: int = 0
+    chunks_created: int = 0
     skipped_existing: int = 0
     skipped_invalid: int = 0
