@@ -9,10 +9,13 @@ from app.schemas.rag import (
     RagChunkRequest,
     RagChunkResponse,
     RagDocumentResponse,
+    RagEmbedRequest,
+    RagEmbedResponse,
     RagNewsIngestRequest,
     RagNewsIngestResponse,
 )
 from app.services.chunk_service import ChunkService
+from app.services.embedding_service import EmbeddingService
 from app.services.news_ingest_service import NewsIngestService
 
 router = APIRouter(prefix="/ai/rag", tags=["ai-rag"])
@@ -24,6 +27,10 @@ def get_news_ingest_service(db: AsyncSession = Depends(get_db)) -> NewsIngestSer
 
 def get_chunk_service(db: AsyncSession = Depends(get_db)) -> ChunkService:
     return ChunkService(db)
+
+
+def get_embedding_service(db: AsyncSession = Depends(get_db)) -> EmbeddingService:
+    return EmbeddingService(db)
 
 
 @router.post("/ingest/news", response_model=RagNewsIngestResponse, summary="将新闻同步到 RAG 文档表")
@@ -68,3 +75,12 @@ async def list_chunks(
 ) -> list[RagChunkResponse]:
     chunks = await service.list_chunks(limit=limit)
     return [RagChunkResponse.model_validate(chunk) for chunk in chunks]
+
+
+@router.post("/embed", response_model=RagEmbedResponse, summary="将 RAG chunk 向量化")
+async def embed_chunks(
+    request: RagEmbedRequest,
+    service: EmbeddingService = Depends(get_embedding_service),
+) -> RagEmbedResponse:
+    stats = await service.embed_pending_chunks(limit=request.limit, model=request.model)
+    return RagEmbedResponse(success=True, **stats)

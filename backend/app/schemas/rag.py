@@ -86,3 +86,22 @@ class RagChunkBatchResponse(BaseModel):
     chunks_created: int = 0
     skipped_existing: int = 0
     skipped_invalid: int = 0
+
+
+class RagEmbedRequest(BaseModel):
+    """RAG chunk 向量化请求。"""
+
+    limit: int = Field(100, ge=1, le=1000, description="本次最多处理多少个 chunk")
+    model: Optional[str] = Field(None, description="Embedding 模型名称，默认使用配置项")
+
+
+class RagEmbedResponse(BaseModel):
+    """RAG chunk 向量化响应。"""
+
+    success: bool = True
+    scanned: int = 0
+    embedded: int = 0
+    skipped_existing: int = 0
+    skipped_invalid: int = 0
+    model: str
+    embedding_dim: int
