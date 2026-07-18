@@ -50,6 +50,13 @@ class Settings(BaseSettings):
     AI_TEMPERATURE: float = 0.7
     AI_MAX_TOKENS: int = 4096
 
+    # ---- AI Embedding 配置 ----
+    AI_EMBEDDING_API_KEY: str = ""
+    AI_EMBEDDING_BASE_URL: str = "https://api.openai.com/v1"
+    AI_EMBEDDING_MODEL: str = "bge-m3"
+    AI_EMBEDDING_DIM: int = 1024
+    AI_EMBEDDING_BATCH_SIZE: int = 32
+
     # ---- 备用 AI 模型配置（Ollama / DeepSeek 等） ----
     AI_OLLAMA_BASE_URL: str = "http://localhost:11434"
     AI_OLLAMA_MODEL: str = "qwen2.5:7b"
