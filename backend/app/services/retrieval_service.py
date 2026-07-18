@@ -77,10 +77,7 @@ class RetrievalService:
             RagChunkEmbedding.embedding_model == model,
         )
         stmt = (
-            select(RagChunk, distance)
-            .join(RagChunkEmbedding, join_condition)
-            .order_by(distance.asc())
-            .limit(top_k * 3)
+            select(RagChunk, distance).join(RagChunkEmbedding, join_condition).order_by(distance.asc()).limit(top_k * 3)
         )
         stmt = self._apply_time_filter(stmt, days)
 

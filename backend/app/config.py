@@ -57,6 +57,15 @@ class Settings(BaseSettings):
     AI_EMBEDDING_DIM: int = 1024
     AI_EMBEDDING_BATCH_SIZE: int = 32
 
+    # ---- RAG 流水线配置 ----
+    RAG_PIPELINE_ON_NEWS_CRAWL: bool = True
+    RAG_PIPELINE_MIN_INTERVAL_SECONDS: int = 60
+    RAG_PIPELINE_NEWS_LIMIT: int = 100
+    RAG_PIPELINE_CHUNK_LIMIT: int = 100
+    RAG_PIPELINE_EMBED_LIMIT: int = 100
+    RAG_PIPELINE_MAX_CHARS: int = 800
+    RAG_PIPELINE_OVERLAP_CHARS: int = 120
+
     # ---- 备用 AI 模型配置（Ollama / DeepSeek 等） ----
     AI_OLLAMA_BASE_URL: str = "http://localhost:11434"
     AI_OLLAMA_MODEL: str = "qwen2.5:7b"
