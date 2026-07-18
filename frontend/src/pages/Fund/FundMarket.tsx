@@ -9,6 +9,8 @@ import FollowModal from "./components/FollowModal";
 
 const { Search } = Input;
 
+const TABLE_SCROLL_Y = "calc(100vh - 200px)";
+
 /**
  * 格式化增长率显示
  * @param v 增长率值
@@ -48,9 +50,7 @@ const FundMarket: React.FC<FundMarketProps> = ({ onFollowSuccess }) => {
   const [searchKeyword, setSearchKeyword] = useState("");
   // 当前页码
   const [currentPage, setCurrentPage] = useState(1);
-  // 已关注的基金代码集合，用于快速判断是否已关注
-  const [followedCodes, setFollowedCodes] = useState<Set<string>>(new Set());
-  
+
   // 弹窗相关状态
   const [modalVisible, setModalVisible] = useState(false);
   const [selectedFund, setSelectedFund] = useState<SearchFund | null>(null);
@@ -91,7 +91,7 @@ const FundMarket: React.FC<FundMarketProps> = ({ onFollowSuccess }) => {
    * @param fund 要关注的基金
    */
   const handleOpenModal = (fund: SearchFund) => {
-    if (followedCodes.has(fund.code)) return;
+    if (fund.is_followed) return;
     setSelectedFund(fund);
     setModalVisible(true);
   };
@@ -105,13 +105,13 @@ const FundMarket: React.FC<FundMarketProps> = ({ onFollowSuccess }) => {
     setFollowLoading(true);
     try {
       await followFund({ fund_code: selectedFund.code, remark });
-      // 关注成功后调用回调函数通知父组件刷新关注列表
-      onFollowSuccess?.();
+      setList((prev) =>
+        prev.map((item) =>
+          item.code === selectedFund.code ? { ...item, is_followed: true } : item
+        )
+      );
       message.success("关注成功");
       setModalVisible(false);
-      // 更新已关注代码集合
-      setFollowedCodes((prev) => new Set([...prev, selectedFund.code]));
-      // 通知父组件刷新关注列表
       onFollowSuccess?.();
     } catch {
       // ignore
@@ -124,8 +124,8 @@ const FundMarket: React.FC<FundMarketProps> = ({ onFollowSuccess }) => {
    * 表格列配置
    */
   const columns: ColumnsType<SearchFund> = [
-    { title: "基金代码", dataIndex: "code", width: 100 },
-    { title: "基金名称", dataIndex: "name", ellipsis: true },
+    { title: "基金代码", dataIndex: "code", width: 80 },
+    { title: "基金名称", dataIndex: "name", width: 150, ellipsis: true },
     { title: "类型", dataIndex: "type", width: 100, render: (v) => v ? <Tag>{v}</Tag> : "-" },
     { title: "净值", dataIndex: "nav", width: 100, render: (v) => v != null ? v.toFixed(4) : "-" },
     { title: "累计净值", dataIndex: "acc_nav", width: 100, render: (v) => v != null ? v.toFixed(4) : "-" },
@@ -134,11 +134,10 @@ const FundMarket: React.FC<FundMarketProps> = ({ onFollowSuccess }) => {
     { title: "近三月", dataIndex: "three_month_growth", width: 100, render: renderGrowth },
     { title: "近六月", dataIndex: "six_month_growth", width: 100, render: renderGrowth },
     { title: "今年", dataIndex: "current_year_growth", width: 100, render: renderGrowth },
-    { title: "基金经理", dataIndex: "manager", width: 100, render: (v) => v || "-" },
     {
       title: "操作", key: "action", width: 100, fixed: "right",
       render: (_, record) => {
-        const isFollowed = followedCodes.has(record.code);
+        const isFollowed = record.is_followed === true;
         return (
           <Button
             type={isFollowed ? "text" : "primary"}
@@ -147,7 +146,7 @@ const FundMarket: React.FC<FundMarketProps> = ({ onFollowSuccess }) => {
             disabled={isFollowed}
             onClick={() => !isFollowed && handleOpenModal(record)}
           >
-            {isFollowed ? "已关注" : "+ 关注"}
+            {isFollowed ? "已关注" : "关注"}
           </Button>
         );
       },
@@ -186,7 +185,7 @@ const FundMarket: React.FC<FundMarketProps> = ({ onFollowSuccess }) => {
             showQuickJumper: true,
             onChange: (page) => handleSearch(searchKeyword, page),
           }}
-          scroll={{ x: 1400 }}
+          scroll={{ x: 1400, y: TABLE_SCROLL_Y }}
           size="small"
         />
       </Card>

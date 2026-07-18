@@ -5,6 +5,8 @@ import type { ColumnsType } from "antd/es/table";
 import type { FollowFund } from "@/types";
 import { getFollowedFunds, unfollowFund } from "@/api/fund";
 
+const TABLE_SCROLL_Y = "calc(100vh - 200px)";
+
 /**
  * 格式化增长率显示
  * @param v 增长率值
@@ -73,8 +75,8 @@ const MyFollows: React.FC = () => {
    * 表格列配置
    */
   const columns: ColumnsType<FollowFund> = [
-    { title: "基金代码", width: 100, render: (_, record) => record.fund_info?.code },
-    { title: "基金名称", ellipsis: true, render: (_, record) => record.fund_info?.name },
+    { title: "基金代码", width: 80, render: (_, record) => record.fund_info?.code },
+    { title: "基金名称", width: 150, ellipsis: true, render: (_, record) => record.fund_info?.name },
     { title: "类型", width: 100, render: (_, record) => record.fund_info?.type ? <Tag>{record.fund_info.type}</Tag> : "-" },
     { title: "净值", width: 100, render: (_, record) => record.fund_info?.nav != null ? record.fund_info.nav.toFixed(4) : "-" },
     { title: "累计净值", width: 100, render: (_, record) => record.fund_info?.acc_nav != null ? record.fund_info.acc_nav.toFixed(4) : "-" },
@@ -84,7 +86,6 @@ const MyFollows: React.FC = () => {
     { title: "近三月", width: 100, render: (_, record) => renderGrowth(record.fund_info?.three_month_growth) },
     { title: "近六月", width: 100, render: (_, record) => renderGrowth(record.fund_info?.six_month_growth) },
     { title: "今年", width: 100, render: (_, record) => renderGrowth(record.fund_info?.current_year_growth) },
-    { title: "基金经理", width: 100, render: (_, record) => record.fund_info?.manager || "-" },
     { title: "备注", width: 100, dataIndex: "remark" },
     {
       title: "操作", key: "action", width: 100, fixed: "right",
@@ -104,7 +105,7 @@ const MyFollows: React.FC = () => {
         dataSource={list}
         loading={loading}
         pagination={{ pageSize: 20 }}
-        scroll={{ x: 1600 }}
+        scroll={{ x: 1600, y: TABLE_SCROLL_Y }}
         size="small"
       />
     </Card>

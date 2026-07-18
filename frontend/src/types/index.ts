@@ -80,6 +80,7 @@ export interface SearchFund {
   name: string;
   type: string;
   id: number;
+  is_followed?: boolean;
   nav?: number;
   acc_nav?: number;
   day_growth?: string | number;
