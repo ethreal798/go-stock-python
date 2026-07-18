@@ -129,15 +129,9 @@ async def run_news_pipeline(
         else None
     )
     chunk = (
-        RagChunkBatchResponse(success=result["failed_stage"] != "chunk", **result["chunk"])
-        if result["chunk"]
-        else None
+        RagChunkBatchResponse(success=result["failed_stage"] != "chunk", **result["chunk"]) if result["chunk"] else None
     )
-    embed = (
-        RagEmbedResponse(success=result["failed_stage"] != "embed", **result["embed"])
-        if result["embed"]
-        else None
-    )
+    embed = RagEmbedResponse(success=result["failed_stage"] != "embed", **result["embed"]) if result["embed"] else None
 
     return RagNewsPipelineResponse(
         success=result["success"],

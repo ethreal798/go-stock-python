@@ -3,7 +3,9 @@
 负责管理和调度定时任务，如行情刷新、预警检测等。
 """
 
+import asyncio
 import logging
+import time
 from typing import Optional
 
 from apscheduler.schedulers.asyncio import AsyncIOScheduler
@@ -13,6 +15,7 @@ from apscheduler.triggers.interval import IntervalTrigger
 from app.config import settings
 from app.core.database import async_session_factory
 from app.services.news_service import NewsService
+from app.services.rag_pipeline_service import RagPipelineService
 
 logger = logging.getLogger(__name__)
 
@@ -23,6 +26,8 @@ class SchedulerService:
     def __init__(self) -> None:
         self._scheduler = AsyncIOScheduler(timezone=settings.SCHEDULER_TIMEZONE)
         self._jobs: dict[str, dict] = {}
+        self._rag_pipeline_lock = asyncio.Lock()
+        self._last_rag_pipeline_run_at = 0.0
 
     # ----------------------------------------------------------
     # 调度器生命周期
@@ -147,8 +152,7 @@ class SchedulerService:
             replace_existing=True,
         )
 
-    @staticmethod
-    async def _execute_task(task_type: str, params: dict) -> None:
+    async def _execute_task(self, task_type: str, params: dict) -> None:
         """执行定时任务的统一入口。"""
         logger.info("Executing task: type=%s, params=%s", task_type, params)
 
@@ -159,17 +163,78 @@ class SchedulerService:
                 elif task_type == "alert_check":
                     pass
                 elif task_type == "news_crawl":
-                    service = NewsService(db)
-                    source = params.get("source", "all")
-                    if source == "all":
-                        await service.fetch_all_sources()
-                    else:
-                        await service.fetch_remote_news(source)
+                    total_new_count = await self._execute_news_crawl(db, params)
+                    if total_new_count > 0:
+                        await self._run_rag_pipeline_after_news_crawl(db, params, total_new_count)
 
                 await db.commit()
             except Exception as e:
                 logger.error("Error executing task %s: %s", task_type, e)
                 await db.rollback()
+
+    async def _execute_news_crawl(self, db, params: dict) -> int:
+        service = NewsService(db)
+        source = params.get("source", "all")
+
+        if source == "all":
+            results = await service.fetch_all_sources()
+            total_new_count = sum(results.values())
+            logger.info("News crawl completed: source=all, total_new_count=%s, results=%s", total_new_count, results)
+            return total_new_count
+
+        news_type = params.get("type", "fast")
+        total_new_count = await service.fetch_remote_news(source, type=news_type)
+        logger.info("News crawl completed: source=%s, total_new_count=%s", source, total_new_count)
+        return total_new_count
+
+    async def _run_rag_pipeline_after_news_crawl(self, db, params: dict, total_new_count: int) -> None:
+        if not settings.RAG_PIPELINE_ON_NEWS_CRAWL:
+            logger.info("Skip RAG pipeline after news crawl: disabled")
+            return
+
+        if self._rag_pipeline_lock.locked():
+            logger.info("Skip RAG pipeline after news crawl: previous pipeline is still running")
+            return
+
+        now = time.monotonic()
+        elapsed = now - self._last_rag_pipeline_run_at
+        if elapsed < settings.RAG_PIPELINE_MIN_INTERVAL_SECONDS:
+            logger.info(
+                "Skip RAG pipeline after news crawl: min interval not reached, elapsed=%.2fs, required=%ss",
+                elapsed,
+                settings.RAG_PIPELINE_MIN_INTERVAL_SECONDS,
+            )
+            return
+
+        async with self._rag_pipeline_lock:
+            self._last_rag_pipeline_run_at = time.monotonic()
+            pipeline_service = RagPipelineService(db)
+            result = await pipeline_service.run_news_pipeline(
+                news_limit=params.get("rag_news_limit", settings.RAG_PIPELINE_NEWS_LIMIT),
+                news_type=params.get("rag_news_type", "all"),
+                relevant_only=params.get("rag_relevant_only", True),
+                chunk_limit=params.get("rag_chunk_limit", settings.RAG_PIPELINE_CHUNK_LIMIT),
+                max_chars=params.get("rag_max_chars", settings.RAG_PIPELINE_MAX_CHARS),
+                overlap_chars=params.get("rag_overlap_chars", settings.RAG_PIPELINE_OVERLAP_CHARS),
+                embed_limit=params.get("rag_embed_limit", settings.RAG_PIPELINE_EMBED_LIMIT),
+                embedding_model=params.get("rag_embedding_model"),
+            )
+
+            if result["success"]:
+                logger.info(
+                    "RAG pipeline completed after news crawl: total_new_count=%s, result=%s",
+                    total_new_count,
+                    result,
+                )
+                return
+
+            logger.warning(
+                "RAG pipeline failed after news crawl: total_new_count=%s, failed_stage=%s, error=%s, result=%s",
+                total_new_count,
+                result["failed_stage"],
+                result["error"],
+                result,
+            )
 
 
 # 全局调度器实例
