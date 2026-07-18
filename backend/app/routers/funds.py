@@ -90,7 +90,7 @@ async def follow_fund(
     return await service.follow_fund(user_id=current_user.id, fund_code=fund_in.fund_code, remark=fund_in.remark)
 
 
-@router.delete("/follow/{code}", summary="取消关注基金")
+@router.delete("/unfollow/{code}", summary="取消关注基金")
 async def unfollow_fund(
     code: str,
     current_user: User = Depends(get_current_user),
@@ -100,7 +100,7 @@ async def unfollow_fund(
     success = await service.unfollow_fund(current_user.id, code)
     if not success:
         raise HTTPException(status_code=404, detail="关注记录不存在")
-    return {"message": "Successfully unfollowed"}
+    return {"message": "ok"}
 
 
 @router.get("/{code}", response_model=FundResponse, summary="获取基金详情")
