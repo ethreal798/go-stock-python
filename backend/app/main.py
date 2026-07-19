@@ -35,6 +35,13 @@ async def lifespan(app: FastAPI):
         trigger_config={"interval_seconds": 60},
         params={"source": "all"},
     )
+    if settings.RAG_RECONCILE_INTERVAL_SECONDS > 0:
+        await scheduler_service.add_job(
+            job_id="rag_reconcile",
+            task_type="rag_reconcile",
+            trigger_config={"interval_seconds": settings.RAG_RECONCILE_INTERVAL_SECONDS},
+            params={},
+        )
     logger.info("Scheduler started")
 
     yield  # 应用运行中
