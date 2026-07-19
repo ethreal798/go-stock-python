@@ -21,7 +21,7 @@ import { getFlashNews, getNewsList } from "@/api/market";
 import type { NewsItem } from "@/types";
 import dayjs from "dayjs";
 
-const { Text } = Typography;
+const { Text, Link } = Typography;
 
 const News: React.FC = () => {
   const [flashNews, setFlashNews] = useState<NewsItem[]>([]);
@@ -310,7 +310,15 @@ const News: React.FC = () => {
             renderItem={(item) => (
               <List.Item>
                 <List.Item.Meta
-                  title={item.title}
+                  title={
+                    item.url ? (
+                      <Link href={item.url} target="_blank" rel="noreferrer">
+                        {item.title}
+                      </Link>
+                    ) : (
+                      item.title
+                    )
+                  }
                   description={
                     <Space>
                       <Tag>{item.source}</Tag>
