@@ -52,10 +52,10 @@ class Settings(BaseSettings):
 
     # ---- AI Embedding 配置 ----
     AI_EMBEDDING_API_KEY: str = ""
-    AI_EMBEDDING_BASE_URL: str = "https://dashscope.aliyuncs.com/compatible-mode/v1"
-    AI_EMBEDDING_MODEL: str = "text-embedding-v4"
+    AI_EMBEDDING_BASE_URL: str = "https://{WorkspaceId}.cn-beijing.maas.aliyuncs.com/compatible-mode/v1"
+    AI_EMBEDDING_MODEL: str = "qwen3.7-text-embedding"
     AI_EMBEDDING_DIM: int = 1024
-    AI_EMBEDDING_BATCH_SIZE: int = 20
+    AI_EMBEDDING_BATCH_SIZE: int = 10
     AI_EMBEDDING_REQUEST_DIMENSIONS: int = 1024
     AI_EMBEDDING_TIMEOUT_SECONDS: int = 60
     AI_EMBEDDING_MAX_RETRIES: int = 3
@@ -67,7 +67,7 @@ class Settings(BaseSettings):
     # RAG流水线最小间隔时间
     RAG_PIPELINE_MIN_INTERVAL_SECONDS: int = 60
     # RAG补偿任务时间
-    RAG_RECONCILE_INTERVAL_SECONDS: int = 300
+    RAG_RECONCILE_INTERVAL_SECONDS: int = 3600
     # RAG流水线最大批次
     RAG_PIPELINE_DRAIN_MAX_BATCHES: int = 5
     # RAG流水线过程最大时间
