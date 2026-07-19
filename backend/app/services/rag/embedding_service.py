@@ -1,5 +1,6 @@
 """RAG chunk 向量化服务。"""
 
+import asyncio
 import logging
 
 import httpx
@@ -59,11 +60,11 @@ class EmbeddingService:
                 )
                 stats["embedded"] = int(stats["embedded"]) + 1
 
-        if int(stats["embedded"]) > 0:
             await self.db.commit()
 
         return stats
 
+    # 调用Embedding模型进行向量化
     async def embed_texts(self, texts: list[str], model: str | None = None) -> list[list[float]]:
         """调用 OpenAI 兼容 /embeddings 接口。"""
         if not texts:
@@ -71,6 +72,8 @@ class EmbeddingService:
 
         embedding_model = model or settings.AI_EMBEDDING_MODEL
         payload = {"model": embedding_model, "input": texts}
+        if settings.AI_EMBEDDING_REQUEST_DIMENSIONS > 0:
+            payload["dimensions"] = settings.AI_EMBEDDING_REQUEST_DIMENSIONS
         headers = {"Content-Type": "application/json"}
 
         api_key = settings.AI_EMBEDDING_API_KEY or settings.AI_API_KEY
@@ -78,15 +81,54 @@ class EmbeddingService:
             headers["Authorization"] = f"Bearer {api_key}"
 
         url = f"{settings.AI_EMBEDDING_BASE_URL.rstrip('/')}/embeddings"
-        async with httpx.AsyncClient(timeout=60.0) as client:
-            response = await client.post(url, json=payload, headers=headers)
-            response.raise_for_status()
+        async with httpx.AsyncClient(timeout=float(settings.AI_EMBEDDING_TIMEOUT_SECONDS)) as client:
+            response = await self._post_with_retry(client, url, payload, headers)
 
         data = response.json()
         vectors = [item["embedding"] for item in sorted(data.get("data", []), key=lambda item: item.get("index", 0))]
         self._validate_vectors(vectors, expected_count=len(texts))
         return vectors
 
+    async def _post_with_retry(
+        self,
+        client: httpx.AsyncClient,
+        url: str,
+        payload: dict,
+        headers: dict[str, str],
+    ) -> httpx.Response:
+        retryable_status_codes = {408, 409, 425, 429, 500, 502, 503, 504}
+        max_retries = max(0, settings.AI_EMBEDDING_MAX_RETRIES)
+
+        for attempt in range(max_retries + 1):
+            try:
+                response = await client.post(url, json=payload, headers=headers)
+                if response.status_code not in retryable_status_codes:
+                    response.raise_for_status()
+                    return response
+
+                if attempt >= max_retries:
+                    response.raise_for_status()
+                    return response
+
+                await asyncio.sleep(self._retry_delay_seconds(response, attempt))
+            except (httpx.TimeoutException, httpx.ConnectError, httpx.RemoteProtocolError):
+                if attempt >= max_retries:
+                    raise
+                await asyncio.sleep(self._retry_delay_seconds(None, attempt))
+
+        raise RuntimeError("Embedding request retry loop exited unexpectedly")
+
+    def _retry_delay_seconds(self, response: httpx.Response | None, attempt: int) -> float:
+        retry_after = response.headers.get("Retry-After") if response is not None else None
+        if retry_after:
+            try:
+                return max(0.0, float(retry_after))
+            except ValueError:
+                logger.warning("Ignore unsupported Retry-After header: %s", retry_after)
+
+        return settings.AI_EMBEDDING_RETRY_BASE_SECONDS * (2**attempt)
+
+    # 过滤已向量化的切片文档
     async def _get_chunks_without_embedding(self, limit: int, model: str) -> list[RagChunk]:
         join_condition = and_(
             RagChunkEmbedding.chunk_id == RagChunk.id,
