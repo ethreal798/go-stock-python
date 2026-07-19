@@ -56,10 +56,7 @@ class UserService:
             )
 
         if await self.get_by_username(user_in.username):
-            raise HTTPException(
-                status_code=status.HTTP_400_BAD_REQUEST,
-                detail="用户名已存在"
-            )
+            raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="用户名已存在")
 
         # 创建新用户
         db_user = User(

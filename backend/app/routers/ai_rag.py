@@ -17,7 +17,6 @@ from app.schemas.rag import (
     RagNewsIngestResponse,
     RagNewsPipelineDrainRequest,
     RagNewsPipelineDrainResponse,
-    RagNewsPipelineRequest,
     RagNewsPipelineResponse,
     RagRetrieveRequest,
     RagRetrieveResponse,
