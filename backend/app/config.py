@@ -52,18 +52,35 @@ class Settings(BaseSettings):
 
     # ---- AI Embedding 配置 ----
     AI_EMBEDDING_API_KEY: str = ""
-    AI_EMBEDDING_BASE_URL: str = "https://api.openai.com/v1"
-    AI_EMBEDDING_MODEL: str = "bge-m3"
+    AI_EMBEDDING_BASE_URL: str = "https://dashscope.aliyuncs.com/compatible-mode/v1"
+    AI_EMBEDDING_MODEL: str = "text-embedding-v4"
     AI_EMBEDDING_DIM: int = 1024
-    AI_EMBEDDING_BATCH_SIZE: int = 32
+    AI_EMBEDDING_BATCH_SIZE: int = 20
+    AI_EMBEDDING_REQUEST_DIMENSIONS: int = 1024
+    AI_EMBEDDING_TIMEOUT_SECONDS: int = 60
+    AI_EMBEDDING_MAX_RETRIES: int = 3
+    AI_EMBEDDING_RETRY_BASE_SECONDS: float = 2.0
 
     # ---- RAG 流水线配置 ----
+    # 立刻执行RAG流水线当新增资讯新闻后
     RAG_PIPELINE_ON_NEWS_CRAWL: bool = True
+    # RAG流水线最小间隔时间
     RAG_PIPELINE_MIN_INTERVAL_SECONDS: int = 60
+    # RAG补偿任务时间
+    RAG_RECONCILE_INTERVAL_SECONDS: int = 300
+    # RAG流水线最大批次
+    RAG_PIPELINE_DRAIN_MAX_BATCHES: int = 5
+    # RAG流水线过程最大时间
+    RAG_PIPELINE_DRAIN_MAX_SECONDS: int = 180
+    # RAG流水线同步新闻/资讯数量
     RAG_PIPELINE_NEWS_LIMIT: int = 100
+    # 最大切片数量
     RAG_PIPELINE_CHUNK_LIMIT: int = 100
+    # 最大向量化数据量
     RAG_PIPELINE_EMBED_LIMIT: int = 100
+    # 最大字符数
     RAG_PIPELINE_MAX_CHARS: int = 800
+    # 重叠字符数
     RAG_PIPELINE_OVERLAP_CHARS: int = 120
 
     # ---- 备用 AI 模型配置（Ollama / DeepSeek 等） ----

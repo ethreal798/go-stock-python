@@ -28,6 +28,11 @@ class UserService:
         result = await self.db.execute(select(User).where(User.email == email))
         return result.scalars().first()
 
+    async def get_by_username(self, username: str) -> Optional[User]:
+        """根据用户名获取用户。"""
+        result = await self.db.execute(select(User).where(User.username == username))
+        return result.scalars().first()
+
     async def authenticate(self, email: str, password: str) -> Optional[User]:
         """验证用户登录。"""
         user = await self.get_by_email(email)
@@ -44,12 +49,14 @@ class UserService:
     async def register(self, user_in: UserCreate) -> User:
         """注册新用户。"""
         # 检查邮箱是否已存在
-        existing_user = await self.get_by_email(user_in.email)
-        if existing_user:
+        if await self.get_by_email(user_in.email):
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
                 detail="该邮箱已被注册",
             )
+
+        if await self.get_by_username(user_in.username):
+            raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="用户名已存在")
 
         # 创建新用户
         db_user = User(

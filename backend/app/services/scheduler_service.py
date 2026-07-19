@@ -15,7 +15,7 @@ from apscheduler.triggers.interval import IntervalTrigger
 from app.config import settings
 from app.core.database import async_session_factory
 from app.services.news_service import NewsService
-from app.services.rag_pipeline_service import RagPipelineService
+from app.services.rag.rag_pipeline_service import RagPipelineService
 
 logger = logging.getLogger(__name__)
 
@@ -166,6 +166,8 @@ class SchedulerService:
                     total_new_count = await self._execute_news_crawl(db, params)
                     if total_new_count > 0:
                         await self._run_rag_pipeline_after_news_crawl(db, params, total_new_count)
+                elif task_type == "rag_reconcile":
+                    await self._run_rag_reconcile(db, params)
 
                 await db.commit()
             except Exception as e:
@@ -192,15 +194,30 @@ class SchedulerService:
             logger.info("Skip RAG pipeline after news crawl: disabled")
             return
 
+        await self._run_rag_pipeline_drain(db, params, reason="news_crawl", total_new_count=total_new_count)
+
+    async def _run_rag_reconcile(self, db, params: dict) -> None:
+        await self._run_rag_pipeline_drain(db, params, reason="reconcile")
+
+    async def _run_rag_pipeline_drain(
+        self,
+        db,
+        params: dict,
+        *,
+        reason: str,
+        total_new_count: int | None = None,
+    ) -> None:
         if self._rag_pipeline_lock.locked():
-            logger.info("Skip RAG pipeline after news crawl: previous pipeline is still running")
+            logger.info("Skip RAG pipeline: previous pipeline is still running, reason=%s", reason)
             return
 
         now = time.monotonic()
         elapsed = now - self._last_rag_pipeline_run_at
+        # 当执行任务间隔小于配置的RAG流水线间隔的最小时间，则不执行流水线作业
         if elapsed < settings.RAG_PIPELINE_MIN_INTERVAL_SECONDS:
             logger.info(
-                "Skip RAG pipeline after news crawl: min interval not reached, elapsed=%.2fs, required=%ss",
+                "Skip RAG pipeline: min interval not reached, reason=%s, elapsed=%.2fs, required=%ss",
+                reason,
                 elapsed,
                 settings.RAG_PIPELINE_MIN_INTERVAL_SECONDS,
             )
@@ -209,7 +226,9 @@ class SchedulerService:
         async with self._rag_pipeline_lock:
             self._last_rag_pipeline_run_at = time.monotonic()
             pipeline_service = RagPipelineService(db)
-            result = await pipeline_service.run_news_pipeline(
+            result = await pipeline_service.run_news_pipeline_drain(
+                max_batches=params.get("rag_drain_max_batches", settings.RAG_PIPELINE_DRAIN_MAX_BATCHES),
+                max_seconds=params.get("rag_drain_max_seconds", settings.RAG_PIPELINE_DRAIN_MAX_SECONDS),
                 news_limit=params.get("rag_news_limit", settings.RAG_PIPELINE_NEWS_LIMIT),
                 news_type=params.get("rag_news_type", "all"),
                 relevant_only=params.get("rag_relevant_only", True),
@@ -222,14 +241,16 @@ class SchedulerService:
 
             if result["success"]:
                 logger.info(
-                    "RAG pipeline completed after news crawl: total_new_count=%s, result=%s",
+                    "RAG pipeline completed: reason=%s, total_new_count=%s, result=%s",
+                    reason,
                     total_new_count,
                     result,
                 )
                 return
 
             logger.warning(
-                "RAG pipeline failed after news crawl: total_new_count=%s, failed_stage=%s, error=%s, result=%s",
+                "RAG pipeline failed: reason=%s, total_new_count=%s, failed_stage=%s, error=%s, result=%s",
+                reason,
                 total_new_count,
                 result["failed_stage"],
                 result["error"],

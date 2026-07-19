@@ -9,7 +9,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.config import settings
 from app.models.rag import RagQueryLog
 from app.services.llm_service import LLMService
-from app.services.retrieval_service import RetrievalService
+from app.services.rag.retrieval_service import RetrievalService
 
 
 class RagService:

@@ -65,7 +65,6 @@ class RagNewsIngestResponse(BaseModel):
     success: bool = True
     scanned: int = 0
     ingested: int = 0
-    skipped_existing: int = 0
     skipped_invalid: int = 0
 
 
@@ -120,6 +119,13 @@ class RagNewsPipelineRequest(BaseModel):
     embedding_model: Optional[str] = Field(None, description="Embedding 模型名称，默认使用配置项")
 
 
+class RagNewsPipelineDrainRequest(RagNewsPipelineRequest):
+    """RAG 流水线受控排空请求。"""
+
+    max_batches: int = Field(5, ge=1, le=20, description="本次最多排空多少个批次")
+    max_seconds: int = Field(180, ge=10, le=900, description="本次最多运行多少秒")
+
+
 class RagNewsPipelineResponse(BaseModel):
     """新闻 RAG 一键流水线响应。"""
 
@@ -129,6 +135,18 @@ class RagNewsPipelineResponse(BaseModel):
     ingest: Optional[RagNewsIngestResponse] = None
     chunk: Optional[RagChunkBatchResponse] = None
     embed: Optional[RagEmbedResponse] = None
+
+
+class RagNewsPipelineDrainResponse(BaseModel):
+    """RAG 流水线受控排空响应。"""
+
+    success: bool = True
+    failed_stage: Optional[str] = None
+    error: Optional[str] = None
+    batch_count: int = 0
+    stopped_reason: str = "idle"
+    totals: dict[str, int] = Field(default_factory=dict)
+    batches: list[RagNewsPipelineResponse] = Field(default_factory=list)
 
 
 class RagRetrieveRequest(BaseModel):

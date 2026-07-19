@@ -10,7 +10,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.config import settings
 from app.models.rag import RagChunk, RagChunkEmbedding
-from app.services.embedding_service import EmbeddingService
+from app.services.rag.embedding_service import EmbeddingService
 
 logger = logging.getLogger(__name__)
 
