@@ -15,17 +15,19 @@ from app.schemas.rag import (
     RagEmbedResponse,
     RagNewsIngestRequest,
     RagNewsIngestResponse,
+    RagNewsPipelineDrainRequest,
+    RagNewsPipelineDrainResponse,
     RagNewsPipelineRequest,
     RagNewsPipelineResponse,
     RagRetrieveRequest,
     RagRetrieveResponse,
 )
-from app.services.chunk_service import ChunkService
-from app.services.embedding_service import EmbeddingService
-from app.services.news_ingest_service import NewsIngestService
-from app.services.rag_pipeline_service import RagPipelineService
-from app.services.rag_service import RagService
-from app.services.retrieval_service import RetrievalService
+from app.services.rag.chunk_service import ChunkService
+from app.services.rag.embedding_service import EmbeddingService
+from app.services.rag.news_ingest_service import NewsIngestService
+from app.services.rag.rag_pipeline_service import RagPipelineService
+from app.services.rag.rag_service import RagService
+from app.services.rag.retrieval_service import RetrievalService
 
 router = APIRouter(prefix="/ai/rag", tags=["ai-rag"])
 
@@ -52,6 +54,27 @@ def get_rag_service(db: AsyncSession = Depends(get_db)) -> RagService:
 
 def get_rag_pipeline_service(db: AsyncSession = Depends(get_db)) -> RagPipelineService:
     return RagPipelineService(db)
+
+
+def build_pipeline_response(result: dict) -> RagNewsPipelineResponse:
+    ingest = (
+        RagNewsIngestResponse(success=result["failed_stage"] != "ingest", **result["ingest"])
+        if result["ingest"]
+        else None
+    )
+    chunk = (
+        RagChunkBatchResponse(success=result["failed_stage"] != "chunk", **result["chunk"]) if result["chunk"] else None
+    )
+    embed = RagEmbedResponse(success=result["failed_stage"] != "embed", **result["embed"]) if result["embed"] else None
+
+    return RagNewsPipelineResponse(
+        success=result["success"],
+        failed_stage=result["failed_stage"],
+        error=result["error"],
+        ingest=ingest,
+        chunk=chunk,
+        embed=embed,
+    )
 
 
 @router.post("/ingest/news", response_model=RagNewsIngestResponse, summary="将新闻同步到 RAG 文档表")
@@ -107,12 +130,14 @@ async def embed_chunks(
     return RagEmbedResponse(success=True, **stats)
 
 
-@router.post("/pipeline/news", response_model=RagNewsPipelineResponse, summary="一键执行新闻 RAG 流水线")
-async def run_news_pipeline(
-    request: RagNewsPipelineRequest,
+@router.post("/pipeline/news/drain", response_model=RagNewsPipelineDrainResponse, summary="受控排空新闻 RAG 流水线")
+async def run_news_pipeline_drain(
+    request: RagNewsPipelineDrainRequest,
     service: RagPipelineService = Depends(get_rag_pipeline_service),
-) -> RagNewsPipelineResponse:
-    result = await service.run_news_pipeline(
+) -> RagNewsPipelineDrainResponse:
+    result = await service.run_news_pipeline_drain(
+        max_batches=request.max_batches,
+        max_seconds=request.max_seconds,
         news_limit=request.news_limit,
         news_type=request.news_type,
         relevant_only=request.relevant_only,
@@ -123,23 +148,14 @@ async def run_news_pipeline(
         embedding_model=request.embedding_model,
     )
 
-    ingest = (
-        RagNewsIngestResponse(success=result["failed_stage"] != "ingest", **result["ingest"])
-        if result["ingest"]
-        else None
-    )
-    chunk = (
-        RagChunkBatchResponse(success=result["failed_stage"] != "chunk", **result["chunk"]) if result["chunk"] else None
-    )
-    embed = RagEmbedResponse(success=result["failed_stage"] != "embed", **result["embed"]) if result["embed"] else None
-
-    return RagNewsPipelineResponse(
+    return RagNewsPipelineDrainResponse(
         success=result["success"],
         failed_stage=result["failed_stage"],
         error=result["error"],
-        ingest=ingest,
-        chunk=chunk,
-        embed=embed,
+        batch_count=result["batch_count"],
+        stopped_reason=result["stopped_reason"],
+        totals=result["totals"],
+        batches=[build_pipeline_response(batch) for batch in result["batches"]],
     )
 
 
