@@ -11,7 +11,7 @@ export const followFund = (data: { fund_code: string; remark?: string }) =>
 
 // 取消关注基金（可选，您没提但一般会有，先加上）
 export const unfollowFund = (fund_code: string) =>
-  request.post("/funds/unfollow", { fund_code });
+  request.delete(`/funds/unfollow/${fund_code}`);
 
 // 搜索基金
 export const searchFund = (params: {
