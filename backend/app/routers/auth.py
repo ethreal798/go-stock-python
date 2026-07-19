@@ -23,10 +23,16 @@ def get_user_service(db: AsyncSession = Depends(get_db)) -> UserService:
     return UserService(db)
 
 
-@router.post("/register", response_model=UserOut, summary="用户注册")
+@router.post("/register", response_model=Token, summary="用户注册")
 async def register(user_in: UserCreate, service: UserService = Depends(get_user_service)) -> Any:
     """注册新账号。"""
-    return await service.register(user_in)
+    new_user = await service.register(user_in)
+
+    access_token_expires = timedelta(minutes=settings.ACCESS_TOKEN_EXPIRE_MINUTES)
+    return {
+        "access_token": create_access_token(new_user.id, expires_delta=access_token_expires),
+        "token_type": "bearer",
+    }
 
 
 @router.post("/login", response_model=Token, summary="用户登录")
