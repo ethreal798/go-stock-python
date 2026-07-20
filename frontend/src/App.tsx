@@ -1,6 +1,16 @@
 import React, { useState } from "react";
 import { BrowserRouter } from "react-router-dom";
-import { ConfigProvider, Layout, Menu, theme, Dropdown, Space, Avatar, Button, Typography } from "antd";
+import {
+  ConfigProvider,
+  Layout,
+  Menu,
+  theme,
+  Dropdown,
+  Space,
+  Avatar,
+  Button,
+  Typography,
+} from "antd";
 import type { MenuProps } from "antd";
 import zhCN from "antd/locale/zh_CN";
 import {
@@ -33,14 +43,14 @@ const menuItems: MenuProps["items"] = [
   { key: "/market", icon: <StockOutlined />, label: "行情中心" },
   { key: "/agent", icon: <RobotOutlined />, label: "AI 对话" },
   { key: "/news", icon: <NotificationOutlined />, label: "新闻资讯" },
-  { 
-    key: "/fund", 
-    icon: <FundOutlined />, 
+  {
+    key: "/fund",
+    icon: <FundOutlined />,
     label: "基金",
     children: [
       { key: "/fund", label: "我的关注" },
-      { key: "/fund/market", label: "基金市场" }
-    ]
+      { key: "/fund/market", label: "基金市场" },
+    ],
   },
   { key: "/cron-tasks", icon: <ClockCircleOutlined />, label: "定时任务" },
   {
@@ -56,30 +66,33 @@ const menuItems: MenuProps["items"] = [
   { key: "/about", icon: <InfoCircleOutlined />, label: "关于" },
 ];
 
-const findMenuLabel = (
+// 根据当前 pathname 映射到一级菜单标题，用于 Header 展示（不递归子菜单）
+const getTopMenuLabel = (
   items: MenuProps["items"] | undefined,
-  targetKey: string
+  pathname: string,
 ): React.ReactNode | null => {
   if (!items) return null;
 
   for (const item of items) {
     if (!item) continue;
+    if (!("key" in item)) continue;
 
-    if ("key" in item && item.key === targetKey) {
-      return item.label;
+    const key = item.key;
+    if (typeof key !== "string") continue;
+
+    if (key === pathname) {
+      return "label" in item ? item.label : null;
     }
 
-    if ("children" in item) {
-      const childLabel = findMenuLabel(item.children, targetKey);
-      if (childLabel) {
-        return childLabel;
-      }
+    if (key !== "/" && pathname.startsWith(key)) {
+      return "label" in item ? item.label : null;
     }
   }
 
   return null;
 };
 
+// 主布局：包含侧边栏菜单、顶部 Header、以及路由内容区
 const AppLayout: React.FC = () => {
   const [collapsed, setCollapsed] = useState(false);
   const navigate = useNavigate();
@@ -104,7 +117,8 @@ const AppLayout: React.FC = () => {
         collapsible
         collapsed={collapsed}
         onCollapse={setCollapsed}
-        style={{ background: "#001529" }}
+        style={{ background: "#001529" }
+      }
         width={200}
       >
         <div
@@ -148,11 +162,12 @@ const AppLayout: React.FC = () => {
           }}
         >
           <span style={{ fontSize: 16, fontWeight: 600, color: "#1d2129" }}>
-            {findMenuLabel(menuItems, location.pathname) ?? "Go-Stock 股票分析平台"}
+            {getTopMenuLabel(menuItems, location.pathname) ??
+              "Go-Stock 股票分析平台"}
           </span>
 
           <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
-            {isAuthenticated && token_type ? (  
+            {isAuthenticated && token_type ? (
               <Dropdown menu={{ items: userMenuItems }} placement="bottomRight">
                 <Space style={{ cursor: "pointer", padding: "0 8px" }}>
                   <Avatar
@@ -196,6 +211,7 @@ const AppLayout: React.FC = () => {
   );
 };
 
+// 应用入口：提供 Ant Design 主题/国际化，并挂载路由
 const App: React.FC = () => {
   return (
     <ConfigProvider
