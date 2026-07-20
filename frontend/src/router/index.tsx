@@ -39,6 +39,8 @@ const AppRouter: React.FC = () => {
           <Route path="/fund/market" element={<Fund />} />
           <Route path="/cron-tasks" element={<CronTasks />} />
           <Route path="/settings" element={<Settings />} />
+          <Route path="/settings/notify" element={<Settings />} />
+          <Route path="/settings/datasource" element={<Settings />} />
           <Route path="/about" element={<About />} />
         </Routes>
       </AuthGuard>

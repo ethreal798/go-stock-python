@@ -43,9 +43,42 @@ const menuItems: MenuProps["items"] = [
     ]
   },
   { key: "/cron-tasks", icon: <ClockCircleOutlined />, label: "定时任务" },
-  { key: "/settings", icon: <SettingOutlined />, label: "设置" },
+  {
+    key: "/settings",
+    icon: <SettingOutlined />,
+    label: "设置",
+    children: [
+      { key: "/settings", label: "AI 配置" },
+      { key: "/settings/notify", label: "通知配置" },
+      { key: "/settings/datasource", label: "数据源配置" },
+    ],
+  },
   { key: "/about", icon: <InfoCircleOutlined />, label: "关于" },
 ];
+
+const findMenuLabel = (
+  items: MenuProps["items"] | undefined,
+  targetKey: string
+): React.ReactNode | null => {
+  if (!items) return null;
+
+  for (const item of items) {
+    if (!item) continue;
+
+    if ("key" in item && item.key === targetKey) {
+      return item.label;
+    }
+
+    if ("children" in item) {
+      const childLabel = findMenuLabel(item.children, targetKey);
+      if (childLabel) {
+        return childLabel;
+      }
+    }
+  }
+
+  return null;
+};
 
 const AppLayout: React.FC = () => {
   const [collapsed, setCollapsed] = useState(false);
@@ -115,13 +148,7 @@ const AppLayout: React.FC = () => {
           }}
         >
           <span style={{ fontSize: 16, fontWeight: 600, color: "#1d2129" }}>
-            {menuItems?.find((m) => m?.key === location.pathname)
-              ? (
-                  menuItems.find((m) => m?.key === location.pathname) as {
-                    label: string;
-                  }
-                )?.label
-              : "Go-Stock 股票分析平台"}
+            {findMenuLabel(menuItems, location.pathname) ?? "Go-Stock 股票分析平台"}
           </span>
 
           <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
