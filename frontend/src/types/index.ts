@@ -139,13 +139,23 @@ export interface CronTask {
 }
 
 // 设置 - AI配置
-export interface AIConfig {
-  provider: string; // openai | ollama | zhipu | ...
+export type AIProvider = "openai" | "deepseek" | "bailian";
+
+export interface AIModelProfile {
+  id: string;
+  provider: AIProvider;
+  displayName: string;
   apiKey: string;
   baseUrl: string;
   model: string;
   maxTokens: number;
   temperature: number;
+  enabled: boolean;
+}
+
+export interface AIConfig {
+  provider: AIProvider;
+  models: AIModelProfile[];
 }
 
 // 设置 - 通知配置
