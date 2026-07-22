@@ -53,6 +53,7 @@ from .system import (
     AIConfig,
     VersionInfo,
 )
+from .settings import UserAIModelConfig
 from .strategy import CustomStrategy
 from .fund import Fund, FollowedFund
 
@@ -109,6 +110,7 @@ __all__ = [
     "AiAssistantSession",
     "AIConfig",
     "VersionInfo",
+    "UserAIModelConfig",
     # strategy
     "CustomStrategy",
 ]

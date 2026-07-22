@@ -1,8 +1,10 @@
 """应用设置相关 Pydantic Schema。"""
 
+from datetime import datetime
+from typing import Any
 from typing import Optional
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, field_validator, model_validator
 
 
 class AIModelConfig(BaseModel):
@@ -47,3 +49,126 @@ class SettingsResponse(BaseModel):
     ai_config: AIModelConfig = Field(default_factory=AIModelConfig)
     alert_config: AlertConfig = Field(default_factory=AlertConfig)
     data_source_config: DataSourceConfig = Field(default_factory=DataSourceConfig)
+
+
+class UserAIModelConfigBase(BaseModel):
+    """用户级 AI 模型配置基础字段。"""
+
+    name: str = Field(..., min_length=1, max_length=100, description="配置名称")
+    provider: str = Field("openai_compatible", min_length=1, max_length=50, description="供应商标识")
+    base_url: str = Field("https://api.openai.com/v1", min_length=1, max_length=500, description="API Base URL")
+    model: str = Field("gpt-4o-mini", min_length=1, max_length=100, description="模型名称")
+    max_output_tokens: int = Field(4096, ge=1, le=128000, description="最大输出 Token 数")
+    temperature: float = Field(0.7, ge=0.0, le=2.0, description="温度参数")
+    timeout_seconds: int = Field(60, ge=1, le=300, description="请求超时时间")
+    enabled: bool = Field(True, description="是否启用")
+    extra_config: dict[str, Any] = Field(default_factory=dict, description="扩展配置")
+
+    @field_validator("name", "provider", "base_url", "model", mode="before")
+    @classmethod
+    def strip_required_text(cls, value: Any) -> Any:
+        if isinstance(value, str):
+            return value.strip()
+        return value
+
+
+class UserAIModelConfigCreate(UserAIModelConfigBase):
+    """创建用户级 AI 模型配置请求。"""
+
+    api_key: Optional[str] = Field(None, min_length=1, max_length=4096, description="API Key，只写不回显")
+    is_default: bool = Field(False, description="是否设为默认配置")
+
+    @field_validator("api_key", mode="before")
+    @classmethod
+    def strip_api_key(cls, value: Any) -> Any:
+        if isinstance(value, str):
+            return value.strip()
+        return value
+
+
+class UserAIModelConfigUpdate(BaseModel):
+    """更新用户级 AI 模型配置请求。"""
+
+    name: Optional[str] = Field(None, min_length=1, max_length=100, description="配置名称")
+    provider: Optional[str] = Field(None, min_length=1, max_length=50, description="供应商标识")
+    base_url: Optional[str] = Field(None, min_length=1, max_length=500, description="API Base URL")
+    model: Optional[str] = Field(None, min_length=1, max_length=100, description="模型名称")
+    api_key: Optional[str] = Field(None, min_length=1, max_length=4096, description="API Key，只写不回显")
+    clear_api_key: bool = Field(False, description="是否明确清除已保存 API Key")
+    max_output_tokens: Optional[int] = Field(None, ge=1, le=128000, description="最大输出 Token 数")
+    temperature: Optional[float] = Field(None, ge=0.0, le=2.0, description="温度参数")
+    timeout_seconds: Optional[int] = Field(None, ge=1, le=300, description="请求超时时间")
+    enabled: Optional[bool] = Field(None, description="是否启用")
+    extra_config: Optional[dict[str, Any]] = Field(None, description="扩展配置")
+
+    @field_validator("name", "provider", "base_url", "model", "api_key", mode="before")
+    @classmethod
+    def strip_optional_text(cls, value: Any) -> Any:
+        if isinstance(value, str):
+            return value.strip()
+        return value
+
+    @model_validator(mode="after")
+    def validate_api_key_operation(self) -> "UserAIModelConfigUpdate":
+        if self.api_key is not None and self.clear_api_key:
+            raise ValueError("api_key 与 clear_api_key 不能同时使用")
+        return self
+
+
+class UserAIModelConfigResponse(BaseModel):
+    """用户级 AI 模型配置响应。"""
+
+    id: int
+    name: str
+    provider: str
+    base_url: str
+    model: str
+    api_key_configured: bool
+    api_key_hint: Optional[str] = None
+    max_output_tokens: int
+    temperature: float
+    timeout_seconds: int
+    enabled: bool
+    is_default: bool
+    extra_config: dict[str, Any] = Field(default_factory=dict)
+    created_at: Optional[datetime] = None
+    updated_at: Optional[datetime] = None
+
+    model_config = {"from_attributes": True}
+
+
+class SavedAIModelConfigTestRequest(BaseModel):
+    """已保存模型配置连接测试请求。"""
+
+    message: str = Field("ping", min_length=1, max_length=2000, description="测试消息")
+
+    @field_validator("message", mode="before")
+    @classmethod
+    def strip_message(cls, value: Any) -> Any:
+        if isinstance(value, str):
+            return value.strip()
+        return value
+
+
+class InlineAIModelConfigTestRequest(UserAIModelConfigBase):
+    """未保存模型配置连接测试请求。"""
+
+    api_key: Optional[str] = Field(None, min_length=1, max_length=4096, description="API Key，只用于本次测试")
+    message: str = Field("ping", min_length=1, max_length=2000, description="测试消息")
+
+    @field_validator("api_key", "message", mode="before")
+    @classmethod
+    def strip_inline_text(cls, value: Any) -> Any:
+        if isinstance(value, str):
+            return value.strip()
+        return value
+
+
+class AIModelConfigTestResponse(BaseModel):
+    """模型配置连接测试响应。"""
+
+    success: bool
+    message: str
+    latency_ms: Optional[int] = None
+    model: Optional[str] = None
+    usage: Optional[dict[str, Any]] = None
