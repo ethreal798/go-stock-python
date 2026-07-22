@@ -103,11 +103,11 @@ class EmbeddingService:
             try:
                 response = await client.post(url, json=payload, headers=headers)
                 if response.status_code not in retryable_status_codes:
-                    response.raise_for_status()
+                    self._raise_for_embedding_error(response, url)
                     return response
 
                 if attempt >= max_retries:
-                    response.raise_for_status()
+                    self._raise_for_embedding_error(response, url)
                     return response
 
                 await asyncio.sleep(self._retry_delay_seconds(response, attempt))
@@ -117,6 +117,18 @@ class EmbeddingService:
                 await asyncio.sleep(self._retry_delay_seconds(None, attempt))
 
         raise RuntimeError("Embedding request retry loop exited unexpectedly")
+
+    @staticmethod
+    def _raise_for_embedding_error(response: httpx.Response, url: str) -> None:
+        try:
+            response.raise_for_status()
+        except httpx.HTTPStatusError as exc:
+            body = response.text[:1000]
+            raise httpx.HTTPStatusError(
+                f"{exc}. Provider response body: {body}. Request URL: {url}",
+                request=exc.request,
+                response=exc.response,
+            ) from exc
 
     def _retry_delay_seconds(self, response: httpx.Response | None, attempt: int) -> float:
         retry_after = response.headers.get("Retry-After") if response is not None else None
