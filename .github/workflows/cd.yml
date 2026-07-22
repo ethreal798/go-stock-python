@@ -15,7 +15,7 @@ permissions:
 env:
   REGISTRY: ghcr.io
   IMAGE_PREFIX: ${{ github.repository }}
-  RELEASE_TAG: release-${{ github.run_id }}-${{ github.run_attempt }}
+  RELEASE_TAG: release-${{ github.run_id }}
 
 # 同一时间只允许一个生产部署，避免多个任务同时操作服务器。
 concurrency:
