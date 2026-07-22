@@ -33,8 +33,7 @@ class Settings(BaseSettings):
     ACCESS_TOKEN_EXPIRE_MINUTES: int = 60 * 24 * 7  # 默认 7 天
 
     # ---- 数据库配置 ----
-    # 默认使用 SQLite 作为开发环境，生产环境必须通过环境变量设置
-    DATABASE_URL: str = "sqlite+aiosqlite:///./go_stock.db"
+    DATABASE_URL: str = "postgresql+asyncpg://postgres:postgres@localhost:5432/go_stock"
     DB_POOL_SIZE: int = 20
     DB_MAX_OVERFLOW: int = 10
     DB_ECHO: bool = False
@@ -90,6 +89,13 @@ class Settings(BaseSettings):
     AI_DEEPSEEK_BASE_URL: str = "https://api.deepseek.com/v1"
     AI_DEEPSEEK_MODEL: str = "deepseek-chat"
 
+    # ---- 用户级 AI 模型配置 ----
+    AI_MODEL_CONFIG_ENCRYPTION_KEY: str = ""
+    AI_MODEL_CONFIG_ENCRYPTION_KEY_ID: str = "default"
+    AI_MODEL_CONFIG_ALLOW_HTTP_BASE_URL: bool = False
+    AI_MODEL_CONFIG_ALLOW_PRIVATE_BASE_URL: bool = False
+    AI_MODEL_CONFIG_TEST_TIMEOUT_SECONDS: float = 30.0
+
     # ---- CORS 配置 ----
     # 从环境变量读取，格式：http://localhost:5173,http://localhost:3000
     CORS_ORIGINS_STR: str = "http://localhost:5173,http://localhost:3000,http://127.0.0.1:5173,http://127.0.0.1:3000"
@@ -109,15 +115,16 @@ class Settings(BaseSettings):
 
     def validate_required_settings(self) -> None:
         """验证必需的配置项，在生产环境必须设置。"""
+        if not self.DATABASE_URL.startswith("postgresql"):
+            raise ValueError("DATABASE_URL 必须使用 PostgreSQL")
+
         if not self.DEBUG:
             if not self.SECRET_KEY:
                 raise ValueError("在非 DEBUG 模式下，SECRET_KEY 环境变量必须设置")
-            if self.DATABASE_URL.startswith("sqlite"):
-                raise ValueError("在非 DEBUG 模式下，不建议使用 SQLite，请设置 DATABASE_URL 环境变量")
+            if not self.AI_MODEL_CONFIG_ENCRYPTION_KEY:
+                raise ValueError("在非 DEBUG 模式下，AI_MODEL_CONFIG_ENCRYPTION_KEY 环境变量必须设置")
 
 
 settings = Settings()
 
-# 仅在生产环境验证必需配置
-if not settings.DEBUG:
-    settings.validate_required_settings()
+settings.validate_required_settings()
