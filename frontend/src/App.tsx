@@ -38,6 +38,20 @@ dayjs.locale("zh-cn");
 const { Sider, Header, Content } = Layout;
 const { Text } = Typography;
 
+const pageTitleMap: Record<string, string> = {
+  "/": "自选股",
+  "/market": "行情中心",
+  "/agent": "AI 对话",
+  "/news": "新闻资讯",
+  "/fund": "我的关注",
+  "/fund/market": "基金市场",
+  "/cron-tasks": "定时任务",
+  "/settings": "AI 配置",
+  "/settings/notify": "通知配置",
+  "/settings/datasource": "数据源配置",
+  "/about": "关于",
+};
+
 const menuItems: MenuProps["items"] = [
   { key: "/", icon: <DashboardOutlined />, label: "自选股" },
   { key: "/market", icon: <StockOutlined />, label: "行情中心" },
@@ -99,6 +113,11 @@ const AppLayout: React.FC = () => {
   const location = useLocation();
   const { token_type, isAuthenticated, logout } = useAuthStore();
 
+  const currentTitle =
+    pageTitleMap[location.pathname] ??
+    getTopMenuLabel(menuItems, location.pathname) ??
+    "Go-Stock 股票分析平台";
+
   const userMenuItems: MenuProps["items"] = [
     {
       key: "logout",
@@ -117,8 +136,7 @@ const AppLayout: React.FC = () => {
         collapsible
         collapsed={collapsed}
         onCollapse={setCollapsed}
-        style={{ background: "#001529" }
-      }
+        style={{ background: "#001529" }}
         width={200}
       >
         <div
@@ -162,8 +180,7 @@ const AppLayout: React.FC = () => {
           }}
         >
           <span style={{ fontSize: 16, fontWeight: 600, color: "#1d2129" }}>
-            {getTopMenuLabel(menuItems, location.pathname) ??
-              "Go-Stock 股票分析平台"}
+            {currentTitle}
           </span>
 
           <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
