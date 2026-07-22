@@ -15,17 +15,68 @@ import {
   Tag,
   Popconfirm,
 } from "antd";
-import { PlusOutlined, EditOutlined, DeleteOutlined, PoweroffOutlined } from "@ant-design/icons";
+import {
+  PlusOutlined,
+  EditOutlined,
+  DeleteOutlined,
+  PoweroffOutlined,
+  LinkOutlined,
+} from "@ant-design/icons";
 import { useSettingsStore } from "@/stores/settingsStore";
 import { useAuthStore } from "@/stores/authStore";
 import type { AIModelProfile, AIProvider } from "@/types";
+import openAIIcon from "@/assets/open-a-i.png";
+import deepSeekIcon from "@/assets/deepseek.png";
+import bailianIcon from "@/assets/alibailian.png";
 
 const { Text } = Typography;
 
-const PROVIDER_OPTIONS: Array<{ label: string; value: AIProvider }> = [
-  { label: "OpenAI", value: "openai" },
-  { label: "DeepSeek", value: "deepseek" },
-  { label: "阿里云百炼", value: "bailian" },
+const providerMeta: Record<AIProvider, { label: string; icon: string }> = {
+  openai: { label: "OpenAI", icon: openAIIcon },
+  deepseek: { label: "DeepSeek", icon: deepSeekIcon },
+  bailian: { label: "阿里云百炼", icon: bailianIcon },
+};
+
+const PROVIDER_OPTIONS: Array<{ label: React.ReactNode; value: AIProvider }> = [
+  {
+    label: (
+      <Space size={6}>
+        <img
+          src={providerMeta.openai.icon}
+          alt="OpenAI"
+          style={{ width: 25, height: 25,position:"relative",top:5 }}
+        />
+        <span>{providerMeta.openai.label}</span>
+      </Space>
+    ),
+    value: "openai",
+  },
+  {
+    label: (
+      <Space size={6}>
+        <img
+          src={providerMeta.deepseek.icon}
+          alt="DeepSeek"
+          style={{ width: 24, height: 24,position:"relative",top:5 }}
+        />
+        <span>{providerMeta.deepseek.label}</span>
+      </Space>
+    ),
+    value: "deepseek",
+  },
+  {
+    label: (
+      <Space size={6}>
+        <img
+          src={providerMeta.bailian.icon}
+          alt="阿里云百炼"
+          style={{ width: 22, height: 22,position:"relative",top:5 }}
+        />
+        <span>{providerMeta.bailian.label}</span>
+      </Space>
+    ),
+    value: "bailian",
+  },
 ];
 
 const getDefaultModelDraft = (provider: AIProvider) => {
@@ -58,12 +109,19 @@ const getDefaultModelDraft = (provider: AIProvider) => {
   };
 };
 
-const createModelId = () => `${Date.now()}-${Math.random().toString(16).slice(2)}`;
+const createModelId = () =>
+  `${Date.now()}-${Math.random().toString(16).slice(2)}`;
 
 const AISettings: React.FC = () => {
   const isGuestMode = useAuthStore((state) => state.isGuestMode);
-  const { settings, setAIProvider, upsertAIModel, deleteAIModel, setAIModelEnabled, setSaved } =
-    useSettingsStore();
+  const {
+    settings,
+    setAIProvider,
+    upsertAIModel,
+    deleteAIModel,
+    setAIModelEnabled,
+    setSaved,
+  } = useSettingsStore();
   const activeProvider = settings.ai.provider;
 
   const [modalOpen, setModalOpen] = useState(false);
@@ -138,6 +196,19 @@ const AISettings: React.FC = () => {
     }
   };
 
+  const handleQuickTest = (model: AIModelProfile) => {
+    try {
+      new URL(model.baseUrl);
+      if (!model.apiKey) {
+        message.warning("API Key 不能为空");
+        return;
+      }
+      message.success(`${model.displayName} 测试连接成功`);
+    } catch {
+      message.error("Base URL 格式不正确");
+    }
+  };
+
   const handleSaveModel = async () => {
     if (!testedOk) {
       message.warning("需要先测试连接");
@@ -172,7 +243,13 @@ const AISettings: React.FC = () => {
     <>
       <Card
         title={
-          <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+          <div
+            style={{
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "space-between",
+            }}
+          >
             <Segmented
               options={PROVIDER_OPTIONS}
               value={activeProvider}
@@ -198,7 +275,10 @@ const AISettings: React.FC = () => {
           renderItem={(item) => (
             <List.Item
               actions={[
-                <Tooltip key="toggle-tip" title={isGuestMode ? "请登录后操作" : ""}>
+                <Tooltip
+                  key="toggle-tip"
+                  title={isGuestMode ? "请登录后操作" : ""}
+                >
                   <Button
                     type={item.enabled ? "default" : "primary"}
                     icon={<PoweroffOutlined />}
@@ -208,6 +288,12 @@ const AISettings: React.FC = () => {
                     {item.enabled ? "停用" : "启用"}
                   </Button>
                 </Tooltip>,
+                <Button
+                  key="test"
+                  icon={<LinkOutlined />}
+                  onClick={() => handleQuickTest(item)}
+                  disabled={isGuestMode}
+                />,
                 <Button
                   key="edit"
                   icon={<EditOutlined />}
@@ -222,15 +308,24 @@ const AISettings: React.FC = () => {
                   onConfirm={() => deleteAIModel(item.id)}
                   disabled={isGuestMode}
                 >
-                  <Button danger icon={<DeleteOutlined />} disabled={isGuestMode} />
+                  <Button
+                    danger
+                    icon={<DeleteOutlined />}
+                    disabled={isGuestMode}
+                  />
                 </Popconfirm>,
               ]}
             >
               <List.Item.Meta
                 title={
                   <Space size={8}>
+                    
                     <Text strong>{item.displayName}</Text>
-                    {item.enabled ? <Tag color="blue">已启用</Tag> : <Tag>未启用</Tag>}
+                    {item.enabled ? (
+                      <Tag color="blue">已启用</Tag>
+                    ) : (
+                      <Tag>未启用</Tag>
+                    )}
                     <Tag color="geekblue">{item.model}</Tag>
                   </Space>
                 }
@@ -254,10 +349,18 @@ const AISettings: React.FC = () => {
         }}
         footer={
           <Space>
-            <Button onClick={handleTestConnection} loading={testing} disabled={isGuestMode}>
+            <Button
+              onClick={handleTestConnection}
+              loading={testing}
+              disabled={isGuestMode}
+            >
               测试连接
             </Button>
-            <Button type="primary" onClick={handleSaveModel} disabled={isGuestMode}>
+            <Button
+              type="primary"
+              onClick={handleSaveModel}
+              disabled={isGuestMode}
+            >
               保存配置
             </Button>
           </Space>
@@ -271,7 +374,11 @@ const AISettings: React.FC = () => {
           >
             <Input placeholder="例如：OpenAI Official" />
           </Form.Item>
-          <Form.Item label="API Key" name="apiKey" rules={[{ required: true, message: "请输入 API Key" }]}>
+          <Form.Item
+            label="API Key"
+            name="apiKey"
+            rules={[{ required: true, message: "请输入 API Key" }]}
+          >
             <Input.Password placeholder="sk-..." />
           </Form.Item>
           <Form.Item
@@ -281,13 +388,25 @@ const AISettings: React.FC = () => {
           >
             <Input placeholder="https://api.openai.com/v1" />
           </Form.Item>
-          <Form.Item label="模型" name="model" rules={[{ required: true, message: "请输入模型名" }]}>
+          <Form.Item
+            label="模型"
+            name="model"
+            rules={[{ required: true, message: "请输入模型名" }]}
+          >
             <Input placeholder="gpt-4o-mini" />
           </Form.Item>
-          <Form.Item label="最大 Token 数" name="maxTokens" rules={[{ required: true, message: "请输入最大 Token 数" }]}>
+          <Form.Item
+            label="最大 Token 数"
+            name="maxTokens"
+            rules={[{ required: true, message: "请输入最大 Token 数" }]}
+          >
             <Slider min={512} max={32768} step={512} />
           </Form.Item>
-          <Form.Item label="Temperature" name="temperature" rules={[{ required: true, message: "请输入 Temperature" }]}>
+          <Form.Item
+            label="Temperature"
+            name="temperature"
+            rules={[{ required: true, message: "请输入 Temperature" }]}
+          >
             <Slider min={0} max={2} step={0.1} />
           </Form.Item>
           <Text type={testedOk ? "success" : "secondary"}>
