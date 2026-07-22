@@ -125,6 +125,7 @@ jobs:
             AI_API_KEY=${{ secrets.AI_API_KEY }}
             AI_BASE_URL=${{ secrets.AI_BASE_URL }}
             AI_MODEL_NAME=${{ secrets.AI_MODEL_NAME }}
+            AI_MODEL_CONFIG_ENCRYPTION_KEY=${{ secrets.AI_MODEL_CONFIG_ENCRYPTION_KEY }}
             CORS_ORIGINS_STR=${{ secrets.CORS_ORIGINS_STR }}
             EOF
 
