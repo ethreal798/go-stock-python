@@ -6,7 +6,7 @@ from typing import Any
 
 import httpx
 from fastapi import HTTPException, status
-from sqlalchemy import desc, select, update
+from sqlalchemy import desc, select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -34,9 +34,7 @@ class AIModelConfigService:
         stmt = (
             select(UserAIModelConfig)
             .where(UserAIModelConfig.user_id == user_id, UserAIModelConfig.deleted_at.is_(None))
-            .order_by(
-                desc(UserAIModelConfig.is_default), desc(UserAIModelConfig.updated_at), desc(UserAIModelConfig.id)
-            )
+            .order_by(desc(UserAIModelConfig.enabled), desc(UserAIModelConfig.updated_at), desc(UserAIModelConfig.id))
         )
         result = await self.db.execute(stmt)
         return [self._to_response(config) for config in result.scalars().all()]
@@ -46,14 +44,8 @@ class AIModelConfigService:
         return self._to_response(config)
 
     async def create_config(self, user_id: int, config_in: UserAIModelConfigCreate) -> UserAIModelConfigResponse:
-        if config_in.is_default and not config_in.enabled:
-            raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="默认配置必须处于启用状态")
-
         await self._ensure_name_available(user_id=user_id, name=config_in.name)
         base_url = await self._validate_base_url(config_in.base_url)
-
-        has_default = await self._has_default_config(user_id)
-        should_set_default = config_in.is_default or (config_in.enabled and not has_default)
 
         config = UserAIModelConfig(
             user_id=user_id,
@@ -65,7 +57,6 @@ class AIModelConfigService:
             temperature=config_in.temperature,
             timeout_seconds=config_in.timeout_seconds,
             enabled=config_in.enabled,
-            is_default=False,
             extra_config=config_in.extra_config or {},
         )
 
@@ -75,10 +66,6 @@ class AIModelConfigService:
         if config_in.api_key:
             config.api_key_ciphertext = self._cipher_instance.encrypt(config_in.api_key, self._aad(user_id, config.id))
             config.api_key_hint = SecretCipher.build_hint(config_in.api_key)
-
-        if should_set_default:
-            await self._clear_default_config(user_id=user_id, exclude_id=config.id)
-            config.is_default = True
 
         await self._commit_or_conflict()
         await self.db.refresh(config)
@@ -94,9 +81,6 @@ class AIModelConfigService:
 
         if config_in.name is not None and config_in.name != config.name:
             await self._ensure_name_available(user_id=user_id, name=config_in.name, exclude_id=config.id)
-
-        if config_in.enabled is False and config.is_default:
-            raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="默认配置不能停用，请先切换默认配置")
 
         if config_in.name is not None:
             config.name = config_in.name
@@ -130,23 +114,8 @@ class AIModelConfigService:
 
     async def delete_config(self, user_id: int, config_id: int) -> None:
         config = await self._get_config_model(user_id, config_id)
-        if config.is_default:
-            raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="默认配置不能删除，请先切换默认配置")
-
-        config.is_default = False
         config.deleted_at = datetime.now()
         await self.db.commit()
-
-    async def set_default_config(self, user_id: int, config_id: int) -> UserAIModelConfigResponse:
-        config = await self._get_config_model(user_id, config_id)
-        if not config.enabled:
-            raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="只有启用状态的配置才能设为默认")
-
-        await self._clear_default_config(user_id=user_id, exclude_id=config.id)
-        config.is_default = True
-        await self._commit_or_conflict()
-        await self.db.refresh(config)
-        return self._to_response(config)
 
     async def test_saved_config(
         self,
@@ -202,29 +171,6 @@ class AIModelConfigService:
         if result.scalar_one_or_none() is not None:
             raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="同名模型配置已存在")
 
-    async def _has_default_config(self, user_id: int) -> bool:
-        stmt = select(UserAIModelConfig.id).where(
-            UserAIModelConfig.user_id == user_id,
-            UserAIModelConfig.is_default.is_(True),
-            UserAIModelConfig.deleted_at.is_(None),
-        )
-        result = await self.db.execute(stmt)
-        return result.scalar_one_or_none() is not None
-
-    async def _clear_default_config(self, user_id: int, exclude_id: int | None = None) -> None:
-        stmt = (
-            update(UserAIModelConfig)
-            .where(
-                UserAIModelConfig.user_id == user_id,
-                UserAIModelConfig.deleted_at.is_(None),
-                UserAIModelConfig.is_default.is_(True),
-            )
-            .values(is_default=False)
-        )
-        if exclude_id is not None:
-            stmt = stmt.where(UserAIModelConfig.id != exclude_id)
-        await self.db.execute(stmt)
-
     async def _validate_base_url(self, base_url: str) -> str:
         try:
             return await validate_ai_base_url(base_url, resolve_host=True)
@@ -270,7 +216,6 @@ class AIModelConfigService:
             temperature=config.temperature,
             timeout_seconds=config.timeout_seconds,
             enabled=config.enabled,
-            is_default=config.is_default,
             extra_config=config.extra_config or {},
             created_at=config.created_at,
             updated_at=config.updated_at,
