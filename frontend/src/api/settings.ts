@@ -2,6 +2,7 @@ import request from "./index";
 import type {
   AIModelConfigDetailResponse,
   AIModelConfigCreateRequest,
+  AIModelConfigEnabledUpdateRequest,
   AIModelConfigListResponse,
   AIModelConfigResponse,
   AIModelConfigTestRequest,
@@ -19,6 +20,14 @@ export const updateAIModelConfig = (
   id: number,
   data: AIModelConfigUpdateRequest,
 ) => request.patch<AIModelConfigResponse>(`/settings/ai-models/${id}`, data);
+
+export const updateAIModelConfigEnabled = (
+  id: number,
+  enabled: AIModelConfigEnabledUpdateRequest["enabled"],
+) =>
+  request.patch<AIModelConfigResponse>(`/settings/ai-models/${id}`, {
+    enabled,
+  } satisfies AIModelConfigEnabledUpdateRequest);
 
 export const getAIModelConfigDetail = (id: number) =>
   request.get<AIModelConfigDetailResponse>(`/settings/ai-models/${id}`);

@@ -209,13 +209,16 @@ export interface AIModelConfigResponse {
   temperature: number;
   timeout_seconds: number;
   enabled: boolean;
-  is_default: boolean;
   extra_config?: Record<string, unknown>;
   created_at: string;
   updated_at: string;
 }
 
 export type AIModelConfigUpdateRequest = Partial<AIModelConfigCreateRequest>;
+
+export interface AIModelConfigEnabledUpdateRequest {
+  enabled: boolean;
+}
 
 export interface AIModelConfigTestRequest extends AIModelConfigCreateRequest {
   message?: string;

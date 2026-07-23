@@ -30,6 +30,7 @@ import {
   testAIModelConfig,
   testAIModelConfigDraft,
   updateAIModelConfig,
+  updateAIModelConfigEnabled,
 } from "@/api/settings";
 import { useAuthStore } from "@/stores/authStore";
 import type {
@@ -387,9 +388,7 @@ const AISettings: React.FC = () => {
                     onClick={async () => {
                       try {
                         setLoading(true);
-                        await updateAIModelConfig(item.id, {
-                          enabled: !item.enabled,
-                        });
+                        await updateAIModelConfigEnabled(item.id, !item.enabled);
                         await fetchModels();
                         message.success(!item.enabled ? "已启用" : "已停用");
                       } catch {
