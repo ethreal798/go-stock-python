@@ -76,7 +76,6 @@ class UserAIModelConfigCreate(UserAIModelConfigBase):
     """创建用户级 AI 模型配置请求。"""
 
     api_key: Optional[str] = Field(None, min_length=1, max_length=4096, description="API Key，只写不回显")
-    is_default: bool = Field(False, description="是否设为默认配置")
 
     @field_validator("api_key", mode="before")
     @classmethod
@@ -129,7 +128,6 @@ class UserAIModelConfigResponse(BaseModel):
     temperature: float
     timeout_seconds: int
     enabled: bool
-    is_default: bool
     extra_config: dict[str, Any] = Field(default_factory=dict)
     created_at: Optional[datetime] = None
     updated_at: Optional[datetime] = None

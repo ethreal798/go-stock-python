@@ -17,12 +17,6 @@ class UserAIModelConfig(GormBaseModel):
             unique=True,
             postgresql_where=text("deleted_at IS NULL"),
         ),
-        Index(
-            "uq_user_ai_model_configs_user_default_active",
-            "user_id",
-            unique=True,
-            postgresql_where=text("is_default = true AND deleted_at IS NULL"),
-        ),
     )
 
     user_id = Column(BigInteger, index=True, nullable=False, comment="用户ID")
@@ -36,5 +30,4 @@ class UserAIModelConfig(GormBaseModel):
     temperature = Column(Float, nullable=False, default=0.7, comment="温度参数")
     timeout_seconds = Column(Integer, nullable=False, default=60, comment="请求超时时间")
     enabled = Column(Boolean, nullable=False, default=True, comment="是否启用")
-    is_default = Column(Boolean, nullable=False, default=False, comment="是否默认配置")
     extra_config = Column(JSON, nullable=True, comment="扩展配置")
