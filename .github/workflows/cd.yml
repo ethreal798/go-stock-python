@@ -112,22 +112,14 @@ jobs:
 
             cd "$DEPLOY_PATH"
 
-            cat > .env <<EOF
-            BACKEND_IMAGE=ghcr.io/${{ github.repository }}-backend:${{ env.RELEASE_TAG }}
-            FRONTEND_IMAGE=ghcr.io/${{ github.repository }}-frontend:${{ env.RELEASE_TAG }}
-            POSTGRES_USER=${{ secrets.POSTGRES_USER }}
-            POSTGRES_PASSWORD=${{ secrets.POSTGRES_PASSWORD }}
-            POSTGRES_DB=${{ secrets.POSTGRES_DB }}
-            DATABASE_URL=postgresql+asyncpg://${{ secrets.POSTGRES_USER }}:${{ secrets.POSTGRES_PASSWORD }}@postgres:5432/${{ secrets.POSTGRES_DB }}
-            REDIS_URL=redis://redis:6379/0
-            DEBUG=false
-            SECRET_KEY=${{ secrets.SECRET_KEY }}
-            AI_API_KEY=${{ secrets.AI_API_KEY }}
-            AI_BASE_URL=${{ secrets.AI_BASE_URL }}
-            AI_MODEL_NAME=${{ secrets.AI_MODEL_NAME }}
-            AI_MODEL_CONFIG_ENCRYPTION_KEY=${{ secrets.AI_MODEL_CONFIG_ENCRYPTION_KEY }}
-            CORS_ORIGINS_STR=${{ secrets.CORS_ORIGINS_STR }}
-            EOF
+            if [ ! -f .env ]; then
+              echo "服务器缺少 $DEPLOY_PATH/.env，请先手动创建生产环境配置文件。"
+              echo "可以基于仓库里的 .env.example 填写，但不要提交真实密钥。"
+              exit 1
+            fi
+
+            export BACKEND_IMAGE="ghcr.io/${{ github.repository }}-backend:${{ env.RELEASE_TAG }}"
+            export FRONTEND_IMAGE="ghcr.io/${{ github.repository }}-frontend:${{ env.RELEASE_TAG }}"
 
             chmod 600 .env
 

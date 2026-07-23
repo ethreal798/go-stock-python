@@ -94,22 +94,8 @@ async def delete_ai_model_config(
     current_user: User = Depends(get_current_user),
     service: AIModelConfigService = Depends(get_ai_model_config_service),
 ) -> None:
-    """软删除 AI 模型配置。默认配置需先切换后再删除。"""
+    """软删除 AI 模型配置。"""
     await service.delete_config(current_user.id, config_id)
-
-
-@router.post(
-    "/ai-models/{config_id}/set-default",
-    response_model=UserAIModelConfigResponse,
-    summary="设为默认 AI 模型配置",
-)
-async def set_default_ai_model_config(
-    config_id: int,
-    current_user: User = Depends(get_current_user),
-    service: AIModelConfigService = Depends(get_ai_model_config_service),
-) -> UserAIModelConfigResponse:
-    """将指定 AI 模型配置设为当前用户默认配置。"""
-    return await service.set_default_config(current_user.id, config_id)
 
 
 @router.post(
