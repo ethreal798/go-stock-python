@@ -36,6 +36,7 @@ import type {
   AIModelConfigCreateRequest,
   AIModelConfigResponse,
   AIProvider,
+  AIModelConfigUpdateRequest,
 } from "@/types";
 import openAIIcon from "@/assets/open-a-i.png";
 import deepSeekIcon from "@/assets/deepseek.png";
@@ -94,7 +95,7 @@ const PROVIDER_OPTIONS: Array<{ label: React.ReactNode; value: AIProvider }> = [
 const getDefaultModelDraft = (provider: AIProvider) => {
   if (provider === "deepseek") {
     return {
-      displayName: "DeepSeek 默认",
+      displayName: "DeepSeek配置",
       baseUrl: "https://api.deepseek.com/v1",
       model: "deepseek-chat",
       maxTokens: 4096,
@@ -104,7 +105,7 @@ const getDefaultModelDraft = (provider: AIProvider) => {
 
   if (provider === "bailian") {
     return {
-      displayName: "阿里云百炼 默认",
+      displayName: "阿里云百炼配置",
       baseUrl: "https://dashscope.aliyuncs.com/compatible-mode/v1",
       model: "qwen-plus",
       maxTokens: 4096,
@@ -113,7 +114,7 @@ const getDefaultModelDraft = (provider: AIProvider) => {
   }
 
   return {
-    displayName: "OpenAI 默认",
+    displayName: "OpenAI配置",
     baseUrl: "https://api.openai.com/v1",
     model: "gpt-4o-mini",
     maxTokens: 4096,
@@ -222,12 +223,9 @@ const AISettings: React.FC = () => {
     try {
       setLoading(true);
       const res = await getAIModelConfigDetail(model.id);
-      const detailList = res.data || [];
-      const target =
-        detailList.find((item) => item.id === model.id) ??
-        detailList[0] ??
-        model;
-      setEditing(target);
+      const detail = res.data || model;
+      setActiveProvider(providerTextToTab(detail.provider));
+      setEditing(detail);
       setModalOpen(true);
     } catch {
       // ignore
@@ -238,14 +236,18 @@ const AISettings: React.FC = () => {
 
   const handleTestConnection = async () => {
     try {
-      const values = (await form.validateFields([
+      const fieldsToValidate: Array<keyof AIModelFormValues> = [
         "displayName",
-        "apiKey",
         "baseUrl",
         "model",
         "maxTokens",
         "temperature",
-      ])) as AIModelFormValues;
+      ];
+      if (!editing) {
+        fieldsToValidate.push("apiKey");
+      }
+
+      const values = (await form.validateFields(fieldsToValidate)) as AIModelFormValues;
 
       setTesting(true);
       const payload: AIModelConfigCreateRequest & { message?: string } = {
@@ -298,15 +300,10 @@ const AISettings: React.FC = () => {
   };
 
   const handleSaveModel = async () => {
-    if (!testedOk) {
-      message.warning("需要先测试连接");
-      return;
-    }
-
     try {
       setLoading(true);
       const values = (await form.validateFields()) as AIModelFormValues;
-      const payload: AIModelConfigCreateRequest = {
+      const basePayload = {
         name: values.displayName,
         provider: providerCodeMap[activeProvider],
         base_url: values.baseUrl,
@@ -316,12 +313,19 @@ const AISettings: React.FC = () => {
         timeout_seconds: 60,
         enabled: editing?.enabled ?? modelsForProvider.length === 0,
         extra_config: {},
-        api_key: values.apiKey,
       };
 
       if (editing) {
+        const payload: AIModelConfigUpdateRequest = {
+          ...basePayload,
+          ...(values.apiKey ? { api_key: values.apiKey } : {}),
+        };
         await updateAIModelConfig(editing.id, payload);
       } else {
+        const payload: AIModelConfigCreateRequest = {
+          ...basePayload,
+          api_key: values.apiKey,
+        };
         await createAIModelConfig(payload);
       }
 
@@ -490,7 +494,15 @@ const AISettings: React.FC = () => {
           </Space>
         }
       >
-        <Form form={form} layout="vertical">
+        <Form
+          form={form}
+          layout="vertical"
+          onValuesChange={() => {
+            if (testedOk) {
+              setTestedOk(false);
+            }
+          }}
+        >
           <Form.Item
             label="名称"
             name="displayName"
@@ -501,7 +513,14 @@ const AISettings: React.FC = () => {
           <Form.Item
             label="API Key"
             name="apiKey"
-            rules={[{ required: true, message: "请输入 API Key" }]}
+            rules={[{ required: !editing, message: "请输入 API Key" }]}
+            extra={
+              editing?.api_key_configured
+                ? `已保存 API Key${editing.api_key_hint ? `（${editing.api_key_hint}）` : ""}，留空则保持不变`
+                : editing
+                  ? "留空表示不修改 API Key"
+                  : undefined
+            }
           >
             <Input.Password placeholder="sk-..." />
           </Form.Item>
@@ -534,7 +553,7 @@ const AISettings: React.FC = () => {
             <Slider min={0} max={2} step={0.1} />
           </Form.Item>
           <Text type={testedOk ? "success" : "secondary"}>
-            {testedOk ? "已测试连接，可保存配置" : "保存前需要先测试连接"}
+            {testedOk ? "最近一次测试连接成功" : "记得测试连接"}
           </Text>
         </Form>
       </Modal>

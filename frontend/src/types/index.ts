@@ -231,7 +231,7 @@ export interface AIModelConfigTestResponse {
 
 export type AIModelConfigListResponse = AIModelConfigResponse[];
 
-export type AIModelConfigDetailResponse = AIModelConfigResponse[];
+export type AIModelConfigDetailResponse = AIModelConfigResponse;
 
 // API分页响应
 export interface PageResult<T> {
