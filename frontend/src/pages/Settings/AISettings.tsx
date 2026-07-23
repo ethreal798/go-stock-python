@@ -22,9 +22,21 @@ import {
   PoweroffOutlined,
   LinkOutlined,
 } from "@ant-design/icons";
-import { useSettingsStore } from "@/stores/settingsStore";
+import {
+  createAIModelConfig,
+  deleteAIModelConfig,
+  getAIModelConfigDetail,
+  getAIModelConfigs,
+  testAIModelConfig,
+  testAIModelConfigDraft,
+  updateAIModelConfig,
+} from "@/api/settings";
 import { useAuthStore } from "@/stores/authStore";
-import type { AIModelProfile, AIProvider } from "@/types";
+import type {
+  AIModelConfigCreateRequest,
+  AIModelConfigResponse,
+  AIProvider,
+} from "@/types";
 import openAIIcon from "@/assets/open-a-i.png";
 import deepSeekIcon from "@/assets/deepseek.png";
 import bailianIcon from "@/assets/alibailian.png";
@@ -44,7 +56,7 @@ const PROVIDER_OPTIONS: Array<{ label: React.ReactNode; value: AIProvider }> = [
         <img
           src={providerMeta.openai.icon}
           alt="OpenAI"
-          style={{ width: 25, height: 25,position:"relative",top:5 }}
+          style={{ width: 25, height: 25, position: "relative", top: 5 }}
         />
         <span>{providerMeta.openai.label}</span>
       </Space>
@@ -57,7 +69,7 @@ const PROVIDER_OPTIONS: Array<{ label: React.ReactNode; value: AIProvider }> = [
         <img
           src={providerMeta.deepseek.icon}
           alt="DeepSeek"
-          style={{ width: 24, height: 24,position:"relative",top:5 }}
+          style={{ width: 24, height: 24, position: "relative", top: 5 }}
         />
         <span>{providerMeta.deepseek.label}</span>
       </Space>
@@ -70,7 +82,7 @@ const PROVIDER_OPTIONS: Array<{ label: React.ReactNode; value: AIProvider }> = [
         <img
           src={providerMeta.bailian.icon}
           alt="阿里云百炼"
-          style={{ width: 22, height: 22,position:"relative",top:5 }}
+          style={{ width: 22, height: 22, position: "relative", top: 5 }}
         />
         <span>{providerMeta.bailian.label}</span>
       </Space>
@@ -109,45 +121,89 @@ const getDefaultModelDraft = (provider: AIProvider) => {
   };
 };
 
-const createModelId = () =>
-  `${Date.now()}-${Math.random().toString(16).slice(2)}`;
+interface AIModelFormValues {
+  displayName: string;
+  apiKey: string;
+  baseUrl: string;
+  model: string;
+  maxTokens: number;
+  temperature: number;
+}
+
+const providerCodeMap: Record<AIProvider, string> = {
+  openai: "openai_compatible",
+  deepseek: "deepseek",
+  bailian: "通义千问",
+};
+
+const providerTextToTab = (provider: string): AIProvider => {
+  const normalized = provider.trim().toLowerCase();
+  if (normalized.includes("deepseek")) {
+    return "deepseek";
+  }
+  if (
+    normalized.includes("通义千问") ||
+    normalized.includes("百炼") ||
+    normalized.includes("bailian") ||
+    normalized.includes("qwen")
+  ) {
+    return "bailian";
+  }
+  return "openai";
+};
+
+const mapResponseToFormValues = (
+  model: AIModelConfigResponse,
+): AIModelFormValues => ({
+  displayName: model.name,
+  apiKey: "",
+  baseUrl: model.base_url.replace(/`/g, "").trim(),
+  model: model.model,
+  maxTokens: model.max_output_tokens,
+  temperature: model.temperature,
+});
 
 const AISettings: React.FC = () => {
   const isGuestMode = useAuthStore((state) => state.isGuestMode);
-  const {
-    settings,
-    setAIProvider,
-    upsertAIModel,
-    deleteAIModel,
-    setAIModelEnabled,
-    setSaved,
-  } = useSettingsStore();
-  const activeProvider = settings.ai.provider;
-
+  const [activeProvider, setActiveProvider] = useState<AIProvider>("openai");
+  const [models, setModels] = useState<AIModelConfigResponse[]>([]);
+  const [loading, setLoading] = useState(false);
+  const [listLoading, setListLoading] = useState(false);
   const [modalOpen, setModalOpen] = useState(false);
-  const [editing, setEditing] = useState<AIModelProfile | null>(null);
+  const [editing, setEditing] = useState<AIModelConfigResponse | null>(null);
   const [testedOk, setTestedOk] = useState(false);
   const [testing, setTesting] = useState(false);
   const [form] = Form.useForm();
 
   const modelsForProvider = useMemo(
-    () => settings.ai.models.filter((m) => m.provider === activeProvider),
-    [activeProvider, settings.ai.models],
+    () =>
+      models.filter((m) => providerTextToTab(m.provider) === activeProvider),
+    [activeProvider, models],
   );
+
+  const fetchModels = async () => {
+    setListLoading(true);
+    try {
+      const res = await getAIModelConfigs();
+      const data = res.data || [];
+      setModels(data);
+    } catch {
+      // ignore
+    } finally {
+      setListLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    fetchModels();
+  }, []);
 
   useEffect(() => {
     if (!modalOpen) return;
     setTestedOk(false);
 
     const draft = editing
-      ? {
-          displayName: editing.displayName,
-          apiKey: editing.apiKey,
-          baseUrl: editing.baseUrl,
-          model: editing.model,
-          maxTokens: editing.maxTokens,
-          temperature: editing.temperature,
-        }
+      ? mapResponseToFormValues(editing)
       : {
           ...getDefaultModelDraft(activeProvider),
           apiKey: "",
@@ -158,37 +214,65 @@ const AISettings: React.FC = () => {
 
   const openCreateModal = () => {
     setEditing(null);
+    form.resetFields();
     setModalOpen(true);
   };
 
-  const openEditModal = (model: AIModelProfile) => {
-    setEditing(model);
-    setModalOpen(true);
+  const openEditModal = async (model: AIModelConfigResponse) => {
+    try {
+      setLoading(true);
+      const res = await getAIModelConfigDetail(model.id);
+      const detailList = res.data || [];
+      const target =
+        detailList.find((item) => item.id === model.id) ??
+        detailList[0] ??
+        model;
+      setEditing(target);
+      setModalOpen(true);
+    } catch {
+      // ignore
+    } finally {
+      setLoading(false);
+    }
   };
 
   const handleTestConnection = async () => {
     try {
-      const values = await form.validateFields([
+      const values = (await form.validateFields([
+        "displayName",
         "apiKey",
         "baseUrl",
         "model",
         "maxTokens",
         "temperature",
-      ]);
+      ])) as AIModelFormValues;
 
       setTesting(true);
+      const payload: AIModelConfigCreateRequest & { message?: string } = {
+        name: values.displayName,
+        provider: providerCodeMap[activeProvider],
+        base_url: values.baseUrl,
+        model: values.model,
+        max_output_tokens: values.maxTokens,
+        temperature: values.temperature,
+        timeout_seconds: 60,
+        enabled: editing?.enabled ?? modelsForProvider.length === 0,
+        extra_config: {},
+        api_key: values.apiKey,
+        message: "ping",
+      };
 
-      const baseUrl = values.baseUrl as string;
-      new URL(baseUrl);
+      const res = editing
+        ? await testAIModelConfig(editing.id)
+        : await testAIModelConfigDraft(payload);
 
-      if (!values.apiKey) {
-        message.warning("API Key 不能为空");
-        setTestedOk(false);
-        return;
+      const result = res.data;
+      setTestedOk(result.success);
+      if (result.success) {
+        message.success(result.message || "测试连接成功");
+      } else {
+        message.error(result.message || "测试连接失败");
       }
-
-      setTestedOk(true);
-      message.success("测试连接成功");
     } catch {
       setTestedOk(false);
     } finally {
@@ -196,16 +280,20 @@ const AISettings: React.FC = () => {
     }
   };
 
-  const handleQuickTest = (model: AIModelProfile) => {
+  const handleQuickTest = async (model: AIModelConfigResponse) => {
     try {
-      new URL(model.baseUrl);
-      if (!model.apiKey) {
-        message.warning("API Key 不能为空");
-        return;
+      setTesting(true);
+      const res = await testAIModelConfig(model.id);
+      const result = res.data;
+      if (result.success) {
+        message.success(result.message || `${model.name} 测试连接成功`);
+      } else {
+        message.error(result.message || `${model.name} 测试连接失败`);
       }
-      message.success(`${model.displayName} 测试连接成功`);
     } catch {
-      message.error("Base URL 格式不正确");
+      // ignore
+    } finally {
+      setTesting(false);
     }
   };
 
@@ -216,26 +304,35 @@ const AISettings: React.FC = () => {
     }
 
     try {
-      const values = await form.validateFields();
-      const next: AIModelProfile = {
-        id: editing?.id ?? createModelId(),
-        provider: activeProvider,
-        displayName: values.displayName,
-        apiKey: values.apiKey,
-        baseUrl: values.baseUrl,
+      setLoading(true);
+      const values = (await form.validateFields()) as AIModelFormValues;
+      const payload: AIModelConfigCreateRequest = {
+        name: values.displayName,
+        provider: providerCodeMap[activeProvider],
+        base_url: values.baseUrl,
         model: values.model,
-        maxTokens: values.maxTokens,
+        max_output_tokens: values.maxTokens,
         temperature: values.temperature,
+        timeout_seconds: 60,
         enabled: editing?.enabled ?? modelsForProvider.length === 0,
+        extra_config: {},
+        api_key: values.apiKey,
       };
 
-      upsertAIModel(next);
-      setSaved(true);
+      if (editing) {
+        await updateAIModelConfig(editing.id, payload);
+      } else {
+        await createAIModelConfig(payload);
+      }
+
+      await fetchModels();
       message.success(editing ? "模型已更新" : "模型已添加");
       setModalOpen(false);
       setEditing(null);
     } catch {
       // ignore
+    } finally {
+      setLoading(false);
     }
   };
 
@@ -253,7 +350,7 @@ const AISettings: React.FC = () => {
             <Segmented
               options={PROVIDER_OPTIONS}
               value={activeProvider}
-              onChange={(v) => setAIProvider(v as AIProvider)}
+              onChange={(v) => setActiveProvider(v as AIProvider)}
             />
             <Tooltip title={isGuestMode ? "请登录后添加模型" : ""}>
               <Button
@@ -270,6 +367,7 @@ const AISettings: React.FC = () => {
         bodyStyle={{ padding: 16 }}
       >
         <List
+          loading={listLoading}
           dataSource={modelsForProvider}
           locale={{ emptyText: "暂无已添加模型" }}
           renderItem={(item) => (
@@ -282,8 +380,22 @@ const AISettings: React.FC = () => {
                   <Button
                     type={item.enabled ? "default" : "primary"}
                     icon={<PoweroffOutlined />}
-                    onClick={() => setAIModelEnabled(item.id, !item.enabled)}
+                    onClick={async () => {
+                      try {
+                        setLoading(true);
+                        await updateAIModelConfig(item.id, {
+                          enabled: !item.enabled,
+                        });
+                        await fetchModels();
+                        message.success(!item.enabled ? "已启用" : "已停用");
+                      } catch {
+                        // ignore
+                      } finally {
+                        setLoading(false);
+                      }
+                    }}
                     disabled={isGuestMode}
+                    loading={loading}
                   >
                     {item.enabled ? "停用" : "启用"}
                   </Button>
@@ -293,6 +405,7 @@ const AISettings: React.FC = () => {
                   icon={<LinkOutlined />}
                   onClick={() => handleQuickTest(item)}
                   disabled={isGuestMode}
+                  loading={testing}
                 />,
                 <Button
                   key="edit"
@@ -305,7 +418,18 @@ const AISettings: React.FC = () => {
                   title="确认删除该模型？"
                   okText="删除"
                   cancelText="取消"
-                  onConfirm={() => deleteAIModel(item.id)}
+                  onConfirm={async () => {
+                    try {
+                      setLoading(true);
+                      await deleteAIModelConfig(item.id);
+                      await fetchModels();
+                      message.success("模型已删除");
+                    } catch {
+                      // ignore
+                    } finally {
+                      setLoading(false);
+                    }
+                  }}
                   disabled={isGuestMode}
                 >
                   <Button
@@ -319,8 +443,7 @@ const AISettings: React.FC = () => {
               <List.Item.Meta
                 title={
                   <Space size={8}>
-                    
-                    <Text strong>{item.displayName}</Text>
+                    <Text strong>{item.name}</Text>
                     {item.enabled ? (
                       <Tag color="blue">已启用</Tag>
                     ) : (
@@ -330,8 +453,8 @@ const AISettings: React.FC = () => {
                   </Space>
                 }
                 description={
-                  <Text type="secondary" ellipsis={{ tooltip: item.baseUrl }}>
-                    {item.baseUrl}
+                  <Text type="secondary" ellipsis={{ tooltip: item.base_url }}>
+                    {item.base_url.replace(/`/g, "").trim()}
                   </Text>
                 }
               />
@@ -352,14 +475,15 @@ const AISettings: React.FC = () => {
             <Button
               onClick={handleTestConnection}
               loading={testing}
-              disabled={isGuestMode}
+              disabled={isGuestMode || loading}
             >
               测试连接
             </Button>
             <Button
               type="primary"
               onClick={handleSaveModel}
-              disabled={isGuestMode}
+              disabled={isGuestMode || loading}
+              loading={loading}
             >
               保存配置
             </Button>
