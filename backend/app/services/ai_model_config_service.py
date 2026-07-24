@@ -44,7 +44,11 @@ class AIModelConfigService:
         return self._to_response(config)
 
     async def create_config(self, user_id: int, config_in: UserAIModelConfigCreate) -> UserAIModelConfigResponse:
+        # 1. 确保模型配置名称唯一
         await self._ensure_name_available(user_id=user_id, name=config_in.name)
+        # 2. 确保模型名称唯一，避免聊天模型列表重复
+        await self._ensure_model_available(user_id=user_id, model=config_in.model)
+        # 3. 解析base_url是否合法
         base_url = await self._validate_base_url(config_in.base_url)
 
         config = UserAIModelConfig(
@@ -81,6 +85,8 @@ class AIModelConfigService:
 
         if config_in.name is not None and config_in.name != config.name:
             await self._ensure_name_available(user_id=user_id, name=config_in.name, exclude_id=config.id)
+        if config_in.model is not None and config_in.model != config.model:
+            await self._ensure_model_available(user_id=user_id, model=config_in.model, exclude_id=config.id)
 
         if config_in.name is not None:
             config.name = config_in.name
@@ -170,6 +176,19 @@ class AIModelConfigService:
         result = await self.db.execute(stmt)
         if result.scalar_one_or_none() is not None:
             raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="同名模型配置已存在")
+
+    async def _ensure_model_available(self, user_id: int, model: str, exclude_id: int | None = None) -> None:
+        stmt = select(UserAIModelConfig.id).where(
+            UserAIModelConfig.user_id == user_id,
+            UserAIModelConfig.model == model,
+            UserAIModelConfig.deleted_at.is_(None),
+        )
+        if exclude_id is not None:
+            stmt = stmt.where(UserAIModelConfig.id != exclude_id)
+
+        result = await self.db.execute(stmt)
+        if result.scalar_one_or_none() is not None:
+            raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="同名模型已存在")
 
     async def _validate_base_url(self, base_url: str) -> str:
         try:
