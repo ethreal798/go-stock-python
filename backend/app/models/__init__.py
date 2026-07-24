@@ -22,6 +22,8 @@ from .ai import (
     AIRecommendStocks,
     PromptTemplate,
     ChatMemory,
+    ChatConversation,
+    ChatMessage,
 )
 from .rag import (
     RagDocument,
@@ -84,6 +86,8 @@ __all__ = [
     "AIRecommendStocks",
     "PromptTemplate",
     "ChatMemory",
+    "ChatConversation",
+    "ChatMessage",
     "RagDocument",
     "RagChunk",
     "RagChunkEmbedding",
