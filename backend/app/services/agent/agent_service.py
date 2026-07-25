@@ -40,6 +40,18 @@ class AgentService:
             title=self._build_initial_title(request.message) if not request.conversation_id else None,
         )
         conversation_id = conversation.conversation_id
+        user_message = await self.message_service.save_user_message(
+            conversation=conversation,
+            content=request.message,
+            capability=capability,
+            model_config=model_config,
+        )
+        await self.conversation_service.update_after_message(
+            conversation,
+            capability=capability,
+            model_config=model_config,
+            message_count_increment=1,
+        )
         self._active_tasks[conversation_id] = True
         logger.info("Stream chat request: user=%s conv=%s capability=%s", user_id, conversation_id, capability.code)
 
@@ -48,6 +60,7 @@ class AgentService:
                 "metadata",
                 {
                     "conversation_id": conversation_id,
+                    "user_message_id": user_message.message_id,
                     "capability": capability.code,
                     "capabilities": capability.capabilities,
                     "execution_engine": capability.execution_engine,
@@ -58,8 +71,28 @@ class AgentService:
                 },
             )
             if self._active_tasks.get(conversation_id):
-                async for chunk in self.stream_service.placeholder_stream("[TODO] streaming AI Agent response"):
-                    yield chunk
+                assistant_content = "[TODO] streaming AI Agent response"
+                yield self.stream_service.format_event("delta", {"content": assistant_content})
+                assistant_message = await self.message_service.save_assistant_message(
+                    conversation=conversation,
+                    content=assistant_content,
+                    capability=capability,
+                    model_config=model_config,
+                    finish_reason="stop",
+                )
+                await self.conversation_service.update_after_message(
+                    conversation,
+                    capability=capability,
+                    model_config=model_config,
+                    message_count_increment=1,
+                )
+                yield self.stream_service.format_event(
+                    "done",
+                    {
+                        "message_id": assistant_message.message_id,
+                        "status": assistant_message.status,
+                    },
+                )
         finally:
             self._active_tasks.pop(conversation_id, None)
 
