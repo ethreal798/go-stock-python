@@ -42,6 +42,7 @@ async def chat(
 @router.post("/abort", summary="Abort chat")
 async def abort_chat(
     conversation_id: str = Query(..., description="Conversation ID to abort"),
+    current_user: User = Depends(get_current_user),
     service: AgentService = Depends(get_agent_service),
 ) -> dict:
     success = await service.abort_chat(conversation_id)
@@ -52,17 +53,19 @@ async def abort_chat(
 async def list_conversations(
     limit: int = Query(20, ge=1, le=100),
     offset: int = Query(0, ge=0),
+    current_user: User = Depends(get_current_user),
     service: AgentService = Depends(get_agent_service),
 ) -> list[ConversationSummary]:
-    return await service.list_conversations(limit=limit, offset=offset)
+    return await service.list_conversations(current_user.id, limit=limit, offset=offset)
 
 
 @router.get("/history/{conversation_id}", response_model=ChatHistoryResponse, summary="Conversation history")
 async def get_chat_history(
     conversation_id: str,
+    current_user: User = Depends(get_current_user),
     service: AgentService = Depends(get_agent_service),
 ) -> ChatHistoryResponse:
-    messages = await service.get_history(conversation_id)
+    messages = await service.get_history(current_user.id, conversation_id)
     return ChatHistoryResponse(
         conversation_id=conversation_id,
         messages=messages,
@@ -72,7 +75,8 @@ async def get_chat_history(
 @router.delete("/history/{conversation_id}", summary="Delete conversation")
 async def delete_conversation(
     conversation_id: str,
+    current_user: User = Depends(get_current_user),
     service: AgentService = Depends(get_agent_service),
 ) -> dict:
-    success = await service.delete_conversation(conversation_id)
+    success = await service.delete_conversation(current_user.id, conversation_id)
     return {"success": success}
