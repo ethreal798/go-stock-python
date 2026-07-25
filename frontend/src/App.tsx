@@ -136,8 +136,9 @@ const AppLayout: React.FC = () => {
         collapsible
         collapsed={collapsed}
         onCollapse={setCollapsed}
-        style={{ background: "#001529" }}
-        width={200}
+        theme="light"
+        width={150}
+        collapsedWidth={50}
       >
         <div
           style={{
@@ -145,8 +146,9 @@ const AppLayout: React.FC = () => {
             display: "flex",
             alignItems: "center",
             justifyContent: collapsed ? "center" : "flex-start",
+            gap: collapsed ? 0 : 8,
             padding: collapsed ? 0 : "0 16px",
-            color: "#fff",
+            color: "#001529",
             fontSize: collapsed ? 20 : 16,
             fontWeight: 700,
             overflow: "hidden",
@@ -156,10 +158,15 @@ const AppLayout: React.FC = () => {
             marginBottom: 4,
           }}
         >
-          {collapsed ? "📈" : "📈 Go-Stock"}
+          <img
+            src="/stock.svg"
+            alt="Go-Stock"
+            style={{ width: 20, height: 20, display: "block", flexShrink: 0 }}
+          />
+          {!collapsed && <span>Go-Stock</span>}
         </div>
         <Menu
-          theme="dark"
+          theme="light"
           selectedKeys={[location.pathname]}
           mode="inline"
           items={menuItems}
