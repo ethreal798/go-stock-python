@@ -10,7 +10,7 @@ from app.schemas.agent import (
     ChatRequest,
     ConversationSummary,
 )
-from app.services.agent_service import AgentService
+from app.services.agent import AgentService
 
 router = APIRouter(prefix="/agent", tags=["agent"])
 
