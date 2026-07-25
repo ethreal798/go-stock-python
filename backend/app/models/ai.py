@@ -1,6 +1,19 @@
 """AI 相关模型"""
 
-from sqlalchemy import BigInteger, Boolean, Column, DateTime, Float, ForeignKey, Index, Integer, JSON, String, Text, func
+from sqlalchemy import (
+    BigInteger,
+    Boolean,
+    Column,
+    DateTime,
+    Float,
+    ForeignKey,
+    Index,
+    Integer,
+    JSON,
+    String,
+    Text,
+    func,
+)
 from sqlalchemy.orm import relationship
 from .base import Base, GormBaseModel, TimestampMixin
 
@@ -82,7 +95,9 @@ class ChatConversation(GormBaseModel):
     title = Column(String(200), nullable=True, comment="Conversation title")
     capability = Column(String(50), index=True, nullable=False, default="general", comment="Primary capability")
     execution_engine = Column(String(30), nullable=False, default="llm", comment="Execution engine")
-    rag_enabled = Column(Boolean, nullable=False, default=False, server_default="false", comment="Whether RAG is enabled")
+    rag_enabled = Column(
+        Boolean, nullable=False, default=False, server_default="false", comment="Whether RAG is enabled"
+    )
     tool_enabled = Column(
         Boolean,
         nullable=False,
@@ -108,9 +123,7 @@ class ChatConversation(GormBaseModel):
 
     messages = relationship("ChatMessage", back_populates="conversation", cascade="all, delete-orphan")
 
-    __table_args__ = (
-        Index("idx_chat_conversations_user_deleted_last", "user_id", "deleted_at", "last_message_at"),
-    )
+    __table_args__ = (Index("idx_chat_conversations_user_deleted_last", "user_id", "deleted_at", "last_message_at"),)
 
 
 class ChatMessage(Base, TimestampMixin):
@@ -133,7 +146,9 @@ class ChatMessage(Base, TimestampMixin):
     capability = Column(String(50), index=True, nullable=True, comment="Primary capability used by this turn")
     capabilities = Column(JSON, nullable=True, comment="Capability set used by this turn")
     execution_engine = Column(String(30), nullable=True, comment="Execution engine used by this turn")
-    rag_enabled = Column(Boolean, nullable=False, default=False, server_default="false", comment="Whether RAG was enabled")
+    rag_enabled = Column(
+        Boolean, nullable=False, default=False, server_default="false", comment="Whether RAG was enabled"
+    )
     tool_enabled = Column(
         Boolean,
         nullable=False,
@@ -141,7 +156,9 @@ class ChatMessage(Base, TimestampMixin):
         server_default="false",
         comment="Whether tool calling was enabled",
     )
-    status = Column(String(20), nullable=False, default="completed", server_default="completed", comment="Message status")
+    status = Column(
+        String(20), nullable=False, default="completed", server_default="completed", comment="Message status"
+    )
     model_config_id = Column(
         BigInteger,
         ForeignKey("user_ai_model_configs.id"),
