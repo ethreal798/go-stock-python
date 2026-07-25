@@ -13,8 +13,6 @@ class ChatRequest(BaseModel):
     model_config_id: int = Field(..., description="Selected user AI model config ID")
     conversation_id: str | None = Field(None, description="Existing conversation ID, empty means create one")
     capability: str | None = Field("general", description="Requested entry capability")
-    stream: bool = Field(True, description="Whether to stream the response")
-    options: dict[str, Any] = Field(default_factory=dict, description="Capability-specific options")
 
 
 class ChatMessage(BaseModel):
@@ -32,22 +30,6 @@ class ChatMessage(BaseModel):
     citations: list[dict[str, Any]] = Field(default_factory=list)
     tool_calls: list[dict[str, Any]] = Field(default_factory=list)
     created_at: datetime | None = None
-
-
-class ChatResponse(BaseModel):
-    """Non-streaming chat response."""
-
-    conversation_id: str
-    user_message_id: str | None = None
-    message: ChatMessage
-    capability: str
-    capabilities: list[str] = Field(default_factory=list)
-    execution_engine: str
-    rag_enabled: bool = False
-    tool_enabled: bool = False
-    model_config_id: int
-    model_name: str | None = None
-    usage: dict[str, Any] | None = None
 
 
 class ChatStreamEvent(BaseModel):
