@@ -3,12 +3,15 @@
 import logging
 from collections.abc import AsyncGenerator
 
+from fastapi import HTTPException
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.schemas.agent import ChatMessage, ChatRequest, ConversationSummary
 
 from .capability_registry import CapabilityRegistry
+from .chains.general_chain import GeneralChain, GeneralChainResult
 from .conversation_service import ConversationService
+from .llm_factory import LLMFactory
 from .message_service import MessageService
 from .runtime_model_config_service import RuntimeModelConfigService
 from .stream_service import StreamService
@@ -26,36 +29,52 @@ class AgentService:
         self.conversation_service = ConversationService(db)
         self.message_service = MessageService(db)
         self.stream_service = StreamService()
+        self.llm_factory = LLMFactory()
+        self.general_chain = GeneralChain()
         self._active_tasks: dict[str, bool] = {}
 
-    async def chat_stream(self, user_id: int, request: ChatRequest) -> AsyncGenerator[str, None]:
+    async def chat_stream(self, user_id: int, request: ChatRequest) -> AsyncGenerator[dict[str, str], None]:
         """Streaming chat entrypoint."""
-        model_config = await self.runtime_model_config_service.resolve(user_id, request.model_config_id)
         capability = self.capability_registry.resolve(request.capability)
-        conversation = await self.conversation_service.get_or_create_conversation(
-            user_id=user_id,
-            conversation_id=request.conversation_id,
-            capability=capability,
-            model_config=model_config,
-            title=self._build_initial_title(request.message) if not request.conversation_id else None,
-        )
-        conversation_id = conversation.conversation_id
-        user_message = await self.message_service.save_user_message(
-            conversation=conversation,
-            content=request.message,
-            capability=capability,
-            model_config=model_config,
-        )
-        await self.conversation_service.update_after_message(
-            conversation,
-            capability=capability,
-            model_config=model_config,
-            message_count_increment=1,
-        )
-        self._active_tasks[conversation_id] = True
-        logger.info("Stream chat request: user=%s conv=%s capability=%s", user_id, conversation_id, capability.code)
+        if capability.code != "general":
+            yield self.stream_service.format_event("error", {"message": "当前仅支持普通聊天能力"})
+            return
+
+        conversation = None
+        conversation_id = request.conversation_id or ""
+        model_config = None
 
         try:
+            # 1. 解析传入的模型配置
+            model_config = await self.runtime_model_config_service.resolve(user_id, request.model_config_id)
+            # 2. 实例化 对话模型类
+            conversation = await self.conversation_service.get_or_create_conversation(
+                user_id=user_id,
+                conversation_id=request.conversation_id,
+                capability=capability,
+                model_config=model_config,
+                title=self._build_initial_title(request.message) if not request.conversation_id else None,
+            )
+            # 3. 获取历史消息， 构建上下文联系
+            conversation_id = conversation.conversation_id
+            history = await self.message_service.get_history(conversation_id)
+            # 4. 用户消息入库存储
+            user_message = await self.message_service.save_user_message(
+                conversation=conversation,
+                content=request.message,
+                capability=capability,
+                model_config=model_config,
+            )
+            # 5. 本次对话存储入库
+            await self.conversation_service.update_after_message(
+                conversation,
+                capability=capability,
+                model_config=model_config,
+                message_count_increment=1,
+            )
+            self._active_tasks[conversation_id] = True
+            logger.info("Stream chat request: user=%s conv=%s capability=%s", user_id, conversation_id, capability.code)
+
             yield self.stream_service.format_event(
                 "metadata",
                 {
@@ -71,14 +90,42 @@ class AgentService:
                 },
             )
             if self._active_tasks.get(conversation_id):
-                assistant_content = "[TODO] streaming AI Agent response"
-                yield self.stream_service.format_event("delta", {"content": assistant_content})
-                assistant_message = await self.message_service.save_assistant_message(
+                llm = self.llm_factory.create_chat_model(model_config, streaming=True)
+                final_result = GeneralChainResult()
+
+                async for event in self.general_chain.astream(request=request, llm=llm, history=history):
+                    if event["type"] == "delta":
+                        yield self.stream_service.format_event("delta", {"content": event["content"]})
+                    elif event["type"] == "done":
+                        final_result = event["result"]
+
+                assistant_message = await self._save_successful_assistant_message(
                     conversation=conversation,
-                    content=assistant_content,
                     capability=capability,
                     model_config=model_config,
-                    finish_reason="stop",
+                    result=final_result,
+                )
+                yield self.stream_service.format_event(
+                    "done",
+                    {
+                        "message_id": assistant_message.message_id,
+                        "status": assistant_message.status,
+                        "model_name": assistant_message.model_name,
+                        "usage": final_result.usage,
+                    },
+                )
+        except Exception as exc:
+            logger.exception("Chat stream failed: user=%s conv=%s", user_id, conversation_id)
+            error_message = self._error_message(exc)
+            if conversation is not None and model_config is not None:
+                failed_message = await self.message_service.save_assistant_message(
+                    conversation=conversation,
+                    content="",
+                    capability=capability,
+                    model_config=model_config,
+                    status="failed",
+                    error_message=error_message,
+                    finish_reason="error",
                 )
                 await self.conversation_service.update_after_message(
                     conversation,
@@ -87,14 +134,18 @@ class AgentService:
                     message_count_increment=1,
                 )
                 yield self.stream_service.format_event(
-                    "done",
+                    "error",
                     {
-                        "message_id": assistant_message.message_id,
-                        "status": assistant_message.status,
+                        "message_id": failed_message.message_id,
+                        "status": failed_message.status,
+                        "message": error_message,
                     },
                 )
+            else:
+                yield self.stream_service.format_event("error", {"message": error_message})
         finally:
-            self._active_tasks.pop(conversation_id, None)
+            if conversation_id:
+                self._active_tasks.pop(conversation_id, None)
 
     async def abort_chat(self, conversation_id: str) -> bool:
         """Abort an active streaming conversation."""
@@ -122,3 +173,38 @@ class AgentService:
         """Build a short provisional title from the first user message."""
         title = " ".join(message.strip().split())
         return title[:40] if title else "New conversation"
+
+    async def _save_successful_assistant_message(
+        self,
+        *,
+        conversation,
+        capability,
+        model_config,
+        result: GeneralChainResult,
+    ):
+        assistant_message = await self.message_service.save_assistant_message(
+            conversation=conversation,
+            content=result.content,
+            capability=capability,
+            model_config=model_config,
+            usage=result.usage,
+            finish_reason=result.finish_reason,
+        )
+        if result.model_name and result.model_name != assistant_message.model_name:
+            assistant_message.model_name = result.model_name
+        await self.conversation_service.update_after_message(
+            conversation,
+            capability=capability,
+            model_config=model_config,
+            message_count_increment=1,
+            input_tokens=(result.usage or {}).get("input_tokens", (result.usage or {}).get("prompt_tokens", 0)),
+            output_tokens=(result.usage or {}).get("output_tokens", (result.usage or {}).get("completion_tokens", 0)),
+            total_tokens=(result.usage or {}).get("total_tokens"),
+        )
+        return assistant_message
+
+    @staticmethod
+    def _error_message(exc: Exception) -> str:
+        if isinstance(exc, HTTPException):
+            return str(exc.detail)
+        return str(exc) or "AI 对话生成失败"
