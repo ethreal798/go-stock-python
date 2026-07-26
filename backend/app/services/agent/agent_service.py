@@ -6,7 +6,7 @@ from collections.abc import AsyncGenerator
 from fastapi import HTTPException
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.schemas.agent import ChatMessage, ChatRequest, ConversationSummary
+from app.schemas.agent import ChatMessage, ChatModelOption, ChatRequest, ConversationSummary
 
 from .capability_registry import CapabilityRegistry
 from .chains.general_chain import GeneralChain, GeneralChainResult
@@ -165,6 +165,10 @@ class AgentService:
     async def list_conversations(self, user_id: int, limit: int = 20, offset: int = 0) -> list[ConversationSummary]:
         """Return conversation summaries."""
         return await self.conversation_service.list_conversations(user_id=user_id, limit=limit, offset=offset)
+
+    async def list_chat_model_options(self, user_id: int) -> list[ChatModelOption]:
+        """Return enabled model configs available on the chat page."""
+        return await self.runtime_model_config_service.list_chat_model_options(user_id)
 
     async def delete_conversation(self, user_id: int, conversation_id: str) -> bool:
         """Soft-delete one conversation."""

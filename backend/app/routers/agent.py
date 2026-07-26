@@ -9,7 +9,7 @@ from sse_starlette.sse import EventSourceResponse
 from app.core.database import async_session_factory, get_db
 from app.models.user import User
 from app.routers.auth import get_user_service, oauth2_scheme
-from app.schemas.agent import ChatHistoryResponse, ChatRequest, ConversationSummary
+from app.schemas.agent import ChatHistoryResponse, ChatModelOption, ChatRequest, ConversationSummary
 from app.services.agent import AgentService
 from app.services.user_service import UserService
 
@@ -61,6 +61,15 @@ async def abort_chat(
 ) -> dict:
     success = await service.abort_chat(conversation_id)
     return {"success": success}
+
+
+@router.get("/models", response_model=list[ChatModelOption], summary="Available chat models")
+async def list_chat_models(
+    current_user: User = Depends(get_current_user),
+    service: AgentService = Depends(get_agent_service),
+) -> list[ChatModelOption]:
+    """Return enabled model configs for the chat page model selector."""
+    return await service.list_chat_model_options(current_user.id)
 
 
 @router.get("/history", response_model=list[ConversationSummary], summary="Conversation list")
