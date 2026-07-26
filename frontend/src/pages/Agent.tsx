@@ -1,6 +1,5 @@
 import React, { useState, useRef, useEffect, useCallback } from "react";
 import {
-  Card,
   Input,
   Button,
   List,
@@ -9,16 +8,19 @@ import {
   Tooltip,
   Typography,
   Spin,
-  Divider,
   message,
+  Dropdown,
 } from "antd";
 import {
   SendOutlined,
   RobotOutlined,
   UserOutlined,
-  ClearOutlined,
   PlusOutlined,
   StopOutlined,
+  DeleteOutlined,
+  MenuFoldOutlined,
+  MenuUnfoldOutlined,
+  DownOutlined,
 } from "@ant-design/icons";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
@@ -28,12 +30,18 @@ import {
   getStreamChatUrl,
   getSessionList,
   createSession,
-  clearSession,
+  deleteSession,
 } from "@/api/agent";
 import type { ChatMessage, ChatSession } from "@/types";
+import agentLogo from "@/assets/agent.svg";
 
 const { TextArea } = Input;
 const { Text } = Typography;
+const mockModelOptions = [
+  { key: "gpt-4o-mini", label: "gpt-4o-mini" },
+  { key: "deepseek-chat", label: "deepseek-chat" },
+  { key: "qwen-plus", label: "qwen-plus" },
+];
 
 const Agent: React.FC = () => {
   const isGuestMode = useAuthStore((state) => state.isGuestMode);
@@ -43,6 +51,8 @@ const Agent: React.FC = () => {
   );
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [inputValue, setInputValue] = useState("");
+  const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
+  const [selectedModel, setSelectedModel] = useState("Auto");
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
   const scrollToBottom = useCallback(() => {
@@ -151,97 +161,159 @@ const Agent: React.FC = () => {
     }
   };
 
-  const handleClear = async () => {
-    if (!currentSession) {
-      setMessages([]);
-      return;
-    }
+  const handleDeleteSession = async (sessionId: string) => {
     try {
-      await clearSession(currentSession.id);
-      setMessages([]);
-      message.success("会话已清空");
+      await deleteSession(sessionId);
+      setSessions((prev) => prev.filter((session) => session.id !== sessionId));
+      if (currentSession?.id === sessionId) {
+        setCurrentSession(null);
+        setMessages([]);
+      }
+      message.success("会话已删除");
     } catch {
       // ignore
     }
   };
 
   return (
-    <div style={{ display: "flex", height: "calc(100vh - 80px)", gap: 12 }}>
+    <div
+      style={{
+        display: "flex",
+        height: "calc(100vh - 80px)",
+        background: "#fff",
+        border: "1px solid #f0f0f0",
+        borderRadius: 8,
+        overflow: "hidden",
+      }}
+    >
       {/* 会话列表 */}
-      <Card
-        size="small"
-        title="会话列表"
-        style={{ width: 220, flexShrink: 0, overflowY: "auto" }}
-        extra={
+      <div
+        style={{
+          width: sidebarCollapsed ? 0 : 260,
+          flexShrink: 0,
+          display: "flex",
+          flexDirection: "column",
+          background: "#fefefeff",
+          borderRight: sidebarCollapsed ? "none" : "1px solid #f0f0f0",
+          overflow: "hidden",
+          transition: "width 0.2s ease",
+        }}
+      >
+        <div
+          style={{
+            height: 56,
+            padding: "0 12px",
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "space-between",
+          }}
+        >
+          <Space size={10}>
+            <img
+              src={agentLogo}
+              alt="StockMate"
+              style={{ width: 20, height: 20, display: "block", flexShrink: 0 }}
+            />
+            <span style={{ fontSize: 16, fontWeight: 600 }}>StockMate</span>
+          </Space>
           <Tooltip title={isGuestMode ? "请登录后使用新建会话" : "新建会话"}>
             <Button
               size="small"
+              type="text"
               icon={<PlusOutlined />}
               onClick={handleNewSession}
               disabled={isGuestMode}
             />
           </Tooltip>
-        }
-        bodyStyle={{ padding: 0 }}
-      >
-        <List
-          size="small"
-          dataSource={sessions}
-          renderItem={(session) => (
-            <List.Item
-              onClick={() => {
-                setCurrentSession(session);
-                setMessages(session.messages ?? []);
-              }}
-              style={{
-                cursor: "pointer",
-                padding: "8px 12px",
-                background:
-                  currentSession?.id === session.id ? "#e6f4ff" : undefined,
-              }}
-            >
-              <Text ellipsis style={{ width: "100%" }}>
-                {session.title || "新会话"}
-              </Text>
-            </List.Item>
-          )}
-        />
-      </Card>
+        </div>
+        <div
+          style={{
+            padding: "12px 12px 8px",
+            fontSize: 13,
+            fontWeight: 600,
+            color: "#666",
+          }}
+        >
+          历史会话
+        </div>
+        <div style={{ flex: 1, overflowY: "auto" }}>
+          <List
+            size="small"
+            dataSource={sessions}
+            locale={{ emptyText: "暂无历史会话" }}
+            renderItem={(session) => (
+              <List.Item
+                onClick={() => {
+                  setCurrentSession(session);
+                  setMessages(session.messages ?? []);
+                }}
+                style={{
+                  cursor: "pointer",
+                  margin: "0 8px 6px",
+                  padding: "10px 12px",
+                  background:
+                    currentSession?.id === session.id ? "#e6f4ff" : "#fff",
+                  borderRadius: 8,
+                  border:
+                    currentSession?.id === session.id
+                      ? "1px solid #91caff"
+                      : "1px solid transparent",
+                }}
+                actions={[
+                  <Tooltip key="delete-tip" title="删除会话">
+                    <Button
+                      type="text"
+                      size="small"
+                      icon={<DeleteOutlined />}
+                      onClick={(event) => {
+                        event.stopPropagation();
+                        handleDeleteSession(session.id);
+                      }}
+                      disabled={isGuestMode}
+                    />
+                  </Tooltip>,
+                ]}
+              >
+                <Text ellipsis style={{ width: "100%", paddingRight: 8 }}>
+                  {session.title || "新会话"}
+                </Text>
+              </List.Item>
+            )}
+          />
+        </div>
+      </div>
 
       {/* 聊天区 */}
-      <Card
+      <div
         style={{
           flex: 1,
           display: "flex",
           flexDirection: "column",
           overflow: "hidden",
         }}
-        bodyStyle={{
-          flex: 1,
-          display: "flex",
-          flexDirection: "column",
-          padding: 0,
-          overflow: "hidden",
-        }}
-        title={
-          <Space>
-            <RobotOutlined style={{ color: "#1677ff" }} />
-            <span>AI 智能助手</span>
-          </Space>
-        }
-        extra={
-          <Space>
-            <Tooltip title={isGuestMode ? "请登录后使用清空功能" : "清空会话"}>
-              <Button
-                size="small"
-                icon={<ClearOutlined />}
-                onClick={handleClear}
-                disabled={isGuestMode}
-              />
-            </Tooltip>
-          </Space>
-        }
       >
+        <div
+          style={{
+            height: 56,
+            padding: "0 16px",
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "space-between",
+            borderBottom: "1px solid #f0f0f0",
+          }}
+        >
+          <Tooltip title={sidebarCollapsed ? "展开侧边栏" : "收起侧边栏"}>
+            <Button
+              size="small"
+              type="text"
+              icon={
+                sidebarCollapsed ? <MenuUnfoldOutlined /> : <MenuFoldOutlined />
+              }
+              onClick={() => setSidebarCollapsed((prev) => !prev)}
+            />
+          </Tooltip>
+        </div>
+
         {/* 消息列表 */}
         <div style={{ flex: 1, overflowY: "auto", padding: "12px 16px" }}>
           {messages.length === 0 && (
@@ -306,42 +378,80 @@ const Agent: React.FC = () => {
           <div ref={messagesEndRef} />
         </div>
 
-        <Divider style={{ margin: 0 }} />
-
         {/* 输入区 */}
-        <div style={{ padding: "12px 16px", display: "flex", gap: 8 }}>
-          <TextArea
-            value={inputValue}
-            onChange={(e) => setInputValue(e.target.value)}
-            placeholder={isGuestMode ? "请登录后参与对话..." : "输入消息，Ctrl+Enter 发送..."}
-            autoSize={{ minRows: 2, maxRows: 5 }}
-            onKeyDown={(e) => {
-              if (e.ctrlKey && e.key === "Enter" && !isGuestMode) {
-                e.preventDefault();
-                handleSend();
-              }
+        <div style={{ padding: "16px" }}>
+          <div
+            style={{
+              border: "1px solid #d9d9d9",
+              borderRadius: 12,
+              padding: 12,
+              background: "#fff",
             }}
-            style={{ flex: 1 }}
-            disabled={isGuestMode}
-          />
-          <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
-            <Button
-              type="primary"
-              icon={<SendOutlined />}
-              onClick={handleSend}
-              loading={sseLoading}
-              disabled={!inputValue.trim() || isGuestMode}
+          >
+            <TextArea
+              value={inputValue}
+              onChange={(e) => setInputValue(e.target.value)}
+              placeholder={
+                isGuestMode
+                  ? "请登录后参与对话..."
+                  : "输入消息，Ctrl+Enter 发送..."
+              }
+              autoSize={{ minRows: 5, maxRows: 8 }}
+              onKeyDown={(e) => {
+                if (e.ctrlKey && e.key === "Enter" && !isGuestMode) {
+                  e.preventDefault();
+                  handleSend();
+                }
+              }}
+              variant="borderless"
+              style={{ padding: 0, resize: "none" }}
+              disabled={isGuestMode}
+            />
+            <div
+              style={{
+                display: "flex",
+                justifyContent: "flex-end",
+                alignItems: "center",
+                gap: 8,
+              }}
             >
-              发送
-            </Button>
-            {sseLoading && (
-              <Button icon={<StopOutlined />} onClick={sseAbort} danger>
-                停止
-              </Button>
-            )}
+              <Dropdown
+                trigger={["click"]}
+                menu={{
+                  selectable: true,
+                  selectedKeys: [selectedModel],
+                  items: [
+                    { key: "Auto", label: "Auto" },
+                    ...mockModelOptions,
+                  ],
+                  onClick: ({ key }) => setSelectedModel(String(key)),
+                }}
+              >
+                <Button type="text">
+                  <Space size={4}>
+                    <span>{selectedModel}</span>
+                    <DownOutlined />
+                  </Space>
+                </Button>
+              </Dropdown>
+              {sseLoading ? (
+                <Button icon={<StopOutlined />} onClick={sseAbort} danger>
+                  停止
+                </Button>
+              ) : (
+                <Button
+                  type="primary"
+                  icon={<SendOutlined />}
+                  onClick={handleSend}
+                  disabled={!inputValue.trim() || isGuestMode}
+                >
+                  发送
+                </Button>
+              )}
+            </div>
           </div>
         </div>
-      </Card>
+      </div>
     </div>
   );
 };

@@ -41,7 +41,7 @@ const { Text } = Typography;
 const pageTitleMap: Record<string, string> = {
   "/": "自选股",
   "/market": "行情中心",
-  "/agent": "AI 对话",
+  "/agent": "AI智能助手",
   "/news": "新闻资讯",
   "/fund": "我的关注",
   "/fund/market": "基金市场",
