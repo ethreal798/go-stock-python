@@ -72,6 +72,7 @@ class AgentService:
                 model_config=model_config,
                 message_count_increment=1,
             )
+            await self.db.commit()
             self._active_tasks[conversation_id] = True
             logger.info("Stream chat request: user=%s conv=%s capability=%s", user_id, conversation_id, capability.code)
 
@@ -133,6 +134,7 @@ class AgentService:
                     model_config=model_config,
                     message_count_increment=1,
                 )
+                await self.db.commit()
                 yield self.stream_service.format_event(
                     "error",
                     {
@@ -201,6 +203,7 @@ class AgentService:
             output_tokens=(result.usage or {}).get("output_tokens", (result.usage or {}).get("completion_tokens", 0)),
             total_tokens=(result.usage or {}).get("total_tokens"),
         )
+        await self.db.commit()
         return assistant_message
 
     @staticmethod
