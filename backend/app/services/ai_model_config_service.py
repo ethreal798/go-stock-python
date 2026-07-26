@@ -11,7 +11,6 @@ from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.config import settings
-from app.core.crypto import SecretCipher, SecretCipherError
 from app.core.url_safety import BaseURLSafetyError, validate_ai_base_url
 from app.models.settings import UserAIModelConfig
 from app.schemas.settings import (
@@ -21,6 +20,7 @@ from app.schemas.settings import (
     UserAIModelConfigResponse,
     UserAIModelConfigUpdate,
 )
+from app.services.ai_model_config_secret_service import AIModelConfigSecretService
 
 
 class AIModelConfigService:
@@ -28,7 +28,7 @@ class AIModelConfigService:
 
     def __init__(self, db: AsyncSession) -> None:
         self.db = db
-        self._cipher: SecretCipher | None = None
+        self.secret_service = AIModelConfigSecretService()
 
     async def list_configs(self, user_id: int) -> list[UserAIModelConfigResponse]:
         stmt = (
@@ -45,6 +45,7 @@ class AIModelConfigService:
 
     async def create_config(self, user_id: int, config_in: UserAIModelConfigCreate) -> UserAIModelConfigResponse:
         await self._ensure_name_available(user_id=user_id, name=config_in.name)
+        await self._ensure_model_available(user_id=user_id, model=config_in.model)
         base_url = await self._validate_base_url(config_in.base_url)
 
         config = UserAIModelConfig(
@@ -64,8 +65,11 @@ class AIModelConfigService:
         await self.db.flush()
 
         if config_in.api_key:
-            config.api_key_ciphertext = self._cipher_instance.encrypt(config_in.api_key, self._aad(user_id, config.id))
-            config.api_key_hint = SecretCipher.build_hint(config_in.api_key)
+            config.api_key_ciphertext, config.api_key_hint = self.secret_service.encrypt_api_key(
+                user_id,
+                config.id,
+                config_in.api_key,
+            )
 
         await self._commit_or_conflict()
         await self.db.refresh(config)
@@ -81,6 +85,8 @@ class AIModelConfigService:
 
         if config_in.name is not None and config_in.name != config.name:
             await self._ensure_name_available(user_id=user_id, name=config_in.name, exclude_id=config.id)
+        if config_in.model is not None and config_in.model != config.model:
+            await self._ensure_model_available(user_id=user_id, model=config_in.model, exclude_id=config.id)
 
         if config_in.name is not None:
             config.name = config_in.name
@@ -105,8 +111,11 @@ class AIModelConfigService:
             config.api_key_ciphertext = None
             config.api_key_hint = None
         elif config_in.api_key is not None:
-            config.api_key_ciphertext = self._cipher_instance.encrypt(config_in.api_key, self._aad(user_id, config.id))
-            config.api_key_hint = SecretCipher.build_hint(config_in.api_key)
+            config.api_key_ciphertext, config.api_key_hint = self.secret_service.encrypt_api_key(
+                user_id,
+                config.id,
+                config_in.api_key,
+            )
 
         await self._commit_or_conflict()
         await self.db.refresh(config)
@@ -124,7 +133,7 @@ class AIModelConfigService:
         message: str,
     ) -> AIModelConfigTestResponse:
         config = await self._get_config_model(user_id, config_id)
-        api_key = self._decrypt_api_key(user_id, config)
+        api_key = self.secret_service.decrypt_api_key(user_id, config)
         return await self._test_openai_compatible(
             base_url=config.base_url,
             model=config.model,
@@ -171,6 +180,19 @@ class AIModelConfigService:
         if result.scalar_one_or_none() is not None:
             raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="同名模型配置已存在")
 
+    async def _ensure_model_available(self, user_id: int, model: str, exclude_id: int | None = None) -> None:
+        stmt = select(UserAIModelConfig.id).where(
+            UserAIModelConfig.user_id == user_id,
+            UserAIModelConfig.model == model,
+            UserAIModelConfig.deleted_at.is_(None),
+        )
+        if exclude_id is not None:
+            stmt = stmt.where(UserAIModelConfig.id != exclude_id)
+
+        result = await self.db.execute(stmt)
+        if result.scalar_one_or_none() is not None:
+            raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="同名模型已存在")
+
     async def _validate_base_url(self, base_url: str) -> str:
         try:
             return await validate_ai_base_url(base_url, resolve_host=True)
@@ -183,24 +205,6 @@ class AIModelConfigService:
         except IntegrityError as exc:
             await self.db.rollback()
             raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="模型配置保存冲突，请刷新后重试") from exc
-
-    @property
-    def _cipher_instance(self) -> SecretCipher:
-        if self._cipher is None:
-            self._cipher = SecretCipher()
-        return self._cipher
-
-    def _decrypt_api_key(self, user_id: int, config: UserAIModelConfig) -> str | None:
-        if not config.api_key_ciphertext:
-            return None
-        try:
-            return self._cipher_instance.decrypt(config.api_key_ciphertext, self._aad(user_id, config.id))
-        except SecretCipherError as exc:
-            raise HTTPException(status_code=500, detail="API Key 解密失败，请重新保存 API Key") from exc
-
-    @staticmethod
-    def _aad(user_id: int, config_id: int) -> str:
-        return f"user_ai_model_config:{user_id}:{config_id}"
 
     @staticmethod
     def _to_response(config: UserAIModelConfig) -> UserAIModelConfigResponse:

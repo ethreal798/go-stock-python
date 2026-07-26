@@ -1,51 +1,63 @@
-"""AI Agent 相关 Pydantic Schema。"""
+"""Pydantic schemas for AI chat and agent endpoints."""
 
 from datetime import datetime
-from typing import Optional
+from typing import Any
 
 from pydantic import BaseModel, Field
 
 
 class ChatRequest(BaseModel):
-    """聊天请求。"""
+    """Chat request from the frontend."""
 
-    message: str = Field(..., description="用户消息", min_length=1)
-    conversation_id: Optional[str] = Field(None, description="会话ID，为空则新建会话")
-    model: Optional[str] = Field(None, description="指定使用的模型名称")
-    stream: bool = Field(True, description="是否流式返回")
+    message: str = Field(..., min_length=1, description="User message")
+    model_config_id: int = Field(..., description="Selected user AI model config ID")
+    conversation_id: str | None = Field(None, description="Existing conversation ID, empty means create one")
+    capability: str | None = Field("general", description="Requested entry capability")
 
 
 class ChatMessage(BaseModel):
-    """单条聊天消息。"""
+    """Single chat message returned to the frontend."""
 
-    role: str = Field(..., description="角色: user / assistant / system")
-    content: str = Field(..., description="消息内容")
-    timestamp: Optional[datetime] = None
-    tool_calls: Optional[list[dict]] = Field(None, description="工具调用信息")
+    message_id: str | None = None
+    role: str = Field(..., description="system / user / assistant / tool")
+    content: str = Field(..., description="Message content")
+    status: str = Field("completed", description="pending / streaming / completed / failed / canceled")
+    capability: str | None = None
+    capabilities: list[str] = Field(default_factory=list)
+    execution_engine: str | None = None
+    model_config_id: int | None = None
+    model_name: str | None = None
+    citations: list[dict[str, Any]] = Field(default_factory=list)
+    tool_calls: list[dict[str, Any]] = Field(default_factory=list)
+    created_at: datetime | None = None
 
 
-class ChatResponse(BaseModel):
-    """聊天响应（非流式）。"""
+class ChatStreamEvent(BaseModel):
+    """SSE event payload shape used by stream_service."""
 
-    conversation_id: str = Field(..., description="会话ID")
-    message: ChatMessage = Field(..., description="助手回复消息")
-    usage: Optional[dict] = Field(None, description="Token 用量统计")
+    event: str = Field(..., description="metadata / delta / tool_call / citations / usage / done / error")
+    data: dict[str, Any] = Field(default_factory=dict)
 
 
 class ChatHistoryResponse(BaseModel):
-    """聊天历史响应。"""
+    """Chat history response."""
 
     conversation_id: str
     messages: list[ChatMessage] = Field(default_factory=list)
-    created_at: Optional[datetime] = None
-    updated_at: Optional[datetime] = None
+    created_at: datetime | None = None
+    updated_at: datetime | None = None
 
 
 class ConversationSummary(BaseModel):
-    """会话摘要。"""
+    """Conversation list item."""
 
     conversation_id: str
-    title: str = Field("", description="会话标题")
+    title: str = ""
+    capability: str | None = None
+    execution_engine: str | None = None
+    model_config_id: int | None = None
+    model_name: str | None = None
     message_count: int = 0
-    created_at: Optional[datetime] = None
-    updated_at: Optional[datetime] = None
+    last_message_at: datetime | None = None
+    created_at: datetime | None = None
+    updated_at: datetime | None = None

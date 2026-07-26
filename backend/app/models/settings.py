@@ -17,6 +17,13 @@ class UserAIModelConfig(GormBaseModel):
             unique=True,
             postgresql_where=text("deleted_at IS NULL"),
         ),
+        Index(
+            "uq_user_ai_model_configs_user_model_active",
+            "user_id",
+            "model",
+            unique=True,
+            postgresql_where=text("deleted_at IS NULL"),
+        ),
     )
 
     user_id = Column(BigInteger, index=True, nullable=False, comment="用户ID")
