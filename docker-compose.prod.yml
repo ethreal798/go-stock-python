@@ -1,6 +1,7 @@
 services:
   postgres:
-    image: pgvector/pgvector:0.8.5-pg15-trixie
+    image: pgvector/pgvector:pg15
+    pull_policy: never
     environment:
       POSTGRES_USER: ${POSTGRES_USER:-postgres}
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-postgres}
@@ -46,6 +47,7 @@ services:
 
   redis:
     image: redis:alpine
+    pull_policy: never
     volumes:
       - redis_data:/data
     restart: unless-stopped
@@ -58,6 +60,7 @@ services:
 
   nginx:
     image: nginx:alpine
+    pull_policy: never
     ports:
       - "80:80"
     volumes:

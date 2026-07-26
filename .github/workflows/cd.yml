@@ -169,21 +169,12 @@ jobs:
             timeout 5m docker compose \
               --env-file .env \
               -f docker-compose.prod.yml \
-              pull
+              pull \
+              backend \
+              frontend
 
-            # 第一步：只启动数据库和 Redis。
-            echo "启动 PostgreSQL 和 Redis..."
-            timeout 2m docker compose \
-              --env-file .env \
-              -f docker-compose.prod.yml \
-              up \
-              -d \
-              --no-build \
-              postgres \
-              redis
-
-            # 第二步：等待 PostgreSQL 真正可以接受连接。
-            echo "等待 PostgreSQL 就绪..."
+            # 第一步：确认 PostgreSQL 仍然可用，避免迁移打到不可用数据库。
+            echo "检查 PostgreSQL 就绪状态..."
             POSTGRES_READY=0
 
             for i in $(seq 1 30); do
@@ -203,7 +194,7 @@ jobs:
               exit 1
             fi
 
-            # 第三步：使用一次性后端容器执行迁移。
+            # 第二步：使用一次性后端容器执行迁移。
             # 此时正式后端服务尚未启动，因此不会因为缺少数据表而启动失败。
             echo "执行数据库迁移..."
             timeout 3m docker compose \
@@ -215,15 +206,18 @@ jobs:
               backend \
               alembic upgrade head
 
-            # 第四步：迁移成功后再启动全部服务。
-            echo "启动全部服务..."
+            # 第三步：迁移成功后只更新业务服务。
+            echo "更新业务服务..."
             timeout 3m docker compose \
               --env-file .env \
               -f docker-compose.prod.yml \
               up \
               -d \
               --no-build \
-              --remove-orphans
+              --remove-orphans \
+              backend \
+              frontend \
+              nginx
 
             echo "等待后端容器运行..."
             BACKEND_READY=0
