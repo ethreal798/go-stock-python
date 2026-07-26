@@ -15,6 +15,19 @@ class ChatRequest(BaseModel):
     capability: str | None = Field("general", description="Requested entry capability")
 
 
+class ChatModelOption(BaseModel):
+    """Enabled model config option shown on the chat page."""
+
+    model_config_id: int = Field(..., description="User AI model config ID")
+    name: str = Field(..., description="User-defined config name")
+    provider: str = Field(..., description="Provider code")
+    base_url: str = Field(..., description="OpenAI-compatible base URL")
+    model_name: str = Field(..., description="Model name passed to the provider")
+    api_key_configured: bool = Field(..., description="Whether this config has an API key")
+    max_output_tokens: int = Field(..., description="Max output tokens")
+    temperature: float = Field(..., description="Temperature")
+
+
 class ChatMessage(BaseModel):
     """Single chat message returned to the frontend."""
 

@@ -1,13 +1,15 @@
 """AI agent routes."""
 
+from collections.abc import AsyncGenerator
+
 from fastapi import APIRouter, Depends, Query
 from sqlalchemy.ext.asyncio import AsyncSession
 from sse_starlette.sse import EventSourceResponse
 
-from app.core.database import get_db
+from app.core.database import async_session_factory, get_db
 from app.models.user import User
 from app.routers.auth import get_user_service, oauth2_scheme
-from app.schemas.agent import ChatHistoryResponse, ChatRequest, ConversationSummary
+from app.schemas.agent import ChatHistoryResponse, ChatModelOption, ChatRequest, ConversationSummary
 from app.services.agent import AgentService
 from app.services.user_service import UserService
 
@@ -30,13 +32,25 @@ async def get_current_user(
 async def chat(
     request: ChatRequest,
     current_user: User = Depends(get_current_user),
-    service: AgentService = Depends(get_agent_service),
 ) -> EventSourceResponse:
     """Unified streaming chat endpoint."""
     return EventSourceResponse(
-        service.chat_stream(current_user.id, request),
+        _chat_event_generator(current_user.id, request),
         media_type="text/event-stream",
     )
+
+
+async def _chat_event_generator(user_id: int, request: ChatRequest) -> AsyncGenerator[dict[str, str], None]:
+    """Own the database session for the full SSE stream lifetime."""
+    async with async_session_factory() as db:
+        service = AgentService(db)
+        try:
+            async for event in service.chat_stream(user_id, request):
+                yield event
+            await db.commit()
+        except BaseException:
+            await db.rollback()
+            raise
 
 
 @router.post("/abort", summary="Abort chat")
@@ -47,6 +61,15 @@ async def abort_chat(
 ) -> dict:
     success = await service.abort_chat(conversation_id)
     return {"success": success}
+
+
+@router.get("/models", response_model=list[ChatModelOption], summary="Available chat models")
+async def list_chat_models(
+    current_user: User = Depends(get_current_user),
+    service: AgentService = Depends(get_agent_service),
+) -> list[ChatModelOption]:
+    """Return enabled model configs for the chat page model selector."""
+    return await service.list_chat_model_options(current_user.id)
 
 
 @router.get("/history", response_model=list[ConversationSummary], summary="Conversation list")
