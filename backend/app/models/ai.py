@@ -68,9 +68,9 @@ class PromptTemplate(Base, TimestampMixin):
     __tablename__ = "prompt_templates"
 
     id = Column(Integer, primary_key=True, autoincrement=True)
-    name = Column(String(100))
+    name = Column(String(100), index=True)
     content = Column(Text)
-    type = Column(String(50))
+    type = Column(String(50), index=True)
 
 
 class ChatMemory(Base):
