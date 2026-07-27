@@ -74,12 +74,12 @@ async def list_chat_models(
 
 @router.get("/history", response_model=list[ConversationSummary], summary="Conversation list")
 async def list_conversations(
-    limit: int = Query(20, ge=1, le=100),
-    offset: int = Query(0, ge=0),
+    page: int = Query(20, ge=1, le=100),
+    count: int = Query(0, ge=0),
     current_user: User = Depends(get_current_user),
     service: AgentService = Depends(get_agent_service),
 ) -> list[ConversationSummary]:
-    return await service.list_conversations(current_user.id, limit=limit, offset=offset)
+    return await service.list_conversations(current_user.id, limit=page, offset=count)
 
 
 @router.get("/history/{conversation_id}", response_model=ChatHistoryResponse, summary="Conversation history")
