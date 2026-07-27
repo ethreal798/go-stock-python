@@ -13,6 +13,7 @@ from .chains.general_chain import GeneralChain, GeneralChainResult
 from .conversation_service import ConversationService
 from .llm_factory import LLMFactory
 from .message_service import MessageService
+from .prompt_template_service import PromptTemplateService
 from .runtime_model_config_service import RuntimeModelConfigService
 from .stream_service import StreamService
 
@@ -28,6 +29,7 @@ class AgentService:
         self.runtime_model_config_service = RuntimeModelConfigService(db)
         self.conversation_service = ConversationService(db)
         self.message_service = MessageService(db)
+        self.prompt_template_service = PromptTemplateService(db)
         self.stream_service = StreamService()
         self.llm_factory = LLMFactory()
         self.general_chain = GeneralChain()
@@ -92,9 +94,15 @@ class AgentService:
             )
             if self._active_tasks.get(conversation_id):
                 llm = self.llm_factory.create_chat_model(model_config, streaming=True)
+                system_prompt = await self.prompt_template_service.get_general_chat_system_prompt()
                 final_result = GeneralChainResult()
 
-                async for event in self.general_chain.astream(request=request, llm=llm, history=history):
+                async for event in self.general_chain.astream(
+                    request=request,
+                    llm=llm,
+                    history=history,
+                    system_prompt=system_prompt,
+                ):
                     if event["type"] == "delta":
                         yield self.stream_service.format_event("delta", {"content": event["content"]})
                     elif event["type"] == "done":

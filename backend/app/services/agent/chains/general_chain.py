@@ -23,20 +23,16 @@ class GeneralChainResult:
 class GeneralChain:
     """Plain LLM chat without RAG or tools."""
 
-    system_prompt = (
-        "你是一个中文 AI 助手，请用清晰、准确、克制的方式回答用户问题。"
-        "涉及投资、医疗、法律等高风险内容时，提醒用户这不是专业建议。"
-    )
-
     async def astream(
         self,
         *,
         request: ChatRequest,
         llm: BaseChatModel,
         history: list[ChatMessage],
+        system_prompt: str,
     ) -> AsyncGenerator[dict[str, Any], None]:
         """Stream LLM deltas and yield a final result event."""
-        messages = self._build_messages(request=request, history=history)
+        messages = self._build_messages(request=request, history=history, system_prompt=system_prompt)
         content_parts: list[str] = []
         model_name: str | None = None
         usage: dict[str, Any] | None = None
@@ -66,8 +62,14 @@ class GeneralChain:
             ),
         }
 
-    def _build_messages(self, *, request: ChatRequest, history: list[ChatMessage]) -> list[BaseMessage]:
-        messages: list[BaseMessage] = [SystemMessage(content=self.system_prompt)]
+    def _build_messages(
+        self,
+        *,
+        request: ChatRequest,
+        history: list[ChatMessage],
+        system_prompt: str,
+    ) -> list[BaseMessage]:
+        messages: list[BaseMessage] = [SystemMessage(content=system_prompt)]
         for message in history[-20:]:
             if message.role == "user":
                 messages.append(HumanMessage(content=message.content))
