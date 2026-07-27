@@ -7,7 +7,7 @@ import {
   ArrowDownOutlined,
 } from "@ant-design/icons";
 import type { ColumnsType } from "antd/es/table";
-import type { Stock, StockPrice } from "@/types";
+import type { Stock, StockPrice } from "@/types/stock";
 
 interface StockTableProps {
   stocks: Stock[];
@@ -21,10 +21,10 @@ interface StockTableProps {
 const formatNumber = (v: number, digits = 2) =>
   v == null ? "-" : v.toFixed(digits);
 
-const formatAmount = (v: number):string => {
+const formatAmount = (v: number): string => {
   if (v == null) return "-";
-  if (v >= 1e8) return `${(v / 1e8).toFixed(2)  }亿`;
-  if (v >= 1e4) return `${(v / 1e4).toFixed(2)  }万`;
+  if (v >= 1e8) return `${(v / 1e8).toFixed(2)}亿`;
+  if (v >= 1e4) return `${(v / 1e4).toFixed(2)}万`;
   return v.toFixed(0);
 };
 
@@ -206,10 +206,10 @@ const StockTable: React.FC<StockTableProps> = ({
               disabled={isGuestMode}
             >
               <Tooltip title={isGuestMode ? "请登录后使用删除功能" : "删除"}>
-                <Button 
-                  size="small" 
-                  danger 
-                  icon={<DeleteOutlined />} 
+                <Button
+                  size="small"
+                  danger
+                  icon={<DeleteOutlined />}
                   disabled={isGuestMode}
                 />
               </Tooltip>

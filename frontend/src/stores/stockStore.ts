@@ -1,5 +1,5 @@
 import { create } from 'zustand'
-import type { Stock, StockPrice } from '@/types'
+import type { Stock, StockPrice } from "@/types/stock";
 
 interface StockState {
   stocks: Stock[]

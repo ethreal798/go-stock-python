@@ -32,7 +32,7 @@ import {
   createSession,
   deleteSession,
 } from "@/api/agent";
-import type { ChatMessage, ChatSession } from "@/types";
+import type { ChatMessage, ChatSession } from "@/types/agent";
 import agentLogo from "@/assets/agent.svg";
 
 const { TextArea } = Input;
@@ -420,10 +420,7 @@ const Agent: React.FC = () => {
                 menu={{
                   selectable: true,
                   selectedKeys: [selectedModel],
-                  items: [
-                    { key: "Auto", label: "Auto" },
-                    ...mockModelOptions,
-                  ],
+                  items: [{ key: "Auto", label: "Auto" }, ...mockModelOptions],
                   onClick: ({ key }) => setSelectedModel(String(key)),
                 }}
               >

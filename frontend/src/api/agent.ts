@@ -1,5 +1,5 @@
 import request from './index'
-import type { ChatSession } from '@/types'
+import type { ChatSession } from "@/types/agent";
 
 // 发送消息（非流式）
 export const sendMessage = (data: {

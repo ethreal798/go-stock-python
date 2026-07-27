@@ -1,7 +1,7 @@
 // src/pages/Fund/components/FollowModal.tsx
 import React from "react";
 import { Modal, Form, Input, Typography } from "antd";
-import type { SearchFund } from "@/types";
+import type { SearchFund } from "@/types/fund";
 
 const { Text } = Typography;
 
