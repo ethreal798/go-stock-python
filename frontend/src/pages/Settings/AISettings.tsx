@@ -36,9 +36,9 @@ import { useAuthStore } from "@/stores/authStore";
 import type {
   AIModelConfigCreateRequest,
   AIModelConfigResponse,
-  AIProvider,
   AIModelConfigUpdateRequest,
-} from "@/types";
+  AIProvider,
+} from "@/types/settings";
 import openAIIcon from "@/assets/open-a-i.png";
 import deepSeekIcon from "@/assets/deepseek.png";
 import bailianIcon from "@/assets/alibailian.png";

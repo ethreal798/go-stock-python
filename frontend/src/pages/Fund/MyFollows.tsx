@@ -2,7 +2,7 @@
 import React, { useState, useEffect, useCallback } from "react";
 import { Card, Table, Tag, Button, message } from "antd";
 import type { ColumnsType } from "antd/es/table";
-import type { FollowFund } from "@/types";
+import type { FollowFund } from "@/types/fund";
 import { getFollowedFunds, unfollowFund } from "@/api/fund";
 
 const TABLE_SCROLL_Y = "calc(100vh - 200px)";

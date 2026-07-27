@@ -1,6 +1,6 @@
 import axios from 'axios'
 import { message } from 'antd'
-import type { ApiResponse } from '@/types'
+import type { ApiResponse } from "@/types/common";
 
 const request = axios.create({
   baseURL: '/api/v1',

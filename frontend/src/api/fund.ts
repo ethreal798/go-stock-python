@@ -1,5 +1,5 @@
 import request from "./index";
-import type { FollowFund, SearchFund } from "@/types";
+import type { FollowFund, SearchFund } from "@/types/fund";
 
 // 获取关注的基金列表
 export const getFollowedFunds = () =>

@@ -24,7 +24,7 @@ import {
 import type { ColumnsType } from "antd/es/table";
 import request from "@/api/index";
 import { useAuthStore } from "@/stores/authStore";
-import type { CronTask } from "@/types";
+import type { CronTask } from "@/types/cron";
 
 const CronTasks: React.FC = () => {
   const isGuestMode = useAuthStore((state) => state.isGuestMode);

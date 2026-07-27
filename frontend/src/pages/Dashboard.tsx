@@ -22,7 +22,7 @@ import {
   getStockPrices,
 } from "@/api/stock";
 import StockTable from "@/components/StockTable";
-import type { Stock, StockPrice } from "@/types";
+import type { Stock, StockPrice } from "@/types/stock";
 
 const Dashboard: React.FC = () => {
   const {

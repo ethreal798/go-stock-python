@@ -1,100 +1,139 @@
-import { useEffect, useRef, useCallback, useState } from 'react'
+import { useEffect, useRef, useCallback, useState } from "react";
+
+export interface SSEMessage {
+  event: string;
+  data: string;
+}
 
 interface UseSSEOptions {
-  onMessage?: (data: string) => void
-  onDone?: () => void
-  onError?: (error: Event) => void
+  onMessage?: (message: SSEMessage) => void;
+  onDone?: () => void;
+  onError?: (error: Event) => void;
 }
 
 interface UseSSEReturn {
-  loading: boolean
-  connect: (url: string, body: unknown) => void
-  abort: () => void
+  loading: boolean;
+  connect: (url: string, body: unknown) => void;
+  abort: () => void;
 }
 
 export const useSSE = (options: UseSSEOptions = {}): UseSSEReturn => {
-  const { onMessage, onDone, onError } = options
-  const abortControllerRef = useRef<AbortController | null>(null)
-  const [loading, setLoading] = useState(false)
+  const { onMessage, onDone, onError } = options;
+  const abortControllerRef = useRef<AbortController | null>(null);
+  const [loading, setLoading] = useState(false);
 
   const abort = useCallback(() => {
-    abortControllerRef.current?.abort()
-    setLoading(false)
-  }, [])
+    abortControllerRef.current?.abort();
+    setLoading(false);
+  }, []);
 
   const connect = useCallback(
     async (url: string, body: unknown) => {
       // 先中止上一次请求
-      abortControllerRef.current?.abort()
-      const controller = new AbortController()
-      abortControllerRef.current = controller
-      setLoading(true)
+      abortControllerRef.current?.abort();
+      const controller = new AbortController();
+      abortControllerRef.current = controller;
+      setLoading(true);
 
       try {
+        let token: string | null = null;
+        try {
+          const authStorage = localStorage.getItem("auth-storage");
+          if (authStorage) {
+            const parsed = JSON.parse(authStorage);
+            token = parsed.state?.access_token || null;
+          }
+        } catch {
+          token = null;
+        }
+
         const response = await fetch(url, {
-          method: 'POST',
+          method: "POST",
           headers: {
-            'Content-Type': 'application/json',
-            Accept: 'text/event-stream',
+            ...(token ? { Authorization: `Bearer ${token}` } : {}),
+            "Content-Type": "application/json",
+            Accept: "text/event-stream",
           },
           body: JSON.stringify(body),
           signal: controller.signal,
-        })
+        });
 
         if (!response.ok) {
-          throw new Error(`HTTP error! status: ${response.status}`)
+          throw new Error(`HTTP error! status: ${response.status}`);
         }
 
-        const reader = response.body?.getReader()
+        const reader = response.body?.getReader();
         if (!reader) {
-          throw new Error('Response body is not readable')
+          throw new Error("Response body is not readable");
         }
 
-        const decoder = new TextDecoder()
-        let buffer = ''
+        const decoder = new TextDecoder();
+        let buffer = "";
 
-        while (true) {
-          const { done, value } = await reader.read()
-          if (done) break
-
-          buffer += decoder.decode(value, { stream: true })
-          const lines = buffer.split('\n')
-          buffer = lines.pop() ?? ''
+        const processEventBlock = (block: string) => {
+          const lines = block.split(/\r?\n/);
+          let eventName = "message";
+          const dataLines: string[] = [];
 
           for (const line of lines) {
-            if (line.startsWith('data: ')) {
-              const data = line.slice(6).trim()
-              if (data === '[DONE]') {
-                onDone?.()
-                setLoading(false)
-                return
-              }
-              if (data) {
-                onMessage?.(data)
-              }
+            if (line.startsWith("event:")) {
+              eventName = line.slice(6).trim();
+              continue;
+            }
+            if (line.startsWith("data:")) {
+              dataLines.push(line.slice(5).trimStart());
+            }
+          }
+
+          const data = dataLines.join("\n").trim();
+          if (data === "[DONE]" || eventName === "done") {
+            onDone?.();
+            setLoading(false);
+            return true;
+          }
+
+          if (data) {
+            onMessage?.({ event: eventName, data });
+          }
+
+          return false;
+        };
+
+        while (true) {
+          const { done, value } = await reader.read();
+          if (done) break;
+
+          buffer += decoder.decode(value, { stream: true });
+          const blocks = buffer.split(/\r?\n\r?\n/);
+          buffer = blocks.pop() ?? "";
+          for (const block of blocks) {
+            if (!block.trim()) continue;
+            const shouldStop = processEventBlock(block);
+            if (shouldStop) {
+              return;
             }
           }
         }
 
-        onDone?.()
-        setLoading(false)
+        onDone?.();
+        setLoading(false);
       } catch (error) {
-        if ((error as Error).name === 'AbortError') {
+        if ((error as Error).name === "AbortError") {
           // 用户主动中止
-          return
+          return;
         }
-        onError?.(error as Event)
-        setLoading(false)
+        onError?.(error as Event);
+        setLoading(false);
       }
     },
     [onMessage, onDone, onError],
-  )
+  );
 
   useEffect(() => {
     return () => {
-      abortControllerRef.current?.abort()
-    }
-  }, [])
+      abortControllerRef.current?.abort();
+    };
+  }, []);
 
-  return { loading, connect, abort }
-}
+  return { loading, connect, abort };
+};

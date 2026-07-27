@@ -8,7 +8,7 @@ import type {
   AIModelConfigTestRequest,
   AIModelConfigTestResponse,
   AIModelConfigUpdateRequest,
-} from "@/types";
+} from "@/types/settings";
 
 export const createAIModelConfig = (data: AIModelConfigCreateRequest) =>
   request.post<AIModelConfigResponse>("/settings/ai-models", data);
