@@ -1,5 +1,6 @@
 import request from './index'
-import type { Stock, StockPrice, KLineData, PageResult } from '@/types'
+import type { PageResult } from "@/types/common";
+import type { KLineData, Stock, StockPrice } from "@/types/stock";
 
 // 获取自选股列表
 export const getStockList = () =>

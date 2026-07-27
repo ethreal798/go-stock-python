@@ -1,5 +1,6 @@
 import request from "./index";
-import type { MarketIndex, HotStock, NewsItem } from "@/types";
+import type { HotStock, MarketIndex } from "@/types/market";
+import type { NewsItem } from "@/types/news";
 
 // 获取龙虎榜数据
 export const getDragonTiger = () => request.get("/market/dragon-tiger");

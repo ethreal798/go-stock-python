@@ -3,7 +3,7 @@ import React, { useState, useCallback } from "react";
 import { Card, Table, Tag, Button, Input, Space, message } from "antd";
 import { ReloadOutlined, PlusOutlined } from "@ant-design/icons";
 import type { ColumnsType } from "antd/es/table";
-import type { SearchFund } from "@/types";
+import type { SearchFund } from "@/types/fund";
 import { searchFund, followFund } from "@/api/fund";
 import FollowModal from "./components/FollowModal";
 

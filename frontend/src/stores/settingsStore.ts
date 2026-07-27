@@ -1,6 +1,6 @@
 import { create } from 'zustand'
 import { persist } from 'zustand/middleware'
-import type { AppSettings, AIModelProfile, AIProvider } from '@/types'
+import type { AIModelProfile, AIProvider, AppSettings } from "@/types/settings";
 
 interface SettingsState {
   settings: AppSettings

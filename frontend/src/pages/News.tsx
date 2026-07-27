@@ -18,7 +18,7 @@ import {
   ReadOutlined,
 } from "@ant-design/icons";
 import { getFlashNews, getNewsList } from "@/api/market";
-import type { NewsItem } from "@/types";
+import type { NewsItem } from "@/types/news";
 import dayjs from "dayjs";
 
 const { Text, Link } = Typography;
@@ -30,23 +30,23 @@ const News: React.FC = () => {
   const [newsLoading, setNewsLoading] = useState(false);
   const [currentTime, setCurrentTime] = useState(dayjs());
   const [onlyImportant, setOnlyImportant] = useState(false);
-  
+
   // 快讯分页状态
   const [flashPage, setFlashPage] = useState(1);
   const [flashHasMore, setFlashHasMore] = useState(true);
   const flashScrollRef = useRef<HTMLDivElement>(null);
-  
+
   // 新闻分页状态
   const [newsPage, setNewsPage] = useState(1);
   const [newsHasMore, setNewsHasMore] = useState(true);
   const newsScrollRef = useRef<HTMLDivElement>(null);
-  
+
   // 用于避免 useEffect 依赖项问题的 refs
   const flashLoadingRef = useRef(flashLoading);
   const newsLoadingRef = useRef(newsLoading);
   const fetchFlashRef = useRef<typeof fetchFlash>();
   const fetchNewsRef = useRef<typeof fetchNews>();
-  
+
   // 同步状态到 ref
   useEffect(() => {
     flashLoadingRef.current = flashLoading;
@@ -124,8 +124,6 @@ const News: React.FC = () => {
     },
     [], // 依赖项现在是空的
   );
-
-
 
   useEffect(() => {
     fetchFlash(1, true);
@@ -338,7 +336,11 @@ const News: React.FC = () => {
           )}
           {!newsHasMore && newsList.length > 0 && (
             <div
-              style={{ textAlign: "center", padding: "24px 0", color: "#bfbfbf" }}
+              style={{
+                textAlign: "center",
+                padding: "24px 0",
+                color: "#bfbfbf",
+              }}
             >
               当前已是最后一页
             </div>

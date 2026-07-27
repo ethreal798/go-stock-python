@@ -3,7 +3,7 @@ import { Card, Tabs, Table, Tag, Statistic, Row, Col } from 'antd'
 import { ArrowUpOutlined, ArrowDownOutlined, FireOutlined } from '@ant-design/icons'
 import type { ColumnsType } from 'antd/es/table'
 import { getHotStocks, getLimitUpStocks, getAbnormalStocks, getDragonTiger, getMarketIndexes } from '@/api/market'
-import type { MarketIndex } from '@/types'
+import type { MarketIndex } from '@/types/market'
 
 interface HotStockRow {
   rank: number
