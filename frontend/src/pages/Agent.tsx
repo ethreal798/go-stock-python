@@ -27,21 +27,22 @@ import remarkGfm from "remark-gfm";
 import { useSSE } from "@/hooks/useSSE";
 import { useAuthStore } from "@/stores/authStore";
 import {
+  buildStreamChatPayload,
   getStreamChatUrl,
   getSessionList,
-  createSession,
   deleteSession,
+  getAvailableChatModels,
 } from "@/api/agent";
-import type { ChatMessage, ChatSession } from "@/types/agent";
+import type {
+  ChatAvailableModel,
+  ChatMessage,
+  ChatSession,
+  ChatStreamRequest,
+} from "@/types/agent";
 import agentLogo from "@/assets/agent.svg";
 
 const { TextArea } = Input;
 const { Text } = Typography;
-const mockModelOptions = [
-  { key: "gpt-4o-mini", label: "gpt-4o-mini" },
-  { key: "deepseek-chat", label: "deepseek-chat" },
-  { key: "qwen-plus", label: "qwen-plus" },
-];
 
 const Agent: React.FC = () => {
   const isGuestMode = useAuthStore((state) => state.isGuestMode);
@@ -51,9 +52,25 @@ const Agent: React.FC = () => {
   );
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [inputValue, setInputValue] = useState("");
+  const [availableModels, setAvailableModels] = useState<ChatAvailableModel[]>(
+    [],
+  );
+  const [selectedModelConfigId, setSelectedModelConfigId] = useState<
+    string | null
+  >(null);
+  const [selectedModelName, setSelectedModelName] = useState<string>("");
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
-  const [selectedModel, setSelectedModel] = useState("Auto");
   const messagesEndRef = useRef<HTMLDivElement>(null);
+
+  const fetchSessions = useCallback(() => {
+    return getSessionList()
+      .then((res) => {
+        const list = (res.data as { data?: ChatSession[] })?.data ?? [];
+        setSessions(list);
+        return list;
+      })
+      .catch(() => [] as ChatSession[]);
+  }, []);
 
   const scrollToBottom = useCallback(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
@@ -64,21 +81,31 @@ const Agent: React.FC = () => {
     connect: sseConnect,
     abort: sseAbort,
   } = useSSE({
-    onMessage: (data) => {
+    onMessage: ({ event, data }) => {
+      if (event === "metadata") {
+        return;
+      }
+
       try {
         const parsed = JSON.parse(data) as { content?: string; delta?: string };
-        const delta = parsed.content ?? parsed.delta ?? data;
+        const delta = parsed.content ?? parsed.delta ?? "";
+        if (!delta) {
+          return;
+        }
         setMessages((prev) => {
           const last = prev[prev.length - 1];
-          if (last && last.role === "assistant" && last.loading) {
+          if (last && last.role === "assistant") {
             return [
               ...prev.slice(0, -1),
-              { ...last, content: last.content + delta, loading: false },
+              { ...last, content: last.content + delta },
             ];
           }
           return prev;
         });
       } catch {
+        if (event !== "delta") {
+          return;
+        }
         setMessages((prev) => {
           const last = prev[prev.length - 1];
           if (last && last.role === "assistant") {
@@ -95,6 +122,11 @@ const Agent: React.FC = () => {
       setMessages((prev) =>
         prev.map((m) => (m.loading ? { ...m, loading: false } : m)),
       );
+      fetchSessions().then((list) => {
+        if (!currentSession && list.length > 0) {
+          setCurrentSession(list[0]);
+        }
+      });
       scrollToBottom();
     },
     onError: () => {
@@ -109,10 +141,24 @@ const Agent: React.FC = () => {
   });
 
   useEffect(() => {
-    getSessionList()
+    fetchSessions();
+  }, [fetchSessions]);
+
+  useEffect(() => {
+    getAvailableChatModels()
       .then((res) => {
-        const list = (res.data as { data?: ChatSession[] })?.data ?? [];
-        setSessions(list);
+        const list = ((res.data as { data?: ChatAvailableModel[] })?.data ??
+          res.data ??
+          []) as ChatAvailableModel[];
+        setAvailableModels(list);
+        const first = list[0];
+        if (first) {
+          setSelectedModelConfigId(String(first.model_config_id));
+          setSelectedModelName(first.model_name);
+        } else {
+          setSelectedModelConfigId(null);
+          setSelectedModelName("");
+        }
       })
       .catch(() => {});
   }, []);
@@ -124,6 +170,10 @@ const Agent: React.FC = () => {
   const handleSend = async () => {
     const content = inputValue.trim();
     if (!content || sseLoading) return;
+    if (!selectedModelConfigId) {
+      message.warning("请先选择可用模型");
+      return;
+    }
     setInputValue("");
 
     const userMsg: ChatMessage = {
@@ -141,24 +191,25 @@ const Agent: React.FC = () => {
     };
     setMessages((prev) => [...prev, userMsg, assistantMsg]);
 
-    sseConnect(getStreamChatUrl(), {
-      sessionId: currentSession?.id,
+    const conversationId =
+      messages.some((msg) => msg.role === "user") && currentSession
+        ? currentSession.id
+        : null;
+
+    const payload: ChatStreamRequest = buildStreamChatPayload({
       message: content,
+      model_config_id: Number(selectedModelConfigId),
+      conversation_id: conversationId,
+      capability: "general",
     });
+
+    sseConnect(getStreamChatUrl(), payload);
   };
 
   const handleNewSession = async () => {
-    try {
-      const res = await createSession();
-      const session = (res.data as { data?: ChatSession })?.data;
-      if (session) {
-        setSessions((prev) => [session, ...prev]);
-        setCurrentSession(session);
-        setMessages([]);
-      }
-    } catch {
-      // ignore
-    }
+    setCurrentSession(null);
+    setMessages([]);
+    setInputValue("");
   };
 
   const handleDeleteSession = async (sessionId: string) => {
@@ -351,13 +402,26 @@ const Agent: React.FC = () => {
                   wordBreak: "break-word",
                 }}
               >
-                {msg.loading ? (
-                  <Spin size="small" />
-                ) : msg.role === "assistant" ? (
+                {msg.role === "assistant" ? (
                   <div className="markdown-content">
                     <ReactMarkdown remarkPlugins={[remarkGfm]}>
                       {msg.content}
                     </ReactMarkdown>
+                    {msg.loading && (
+                      <div
+                        style={{
+                          marginTop: 8,
+                          display: "inline-flex",
+                          alignItems: "center",
+                          gap: 6,
+                          color: "#999",
+                          fontSize: 12,
+                        }}
+                      >
+                        <Spin size="small" />
+                        <span>生成中...</span>
+                      </div>
+                    )}
                   </div>
                 ) : (
                   <span>{msg.content}</span>
@@ -419,14 +483,29 @@ const Agent: React.FC = () => {
                 trigger={["click"]}
                 menu={{
                   selectable: true,
-                  selectedKeys: [selectedModel],
-                  items: [{ key: "Auto", label: "Auto" }, ...mockModelOptions],
-                  onClick: ({ key }) => setSelectedModel(String(key)),
+                  selectedKeys: selectedModelConfigId
+                    ? [selectedModelConfigId]
+                    : [],
+                  items: availableModels.map((model) => ({
+                    key: String(model.model_config_id),
+                    label: model.model_name,
+                  })),
+                  onClick: ({ key }) => {
+                    const picked = availableModels.find(
+                      (m) => String(m.model_config_id) === String(key),
+                    );
+                    setSelectedModelConfigId(String(key));
+                    setSelectedModelName(picked?.model_name ?? "");
+                  },
                 }}
               >
-                <Button type="text">
+                <Button type="text" disabled={availableModels.length === 0}>
                   <Space size={4}>
-                    <span>{selectedModel}</span>
+                    <span>
+                      {availableModels.length === 0
+                        ? "暂无模型"
+                        : selectedModelName}
+                    </span>
                     <DownOutlined />
                   </Space>
                 </Button>
