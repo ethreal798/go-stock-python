@@ -10,9 +10,14 @@ on:
       - dev/1.0
   workflow_dispatch:
 
+# 同一分支/PR 只保留最新一次 CI 运行，避免旧的成功检查残留误导分支保护门禁。
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
 jobs:
   test:
-    name: Test and Lint
+    name: CI
     runs-on: ubuntu-latest
 
     steps:
