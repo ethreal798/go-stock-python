@@ -48,7 +48,7 @@ class ChatMessage(BaseModel):
 class ChatStreamEvent(BaseModel):
     """SSE event payload shape used by stream_service."""
 
-    event: str = Field(..., description="metadata / delta / tool_call / citations / usage / done / error")
+    event: str = Field(..., description="metadata / delta / tool_call / citations / usage / done / aborted / error")
     data: dict[str, Any] = Field(default_factory=dict)
 
 

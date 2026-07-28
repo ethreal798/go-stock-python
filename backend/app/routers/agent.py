@@ -59,7 +59,7 @@ async def abort_chat(
     current_user: User = Depends(get_current_user),
     service: AgentService = Depends(get_agent_service),
 ) -> dict:
-    success = await service.abort_chat(conversation_id)
+    success = await service.abort_chat(current_user.id, conversation_id)
     return {"success": success}
 
 
@@ -74,12 +74,12 @@ async def list_chat_models(
 
 @router.get("/history", response_model=list[ConversationSummary], summary="Conversation list")
 async def list_conversations(
-    page: int = Query(20, ge=1, le=100),
-    count: int = Query(0, ge=0),
+    count: int = Query(20, ge=1, le=100),
+    page: int = Query(0, ge=0),
     current_user: User = Depends(get_current_user),
     service: AgentService = Depends(get_agent_service),
 ) -> list[ConversationSummary]:
-    return await service.list_conversations(current_user.id, limit=page, offset=count)
+    return await service.list_conversations(current_user.id, limit=count, offset=page)
 
 
 @router.get("/history/{conversation_id}", response_model=ChatHistoryResponse, summary="Conversation history")

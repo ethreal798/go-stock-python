@@ -1,6 +1,6 @@
 """General chat chain."""
 
-from collections.abc import AsyncGenerator
+from collections.abc import AsyncGenerator, Callable
 from dataclasses import dataclass
 from typing import Any
 
@@ -30,6 +30,7 @@ class GeneralChain:
         llm: BaseChatModel,
         history: list[ChatMessage],
         system_prompt: str,
+        should_abort: Callable[[], bool] | None = None,
     ) -> AsyncGenerator[dict[str, Any], None]:
         """Stream LLM deltas and yield a final result event."""
         messages = self._build_messages(request=request, history=history, system_prompt=system_prompt)
@@ -37,6 +38,16 @@ class GeneralChain:
         model_name: str | None = None
         usage: dict[str, Any] | None = None
         finish_reason: str | None = None
+
+        if should_abort and should_abort():
+            yield self._build_terminal_event(
+                event_type="aborted",
+                content_parts=content_parts,
+                model_name=model_name,
+                usage=usage,
+                finish_reason="abort",
+            )
+            return
 
         async for chunk in llm.astream(messages):
             model_name = self._extract_model_name(chunk) or model_name
@@ -47,20 +58,38 @@ class GeneralChain:
             response_metadata = getattr(chunk, "response_metadata", None) or {}
             finish_reason = response_metadata.get("finish_reason") or finish_reason
 
+            if should_abort and should_abort():
+                yield self._build_terminal_event(
+                    event_type="aborted",
+                    content_parts=content_parts,
+                    model_name=model_name,
+                    usage=usage,
+                    finish_reason="abort",
+                )
+                return
+
             content = self._normalize_content(getattr(chunk, "content", ""))
             if content:
                 content_parts.append(content)
                 yield {"type": "delta", "content": content, "model": model_name}
 
-        yield {
-            "type": "done",
-            "result": GeneralChainResult(
-                content="".join(content_parts),
-                model_name=model_name,
-                usage=usage,
-                finish_reason=finish_reason or "stop",
-            ),
-        }
+            if should_abort and should_abort():
+                yield self._build_terminal_event(
+                    event_type="aborted",
+                    content_parts=content_parts,
+                    model_name=model_name,
+                    usage=usage,
+                    finish_reason="abort",
+                )
+                return
+
+        yield self._build_terminal_event(
+            event_type="done",
+            content_parts=content_parts,
+            model_name=model_name,
+            usage=usage,
+            finish_reason=finish_reason or "stop",
+        )
 
     def _build_messages(
         self,
@@ -98,3 +127,22 @@ class GeneralChain:
     def _extract_model_name(chunk: Any) -> str | None:
         response_metadata = getattr(chunk, "response_metadata", None) or {}
         return response_metadata.get("model_name") or response_metadata.get("model")
+
+    @staticmethod
+    def _build_terminal_event(
+        *,
+        event_type: str,
+        content_parts: list[str],
+        model_name: str | None,
+        usage: dict[str, Any] | None,
+        finish_reason: str,
+    ) -> dict[str, Any]:
+        return {
+            "type": event_type,
+            "result": GeneralChainResult(
+                content="".join(content_parts),
+                model_name=model_name,
+                usage=usage,
+                finish_reason=finish_reason,
+            ),
+        }
