@@ -4,6 +4,7 @@ export interface ChatMessage {
   content: string;
   timestamp: number;
   loading?: boolean;
+  aborted?: boolean;
   error?: boolean;
 }
 

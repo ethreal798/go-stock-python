@@ -62,3 +62,8 @@ export const buildStreamChatPayload = (
 // 创建新会话
 export const createSession = (title?: string) =>
   request.post<{ data: ChatSession }>("/agent/sessions", { title });
+
+export const abortConversation = (conversationId: string) =>
+  request.post("/agent/abort", null, {
+    params: { conversation_id: conversationId },
+  });

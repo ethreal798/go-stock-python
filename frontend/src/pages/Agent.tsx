@@ -33,6 +33,7 @@ import {
   getChatHistoryDetail,
   deleteSession,
   getAvailableChatModels,
+  abortConversation,
 } from "@/api/agent";
 import type {
   ChatAvailableModel,
@@ -63,6 +64,7 @@ const Agent: React.FC = () => {
   const [selectedModelName, setSelectedModelName] = useState<string>("");
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
   const [historyLoading, setHistoryLoading] = useState(false);
+  const activeConversationIdRef = useRef<string | null>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
   const fetchSessions = useCallback((page = 0, count = 20) => {
@@ -92,6 +94,27 @@ const Agent: React.FC = () => {
     })) as ChatMessage[];
   }, []);
 
+  const finalizeAssistantMessage = useCallback(
+    (patch: Partial<ChatMessage> = {}) => {
+      setMessages((prev) => {
+        const last = prev[prev.length - 1];
+        if (!last || last.role !== "assistant" || !last.loading) {
+          return prev;
+        }
+
+        return [
+          ...prev.slice(0, -1),
+          {
+            ...last,
+            loading: false,
+            ...patch,
+          },
+        ];
+      });
+    },
+    [],
+  );
+
   const {
     loading: sseLoading,
     connect: sseConnect,
@@ -99,7 +122,14 @@ const Agent: React.FC = () => {
   } = useSSE({
     onMessage: ({ event, data }) => {
       if (event === "metadata") {
-        return;
+        try {
+          const parsed = JSON.parse(data) as { conversation_id?: string };
+          if (parsed.conversation_id) {
+            activeConversationIdRef.current = parsed.conversation_id;
+          }
+        } catch {
+          return;
+        }
       }
 
       try {
@@ -136,7 +166,9 @@ const Agent: React.FC = () => {
     },
     onDone: () => {
       setMessages((prev) =>
-        prev.map((m) => (m.loading ? { ...m, loading: false } : m)),
+        prev.map((m) =>
+          m.loading ? { ...m, loading: false, aborted: false } : m,
+        ),
       );
       fetchSessions().then((list) => {
         if (!currentSession && list.length > 0) {
@@ -158,18 +190,39 @@ const Agent: React.FC = () => {
       setMessages((prev) =>
         prev.map((m) =>
           m.loading
-            ? { ...m, loading: false, error: true, content: "请求失败，请重试" }
+            ? {
+                ...m,
+                loading: false,
+                aborted: false,
+                error: true,
+                content: "请求失败，请重试",
+              }
             : m,
         ),
       );
     },
   });
 
+  const handleAbort = useCallback(async () => {
+    const conversationId = activeConversationIdRef.current;
+    finalizeAssistantMessage({ aborted: true, error: false });
+    sseAbort();
+    if (!conversationId) {
+      return;
+    }
+    try {
+      await abortConversation(conversationId);
+    } catch {
+      message.error("取消对话失败");
+    }
+  }, [finalizeAssistantMessage, sseAbort]);
+
   const loadConversation = useCallback(
     async (conversationId: string) => {
       if (sseLoading) {
         sseAbort();
       }
+      activeConversationIdRef.current = conversationId;
       setMessages([]);
       setHistoryLoading(true);
       try {
@@ -244,6 +297,7 @@ const Agent: React.FC = () => {
       messages.some((msg) => msg.role === "user") && currentSession
         ? currentSession.conversation_id
         : null;
+    activeConversationIdRef.current = conversationId;
 
     const payload: ChatStreamRequest = buildStreamChatPayload({
       message: content,
@@ -259,6 +313,7 @@ const Agent: React.FC = () => {
     setCurrentSession(null);
     setMessages([]);
     setInputValue("");
+    activeConversationIdRef.current = null;
   };
 
   const handleDeleteSession = async (sessionId: string) => {
@@ -465,19 +520,37 @@ const Agent: React.FC = () => {
                     <ReactMarkdown remarkPlugins={[remarkGfm]}>
                       {msg.content}
                     </ReactMarkdown>
-                    {msg.loading && (
+                    {(msg.loading || msg.aborted || msg.error) && (
                       <div
                         style={{
                           marginTop: 8,
-                          display: "inline-flex",
-                          alignItems: "center",
-                          gap: 6,
-                          color: "#999",
-                          fontSize: 12,
+                          display: "flex",
+                          justifyContent: "flex-end",
                         }}
                       >
-                        <Spin size="small" />
-                        <span>生成中...</span>
+                        <div
+                          style={{
+                            display: "inline-flex",
+                            alignItems: "center",
+                            gap: 6,
+                            color: msg.aborted
+                              ? "#d46b08"
+                              : msg.error
+                                ? "#ff4d4f"
+                                : "#999",
+                            fontSize: 12,
+                            fontWeight: msg.aborted ? 500 : 400,
+                          }}
+                        >
+                          {msg.loading && <Spin size="small" />}
+                          <span>
+                            {msg.aborted
+                              ? "[已中断！]"
+                              : msg.error
+                                ? "请求失败"
+                                : "生成中..."}
+                          </span>
+                        </div>
                       </div>
                     )}
                   </div>
@@ -569,7 +642,7 @@ const Agent: React.FC = () => {
                 </Button>
               </Dropdown>
               {sseLoading ? (
-                <Button icon={<StopOutlined />} onClick={sseAbort} danger>
+                <Button icon={<StopOutlined />} onClick={handleAbort} danger>
                   停止
                 </Button>
               ) : (
