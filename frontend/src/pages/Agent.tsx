@@ -30,12 +30,14 @@ import {
   buildStreamChatPayload,
   getStreamChatUrl,
   getChatHistory,
+  getChatHistoryDetail,
   deleteSession,
   getAvailableChatModels,
 } from "@/api/agent";
 import type {
   ChatAvailableModel,
   ChatHistoryItem,
+  ChatHistoryMessageItem,
   ChatMessage,
   ChatStreamRequest,
 } from "@/types/agent";
@@ -60,6 +62,7 @@ const Agent: React.FC = () => {
   >(null);
   const [selectedModelName, setSelectedModelName] = useState<string>("");
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
+  const [historyLoading, setHistoryLoading] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
   const fetchSessions = useCallback((page = 0, count = 20) => {
@@ -76,6 +79,17 @@ const Agent: React.FC = () => {
 
   const scrollToBottom = useCallback(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
+  }, []);
+
+  const mapHistoryMessages = useCallback((items: ChatHistoryMessageItem[]) => {
+    return items.map((m) => ({
+      id: m.message_id,
+      role: m.role,
+      content: m.content,
+      timestamp: Number.isFinite(Date.parse(m.created_at))
+        ? Date.parse(m.created_at)
+        : Date.now(),
+    })) as ChatMessage[];
   }, []);
 
   const {
@@ -150,6 +164,30 @@ const Agent: React.FC = () => {
       );
     },
   });
+
+  const loadConversation = useCallback(
+    async (conversationId: string) => {
+      if (sseLoading) {
+        sseAbort();
+      }
+      setMessages([]);
+      setHistoryLoading(true);
+      try {
+        const res = await getChatHistoryDetail(conversationId);
+        const detail =
+          (res.data as unknown as { data?: unknown })?.data ?? res.data;
+        const messagesList = (detail as { messages?: ChatHistoryMessageItem[] })
+          ?.messages;
+        setMessages(mapHistoryMessages(messagesList ?? []));
+      } catch {
+        message.error("获取聊天记录失败");
+        setMessages([]);
+      } finally {
+        setHistoryLoading(false);
+      }
+    },
+    [mapHistoryMessages, sseAbort, sseLoading],
+  );
 
   useEffect(() => {
     fetchSessions();
@@ -309,7 +347,7 @@ const Agent: React.FC = () => {
               <List.Item
                 onClick={() => {
                   setCurrentSession(session);
-                  setMessages([]);
+                  loadConversation(session.conversation_id);
                 }}
                 style={{
                   cursor: "pointer",
@@ -382,6 +420,11 @@ const Agent: React.FC = () => {
 
         {/* 消息列表 */}
         <div style={{ flex: 1, overflowY: "auto", padding: "12px 16px" }}>
+          {historyLoading && (
+            <div style={{ textAlign: "center", marginTop: 24 }}>
+              <Spin />
+            </div>
+          )}
           {messages.length === 0 && (
             <div style={{ textAlign: "center", color: "#999", marginTop: 80 }}>
               <RobotOutlined style={{ fontSize: 48, marginBottom: 16 }} />

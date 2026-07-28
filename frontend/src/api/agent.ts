@@ -1,6 +1,7 @@
 import request from "./index";
 import type {
   ChatAvailableModel,
+  ChatHistoryDetailResponse,
   ChatHistoryItem,
   ChatSession,
   ChatStreamRequest,
@@ -29,6 +30,10 @@ export const getChatHistory = (params?: { count?: number; page?: number }) =>
       page: params?.page ?? 0,
     },
   });
+
+// 获取指定会话的聊天详情
+export const getChatHistoryDetail = (conversationId: string) =>
+  request.get<ChatHistoryDetailResponse>(`/agent/history/${conversationId}`);
 
 // 获取会话详情
 export const getSession = (sessionId: string) =>

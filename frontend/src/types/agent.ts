@@ -28,6 +28,28 @@ export interface ChatHistoryItem {
   updated_at: string;
 }
 
+export interface ChatHistoryMessageItem {
+  message_id: string;
+  role: "user" | "assistant" | "system";
+  content: string;
+  status: string;
+  capability: "general";
+  capabilities: string[];
+  execution_engine: string;
+  model_config_id: number;
+  model_name: string;
+  citations: unknown[];
+  tool_calls: unknown[];
+  created_at: string;
+}
+
+export interface ChatHistoryDetailResponse {
+  conversation_id: string;
+  messages: ChatHistoryMessageItem[];
+  created_at: string | null;
+  updated_at: string | null;
+}
+
 export interface ChatAvailableModel {
   model_config_id: number;
   name: string;
