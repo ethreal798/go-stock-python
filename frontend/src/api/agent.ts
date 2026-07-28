@@ -36,7 +36,7 @@ export const getSession = (sessionId: string) =>
 
 // 删除会话
 export const deleteSession = (sessionId: string) =>
-  request.delete(`/agent/sessions/${sessionId}`);
+  request.delete(`/agent/history/${sessionId}`);
 
 // 清空会话消息
 export const clearSession = (sessionId: string) =>
