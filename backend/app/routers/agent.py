@@ -59,7 +59,7 @@ async def abort_chat(
     current_user: User = Depends(get_current_user),
     service: AgentService = Depends(get_agent_service),
 ) -> dict:
-    success = await service.abort_chat(conversation_id)
+    success = await service.abort_chat(current_user.id, conversation_id)
     return {"success": success}
 
 

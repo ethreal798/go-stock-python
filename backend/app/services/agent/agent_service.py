@@ -8,6 +8,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.schemas.agent import ChatMessage, ChatModelOption, ChatRequest, ConversationSummary
 
+from .abort_registry import abort_registry
 from .capability_registry import CapabilityRegistry
 from .chains.general_chain import GeneralChain, GeneralChainResult
 from .conversation_service import ConversationService
@@ -33,7 +34,6 @@ class AgentService:
         self.stream_service = StreamService()
         self.llm_factory = LLMFactory()
         self.general_chain = GeneralChain()
-        self._active_tasks: dict[str, bool] = {}
 
     async def chat_stream(self, user_id: int, request: ChatRequest) -> AsyncGenerator[dict[str, str], None]:
         """Streaming chat entrypoint."""
@@ -75,7 +75,7 @@ class AgentService:
                 message_count_increment=1,
             )
             await self.db.commit()
-            self._active_tasks[conversation_id] = True
+            abort_registry.register(user_id=user_id, conversation_id=conversation_id)
             logger.info("Stream chat request: user=%s conv=%s capability=%s", user_id, conversation_id, capability.code)
 
             yield self.stream_service.format_event(
@@ -92,22 +92,48 @@ class AgentService:
                     "model_name": model_config.model,
                 },
             )
-            if self._active_tasks.get(conversation_id):
-                llm = self.llm_factory.create_chat_model(model_config, streaming=True)
-                system_prompt = await self.prompt_template_service.get_general_chat_system_prompt()
-                final_result = GeneralChainResult()
+            llm = self.llm_factory.create_chat_model(model_config, streaming=True)
+            system_prompt = await self.prompt_template_service.get_general_chat_system_prompt()
+            final_result = GeneralChainResult()
+            aborted = False
 
-                async for event in self.general_chain.astream(
-                    request=request,
-                    llm=llm,
-                    history=history,
-                    system_prompt=system_prompt,
-                ):
-                    if event["type"] == "delta":
-                        yield self.stream_service.format_event("delta", {"content": event["content"]})
-                    elif event["type"] == "done":
-                        final_result = event["result"]
+            async for event in self.general_chain.astream(
+                request=request,
+                llm=llm,
+                history=history,
+                system_prompt=system_prompt,
+                should_abort=lambda: abort_registry.is_aborted(user_id=user_id, conversation_id=conversation_id),
+            ):
+                if event["type"] == "delta":
+                    yield self.stream_service.format_event("delta", {"content": event["content"]})
+                elif event["type"] == "aborted":
+                    aborted = True
+                    final_result = event["result"]
+                    break
+                elif event["type"] == "done":
+                    final_result = event["result"]
 
+            if not aborted and abort_registry.is_aborted(user_id=user_id, conversation_id=conversation_id):
+                aborted = True
+                final_result.finish_reason = "abort"
+
+            if aborted:
+                assistant_message = await self._save_canceled_assistant_message(
+                    conversation=conversation,
+                    capability=capability,
+                    model_config=model_config,
+                    result=final_result,
+                )
+                yield self.stream_service.format_event(
+                    "aborted",
+                    {
+                        "message_id": assistant_message.message_id,
+                        "status": assistant_message.status,
+                        "model_name": assistant_message.model_name,
+                        "usage": final_result.usage,
+                    },
+                )
+            else:
                 assistant_message = await self._save_successful_assistant_message(
                     conversation=conversation,
                     capability=capability,
@@ -155,12 +181,12 @@ class AgentService:
                 yield self.stream_service.format_event("error", {"message": error_message})
         finally:
             if conversation_id:
-                self._active_tasks.pop(conversation_id, None)
+                abort_registry.clear(user_id=user_id, conversation_id=conversation_id)
 
-    async def abort_chat(self, conversation_id: str) -> bool:
+    async def abort_chat(self, user_id: int, conversation_id: str) -> bool:
         """Abort an active streaming conversation."""
-        if conversation_id in self._active_tasks:
-            self._active_tasks[conversation_id] = False
+        await self.conversation_service.get_conversation(user_id=user_id, conversation_id=conversation_id)
+        if abort_registry.request_abort(user_id=user_id, conversation_id=conversation_id):
             logger.info("Aborted chat: conv=%s", conversation_id)
             return True
         return False
@@ -203,6 +229,37 @@ class AgentService:
             model_config=model_config,
             usage=result.usage,
             finish_reason=result.finish_reason,
+        )
+        if result.model_name and result.model_name != assistant_message.model_name:
+            assistant_message.model_name = result.model_name
+        await self.conversation_service.update_after_message(
+            conversation,
+            capability=capability,
+            model_config=model_config,
+            message_count_increment=1,
+            input_tokens=(result.usage or {}).get("input_tokens", (result.usage or {}).get("prompt_tokens", 0)),
+            output_tokens=(result.usage or {}).get("output_tokens", (result.usage or {}).get("completion_tokens", 0)),
+            total_tokens=(result.usage or {}).get("total_tokens"),
+        )
+        await self.db.commit()
+        return assistant_message
+
+    async def _save_canceled_assistant_message(
+        self,
+        *,
+        conversation,
+        capability,
+        model_config,
+        result: GeneralChainResult,
+    ):
+        assistant_message = await self.message_service.save_assistant_message(
+            conversation=conversation,
+            content=result.content,
+            capability=capability,
+            model_config=model_config,
+            status="canceled",
+            usage=result.usage,
+            finish_reason=result.finish_reason or "abort",
         )
         if result.model_name and result.model_name != assistant_message.model_name:
             assistant_message.model_name = result.model_name
