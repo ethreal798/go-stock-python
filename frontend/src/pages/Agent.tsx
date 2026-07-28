@@ -29,14 +29,14 @@ import { useAuthStore } from "@/stores/authStore";
 import {
   buildStreamChatPayload,
   getStreamChatUrl,
-  getSessionList,
+  getChatHistory,
   deleteSession,
   getAvailableChatModels,
 } from "@/api/agent";
 import type {
   ChatAvailableModel,
+  ChatHistoryItem,
   ChatMessage,
-  ChatSession,
   ChatStreamRequest,
 } from "@/types/agent";
 import agentLogo from "@/assets/agent.svg";
@@ -46,8 +46,8 @@ const { Text } = Typography;
 
 const Agent: React.FC = () => {
   const isGuestMode = useAuthStore((state) => state.isGuestMode);
-  const [sessions, setSessions] = useState<ChatSession[]>([]);
-  const [currentSession, setCurrentSession] = useState<ChatSession | null>(
+  const [sessions, setSessions] = useState<ChatHistoryItem[]>([]);
+  const [currentSession, setCurrentSession] = useState<ChatHistoryItem | null>(
     null,
   );
   const [messages, setMessages] = useState<ChatMessage[]>([]);
@@ -62,14 +62,16 @@ const Agent: React.FC = () => {
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
-  const fetchSessions = useCallback(() => {
-    return getSessionList()
+  const fetchSessions = useCallback((page = 0, count = 20) => {
+    return getChatHistory({ page, count })
       .then((res) => {
-        const list = (res.data as { data?: ChatSession[] })?.data ?? [];
+        const list = ((res.data as { data?: ChatHistoryItem[] })?.data ??
+          res.data ??
+          []) as ChatHistoryItem[];
         setSessions(list);
         return list;
       })
-      .catch(() => [] as ChatSession[]);
+      .catch(() => [] as ChatHistoryItem[]);
   }, []);
 
   const scrollToBottom = useCallback(() => {
@@ -125,6 +127,15 @@ const Agent: React.FC = () => {
       fetchSessions().then((list) => {
         if (!currentSession && list.length > 0) {
           setCurrentSession(list[0]);
+          return;
+        }
+        if (currentSession) {
+          const matched = list.find(
+            (item) => item.conversation_id === currentSession.conversation_id,
+          );
+          if (matched) {
+            setCurrentSession(matched);
+          }
         }
       });
       scrollToBottom();
@@ -193,7 +204,7 @@ const Agent: React.FC = () => {
 
     const conversationId =
       messages.some((msg) => msg.role === "user") && currentSession
-        ? currentSession.id
+        ? currentSession.conversation_id
         : null;
 
     const payload: ChatStreamRequest = buildStreamChatPayload({
@@ -215,8 +226,10 @@ const Agent: React.FC = () => {
   const handleDeleteSession = async (sessionId: string) => {
     try {
       await deleteSession(sessionId);
-      setSessions((prev) => prev.filter((session) => session.id !== sessionId));
-      if (currentSession?.id === sessionId) {
+      setSessions((prev) =>
+        prev.filter((session) => session.conversation_id !== sessionId),
+      );
+      if (currentSession?.conversation_id === sessionId) {
         setCurrentSession(null);
         setMessages([]);
       }
@@ -296,17 +309,19 @@ const Agent: React.FC = () => {
               <List.Item
                 onClick={() => {
                   setCurrentSession(session);
-                  setMessages(session.messages ?? []);
+                  setMessages([]);
                 }}
                 style={{
                   cursor: "pointer",
                   margin: "0 8px 6px",
                   padding: "10px 12px",
                   background:
-                    currentSession?.id === session.id ? "#e6f4ff" : "#fff",
+                    currentSession?.conversation_id === session.conversation_id
+                      ? "#e6f4ff"
+                      : "#fff",
                   borderRadius: 8,
                   border:
-                    currentSession?.id === session.id
+                    currentSession?.conversation_id === session.conversation_id
                       ? "1px solid #91caff"
                       : "1px solid transparent",
                 }}
@@ -318,7 +333,7 @@ const Agent: React.FC = () => {
                       icon={<DeleteOutlined />}
                       onClick={(event) => {
                         event.stopPropagation();
-                        handleDeleteSession(session.id);
+                        handleDeleteSession(session.conversation_id);
                       }}
                       disabled={isGuestMode}
                     />

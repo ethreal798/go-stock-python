@@ -15,6 +15,19 @@ export interface ChatSession {
   updatedAt: number;
 }
 
+export interface ChatHistoryItem {
+  conversation_id: string;
+  title: string;
+  capability: "general";
+  execution_engine: string;
+  model_config_id: number;
+  model_name: string;
+  message_count: number;
+  last_message_at: string;
+  created_at: string;
+  updated_at: string;
+}
+
 export interface ChatAvailableModel {
   model_config_id: number;
   name: string;
