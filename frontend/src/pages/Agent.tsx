@@ -29,14 +29,17 @@ import { useAuthStore } from "@/stores/authStore";
 import {
   buildStreamChatPayload,
   getStreamChatUrl,
-  getSessionList,
+  getChatHistory,
+  getChatHistoryDetail,
   deleteSession,
   getAvailableChatModels,
+  abortConversation,
 } from "@/api/agent";
 import type {
   ChatAvailableModel,
+  ChatHistoryItem,
+  ChatHistoryMessageItem,
   ChatMessage,
-  ChatSession,
   ChatStreamRequest,
 } from "@/types/agent";
 import agentLogo from "@/assets/agent.svg";
@@ -46,8 +49,8 @@ const { Text } = Typography;
 
 const Agent: React.FC = () => {
   const isGuestMode = useAuthStore((state) => state.isGuestMode);
-  const [sessions, setSessions] = useState<ChatSession[]>([]);
-  const [currentSession, setCurrentSession] = useState<ChatSession | null>(
+  const [sessions, setSessions] = useState<ChatHistoryItem[]>([]);
+  const [currentSession, setCurrentSession] = useState<ChatHistoryItem | null>(
     null,
   );
   const [messages, setMessages] = useState<ChatMessage[]>([]);
@@ -60,21 +63,57 @@ const Agent: React.FC = () => {
   >(null);
   const [selectedModelName, setSelectedModelName] = useState<string>("");
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
+  const [historyLoading, setHistoryLoading] = useState(false);
+  const activeConversationIdRef = useRef<string | null>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
-  const fetchSessions = useCallback(() => {
-    return getSessionList()
+  const fetchSessions = useCallback((page = 0, count = 20) => {
+    return getChatHistory({ page, count })
       .then((res) => {
-        const list = (res.data as { data?: ChatSession[] })?.data ?? [];
+        const list = ((res.data as { data?: ChatHistoryItem[] })?.data ??
+          res.data ??
+          []) as ChatHistoryItem[];
         setSessions(list);
         return list;
       })
-      .catch(() => [] as ChatSession[]);
+      .catch(() => [] as ChatHistoryItem[]);
   }, []);
 
   const scrollToBottom = useCallback(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
   }, []);
+
+  const mapHistoryMessages = useCallback((items: ChatHistoryMessageItem[]) => {
+    return items.map((m) => ({
+      id: m.message_id,
+      role: m.role,
+      content: m.content,
+      timestamp: Number.isFinite(Date.parse(m.created_at))
+        ? Date.parse(m.created_at)
+        : Date.now(),
+    })) as ChatMessage[];
+  }, []);
+
+  const finalizeAssistantMessage = useCallback(
+    (patch: Partial<ChatMessage> = {}) => {
+      setMessages((prev) => {
+        const last = prev[prev.length - 1];
+        if (!last || last.role !== "assistant" || !last.loading) {
+          return prev;
+        }
+
+        return [
+          ...prev.slice(0, -1),
+          {
+            ...last,
+            loading: false,
+            ...patch,
+          },
+        ];
+      });
+    },
+    [],
+  );
 
   const {
     loading: sseLoading,
@@ -83,7 +122,14 @@ const Agent: React.FC = () => {
   } = useSSE({
     onMessage: ({ event, data }) => {
       if (event === "metadata") {
-        return;
+        try {
+          const parsed = JSON.parse(data) as { conversation_id?: string };
+          if (parsed.conversation_id) {
+            activeConversationIdRef.current = parsed.conversation_id;
+          }
+        } catch {
+          return;
+        }
       }
 
       try {
@@ -120,11 +166,22 @@ const Agent: React.FC = () => {
     },
     onDone: () => {
       setMessages((prev) =>
-        prev.map((m) => (m.loading ? { ...m, loading: false } : m)),
+        prev.map((m) =>
+          m.loading ? { ...m, loading: false, aborted: false } : m,
+        ),
       );
       fetchSessions().then((list) => {
         if (!currentSession && list.length > 0) {
           setCurrentSession(list[0]);
+          return;
+        }
+        if (currentSession) {
+          const matched = list.find(
+            (item) => item.conversation_id === currentSession.conversation_id,
+          );
+          if (matched) {
+            setCurrentSession(matched);
+          }
         }
       });
       scrollToBottom();
@@ -133,12 +190,57 @@ const Agent: React.FC = () => {
       setMessages((prev) =>
         prev.map((m) =>
           m.loading
-            ? { ...m, loading: false, error: true, content: "请求失败，请重试" }
+            ? {
+                ...m,
+                loading: false,
+                aborted: false,
+                error: true,
+                content: "请求失败，请重试",
+              }
             : m,
         ),
       );
     },
   });
+
+  const handleAbort = useCallback(async () => {
+    const conversationId = activeConversationIdRef.current;
+    finalizeAssistantMessage({ aborted: true, error: false });
+    sseAbort();
+    if (!conversationId) {
+      return;
+    }
+    try {
+      await abortConversation(conversationId);
+    } catch {
+      message.error("取消对话失败");
+    }
+  }, [finalizeAssistantMessage, sseAbort]);
+
+  const loadConversation = useCallback(
+    async (conversationId: string) => {
+      if (sseLoading) {
+        sseAbort();
+      }
+      activeConversationIdRef.current = conversationId;
+      setMessages([]);
+      setHistoryLoading(true);
+      try {
+        const res = await getChatHistoryDetail(conversationId);
+        const detail =
+          (res.data as unknown as { data?: unknown })?.data ?? res.data;
+        const messagesList = (detail as { messages?: ChatHistoryMessageItem[] })
+          ?.messages;
+        setMessages(mapHistoryMessages(messagesList ?? []));
+      } catch {
+        message.error("获取聊天记录失败");
+        setMessages([]);
+      } finally {
+        setHistoryLoading(false);
+      }
+    },
+    [mapHistoryMessages, sseAbort, sseLoading],
+  );
 
   useEffect(() => {
     fetchSessions();
@@ -193,8 +295,9 @@ const Agent: React.FC = () => {
 
     const conversationId =
       messages.some((msg) => msg.role === "user") && currentSession
-        ? currentSession.id
+        ? currentSession.conversation_id
         : null;
+    activeConversationIdRef.current = conversationId;
 
     const payload: ChatStreamRequest = buildStreamChatPayload({
       message: content,
@@ -210,13 +313,16 @@ const Agent: React.FC = () => {
     setCurrentSession(null);
     setMessages([]);
     setInputValue("");
+    activeConversationIdRef.current = null;
   };
 
   const handleDeleteSession = async (sessionId: string) => {
     try {
       await deleteSession(sessionId);
-      setSessions((prev) => prev.filter((session) => session.id !== sessionId));
-      if (currentSession?.id === sessionId) {
+      setSessions((prev) =>
+        prev.filter((session) => session.conversation_id !== sessionId),
+      );
+      if (currentSession?.conversation_id === sessionId) {
         setCurrentSession(null);
         setMessages([]);
       }
@@ -296,17 +402,19 @@ const Agent: React.FC = () => {
               <List.Item
                 onClick={() => {
                   setCurrentSession(session);
-                  setMessages(session.messages ?? []);
+                  loadConversation(session.conversation_id);
                 }}
                 style={{
                   cursor: "pointer",
                   margin: "0 8px 6px",
                   padding: "10px 12px",
                   background:
-                    currentSession?.id === session.id ? "#e6f4ff" : "#fff",
+                    currentSession?.conversation_id === session.conversation_id
+                      ? "#e6f4ff"
+                      : "#fff",
                   borderRadius: 8,
                   border:
-                    currentSession?.id === session.id
+                    currentSession?.conversation_id === session.conversation_id
                       ? "1px solid #91caff"
                       : "1px solid transparent",
                 }}
@@ -318,7 +426,7 @@ const Agent: React.FC = () => {
                       icon={<DeleteOutlined />}
                       onClick={(event) => {
                         event.stopPropagation();
-                        handleDeleteSession(session.id);
+                        handleDeleteSession(session.conversation_id);
                       }}
                       disabled={isGuestMode}
                     />
@@ -367,6 +475,11 @@ const Agent: React.FC = () => {
 
         {/* 消息列表 */}
         <div style={{ flex: 1, overflowY: "auto", padding: "12px 16px" }}>
+          {historyLoading && (
+            <div style={{ textAlign: "center", marginTop: 24 }}>
+              <Spin />
+            </div>
+          )}
           {messages.length === 0 && (
             <div style={{ textAlign: "center", color: "#999", marginTop: 80 }}>
               <RobotOutlined style={{ fontSize: 48, marginBottom: 16 }} />
@@ -407,19 +520,37 @@ const Agent: React.FC = () => {
                     <ReactMarkdown remarkPlugins={[remarkGfm]}>
                       {msg.content}
                     </ReactMarkdown>
-                    {msg.loading && (
+                    {(msg.loading || msg.aborted || msg.error) && (
                       <div
                         style={{
                           marginTop: 8,
-                          display: "inline-flex",
-                          alignItems: "center",
-                          gap: 6,
-                          color: "#999",
-                          fontSize: 12,
+                          display: "flex",
+                          justifyContent: "flex-end",
                         }}
                       >
-                        <Spin size="small" />
-                        <span>生成中...</span>
+                        <div
+                          style={{
+                            display: "inline-flex",
+                            alignItems: "center",
+                            gap: 6,
+                            color: msg.aborted
+                              ? "#d46b08"
+                              : msg.error
+                                ? "#ff4d4f"
+                                : "#999",
+                            fontSize: 12,
+                            fontWeight: msg.aborted ? 500 : 400,
+                          }}
+                        >
+                          {msg.loading && <Spin size="small" />}
+                          <span>
+                            {msg.aborted
+                              ? "[已中断！]"
+                              : msg.error
+                                ? "请求失败"
+                                : "生成中..."}
+                          </span>
+                        </div>
                       </div>
                     )}
                   </div>
@@ -511,7 +642,7 @@ const Agent: React.FC = () => {
                 </Button>
               </Dropdown>
               {sseLoading ? (
-                <Button icon={<StopOutlined />} onClick={sseAbort} danger>
+                <Button icon={<StopOutlined />} onClick={handleAbort} danger>
                   停止
                 </Button>
               ) : (
