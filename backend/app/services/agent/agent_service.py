@@ -1,282 +1,353 @@
-"""Top-level AI agent orchestration service."""
+"""Agent 会话、运行任务和消息的数据库编排服务。"""
 
-import logging
-from collections.abc import AsyncGenerator
+import uuid
+from datetime import datetime, timedelta
 
-from fastapi import HTTPException
+from fastapi import HTTPException, status
+from sqlalchemy import func, select
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.schemas.agent import ChatMessage, ChatModelOption, ChatRequest, ConversationSummary
+from app.config import settings
+from app.models.agent import AgentMessage, AgentRun, AgentThread
+from app.schemas.agent import (
+    AgentMessageResponse,
+    AgentRunCreate,
+    AgentRunResponse,
+    AgentRunSubmit,
+    AgentThreadCreate,
+    AgentThreadResponse,
+)
+from app.services.agent.runtime_model_config_service import RuntimeModelConfigService
 
-from .abort_registry import abort_registry
-from .capability_registry import CapabilityRegistry
-from .chains.general_chain import GeneralChain, GeneralChainResult
-from .conversation_service import ConversationService
-from .llm_factory import LLMFactory
-from .message_service import MessageService
-from .prompt_template_service import PromptTemplateService
-from .runtime_model_config_service import RuntimeModelConfigService
-from .stream_service import StreamService
-
-logger = logging.getLogger(__name__)
+ACTIVE_RUN_STATUSES = ("pending", "running", "cancel_requested")
+TERMINAL_RUN_STATUSES = ("completed", "canceled", "failed", "interrupted")
 
 
 class AgentService:
-    """Coordinate chat requests across model config, conversation, chain, and streaming services."""
+    """维护 LangGraph Agent 控制面的持久化状态与事务规则。"""
 
     def __init__(self, db: AsyncSession) -> None:
         self.db = db
-        self.capability_registry = CapabilityRegistry()
-        self.runtime_model_config_service = RuntimeModelConfigService(db)
-        self.conversation_service = ConversationService(db)
-        self.message_service = MessageService(db)
-        self.prompt_template_service = PromptTemplateService(db)
-        self.stream_service = StreamService()
-        self.llm_factory = LLMFactory()
-        self.general_chain = GeneralChain()
+        self.model_configs = RuntimeModelConfigService(db)
 
-    async def chat_stream(self, user_id: int, request: ChatRequest) -> AsyncGenerator[dict[str, str], None]:
-        """Streaming chat entrypoint."""
-        capability = self.capability_registry.resolve(request.capability)
-        if capability.code != "general":
-            yield self.stream_service.format_event("error", {"message": "当前仅支持普通聊天能力"})
-            return
+    async def create_thread(self, user_id: int, request: AgentThreadCreate) -> AgentThreadResponse:
+        """校验模型配置并创建用户会话。"""
+        model_config = await self.model_configs.resolve(user_id, request.model_config_id)
+        thread = AgentThread(
+            user_id=user_id,
+            title=(request.title or "New conversation").strip() or "New conversation",
+            capability=request.capability,
+            model_config_id=model_config.id,
+        )
+        self.db.add(thread)
+        await self.db.flush()
+        return self.to_thread_response(thread)
 
-        conversation = None
-        conversation_id = request.conversation_id or ""
-        model_config = None
+    async def list_threads(self, user_id: int, *, limit: int = 20, offset: int = 0) -> list[AgentThreadResponse]:
+        """分页查询用户未删除的会话。"""
+        stmt = (
+            select(AgentThread)
+            .where(AgentThread.user_id == user_id, AgentThread.deleted_at.is_(None))
+            .order_by(AgentThread.last_message_at.desc().nullslast(), AgentThread.created_at.desc())
+            .offset(offset)
+            .limit(limit)
+        )
+        result = await self.db.execute(stmt)
+        return [self.to_thread_response(item) for item in result.scalars().all()]
 
+    async def get_thread(self, user_id: int, thread_id: uuid.UUID, *, for_update: bool = False) -> AgentThread:
+        """按用户和会话 ID 查询会话，可选择加行锁。"""
+        stmt = select(AgentThread).where(
+            AgentThread.id == thread_id,
+            AgentThread.user_id == user_id,
+            AgentThread.deleted_at.is_(None),
+        )
+        if for_update:
+            stmt = stmt.with_for_update()
+        thread = (await self.db.execute(stmt)).scalar_one_or_none()
+        if thread is None:
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Agent 会话不存在")
+        return thread
+
+    async def get_thread_response(self, user_id: int, thread_id: uuid.UUID) -> AgentThreadResponse:
+        """查询会话并转换为接口响应。"""
+        return self.to_thread_response(await self.get_thread(user_id, thread_id))
+
+    async def list_messages(self, user_id: int, thread_id: uuid.UUID) -> list[AgentMessageResponse]:
+        """按顺序返回会话中对用户可见的消息。"""
+        await self.get_thread(user_id, thread_id)
+        stmt = (
+            select(AgentMessage)
+            .where(AgentMessage.thread_id == thread_id, AgentMessage.visible.is_(True))
+            .order_by(AgentMessage.sequence.asc())
+        )
+        result = await self.db.execute(stmt)
+        return [self.to_message_response(item) for item in result.scalars().all()]
+
+    async def delete_thread(self, user_id: int, thread_id: uuid.UUID) -> AgentRun | None:
+        """软删除会话，并取消该会话中可能存在的活动任务。"""
+        thread = await self.get_thread(user_id, thread_id, for_update=True)
+        active_run = await self.get_active_run(user_id, thread_id, for_update=True)
+
+        if active_run is not None:
+            if active_run.status == "pending":
+                active_run.status = "canceled"
+                active_run.finish_reason = "abort"
+                active_run.finished_at = datetime.now()
+                await self._update_assistant(active_run, status="canceled", finish_reason="abort")
+            elif active_run.status == "running":
+                active_run.status = "cancel_requested"
+
+        thread.status = "deleted"
+        thread.deleted_at = datetime.now()
+        await self.db.flush()
+        return active_run
+
+    async def create_run(self, user_id: int, thread_id: uuid.UUID, request: AgentRunCreate) -> AgentRunResponse:
+        """在指定会话内原子创建 Run、用户消息和助手占位消息。"""
+        existing = await self._get_by_client_request(user_id, request.client_request_id)
+        if existing is not None:
+            if existing.thread_id != thread_id:
+                raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="client_request_id 已被其他会话使用")
+            return self.to_run_response(existing)
+
+        model_config = await self.model_configs.resolve(user_id, request.model_config_id)
+        thread = await self.get_thread(user_id, thread_id, for_update=True)
+        active = await self.get_active_run(user_id, thread_id)
+        if active is not None:
+            raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="当前会话已有活动任务")
+
+        max_sequence = (
+            await self.db.execute(select(func.max(AgentMessage.sequence)).where(AgentMessage.thread_id == thread_id))
+        ).scalar_one_or_none()
+        user_sequence = 0 if max_sequence is None else max_sequence + 1
+        run_id = uuid.uuid4()
+        user_message_id = uuid.uuid4()
+        assistant_message_id = uuid.uuid4()
+        now = datetime.now()
+
+        run = AgentRun(
+            id=run_id,
+            thread_id=thread_id,
+            user_id=user_id,
+            client_request_id=request.client_request_id,
+            user_message_id=user_message_id,
+            assistant_message_id=assistant_message_id,
+            model_config_id=model_config.id,
+            capability=request.capability,
+            status="pending",
+            model_name=model_config.model,
+        )
+        user_message = AgentMessage(
+            id=user_message_id,
+            thread_id=thread_id,
+            run_id=run_id,
+            role="user",
+            content=request.message,
+            sequence=user_sequence,
+            status="completed",
+            model_config_id=model_config.id,
+            model_name=model_config.model,
+        )
+        assistant_message = AgentMessage(
+            id=assistant_message_id,
+            thread_id=thread_id,
+            run_id=run_id,
+            role="assistant",
+            content="",
+            sequence=user_sequence + 1,
+            status="streaming",
+            model_config_id=model_config.id,
+            model_name=model_config.model,
+        )
+        # Run 和两条消息在同一事务中创建，避免接口返回后出现不完整记录。
+        self.db.add_all([run, user_message, assistant_message])
+        thread.model_config_id = model_config.id
+        thread.capability = request.capability
+        thread.message_count = (thread.message_count or 0) + 2
+        thread.last_message_at = now
+        if thread.title == "New conversation":
+            thread.title = self._initial_title(request.message)
         try:
-            # 1. 解析传入的模型配置
-            model_config = await self.runtime_model_config_service.resolve(user_id, request.model_config_id)
-            # 2. 实例化 对话模型类
-            conversation = await self.conversation_service.get_or_create_conversation(
-                user_id=user_id,
-                conversation_id=request.conversation_id,
-                capability=capability,
-                model_config=model_config,
-                title=self._build_initial_title(request.message) if not request.conversation_id else None,
+            await self.db.flush()
+        except IntegrityError as exc:
+            await self.db.rollback()
+            existing = await self._get_by_client_request(user_id, request.client_request_id)
+            if existing is not None:
+                return self.to_run_response(existing)
+            raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="无法并发创建 Agent 任务") from exc
+        return self.to_run_response(run)
+
+    async def submit_run(self, user_id: int, request: AgentRunSubmit) -> AgentRunResponse:
+        """按需创建会话，并以幂等方式提交一个后台任务。"""
+        existing = await self._get_by_client_request(user_id, request.client_request_id)
+        if existing is not None:
+            if request.thread_id is not None and existing.thread_id != request.thread_id:
+                raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="client_request_id 已被其他会话使用")
+            return self.to_run_response(existing)
+
+        thread_id = request.thread_id
+        if thread_id is None:
+            thread = await self.create_thread(
+                user_id,
+                AgentThreadCreate(
+                    model_config_id=request.model_config_id,
+                    capability=request.capability,
+                ),
             )
-            # 3. 获取历史消息， 构建上下文联系
-            conversation_id = conversation.conversation_id
-            history = await self.message_service.get_history(conversation_id)
-            # 4. 用户消息入库存储
-            user_message = await self.message_service.save_user_message(
-                conversation=conversation,
-                content=request.message,
-                capability=capability,
-                model_config=model_config,
-            )
-            # 5. 本次对话存储入库
-            await self.conversation_service.update_after_message(
-                conversation,
-                capability=capability,
-                model_config=model_config,
-                message_count_increment=1,
-            )
-            await self.db.commit()
-            abort_registry.register(user_id=user_id, conversation_id=conversation_id)
-            logger.info("Stream chat request: user=%s conv=%s capability=%s", user_id, conversation_id, capability.code)
+            thread_id = thread.thread_id
 
-            yield self.stream_service.format_event(
-                "metadata",
-                {
-                    "conversation_id": conversation_id,
-                    "user_message_id": user_message.message_id,
-                    "capability": capability.code,
-                    "capabilities": capability.capabilities,
-                    "execution_engine": capability.execution_engine,
-                    "rag_enabled": capability.rag_enabled,
-                    "tool_enabled": capability.tool_enabled,
-                    "model_config_id": model_config.id,
-                    "model_name": model_config.model,
-                },
-            )
-            llm = self.llm_factory.create_chat_model(model_config, streaming=True)
-            system_prompt = await self.prompt_template_service.get_general_chat_system_prompt()
-            final_result = GeneralChainResult()
-            aborted = False
+        run_request = AgentRunCreate(
+            message=request.message,
+            model_config_id=request.model_config_id,
+            capability=request.capability,
+            client_request_id=request.client_request_id,
+        )
+        return await self.create_run(user_id, thread_id, run_request)
 
-            async for event in self.general_chain.astream(
-                request=request,
-                llm=llm,
-                history=history,
-                system_prompt=system_prompt,
-                should_abort=lambda: abort_registry.is_aborted(user_id=user_id, conversation_id=conversation_id),
-            ):
-                if event["type"] == "delta":
-                    yield self.stream_service.format_event("delta", {"content": event["content"]})
-                elif event["type"] == "aborted":
-                    aborted = True
-                    final_result = event["result"]
-                    break
-                elif event["type"] == "done":
-                    final_result = event["result"]
+    async def get_run(self, user_id: int, run_id: uuid.UUID, *, for_update: bool = False) -> AgentRun:
+        """按用户和任务 ID 查询 Run，可选择加行锁。"""
+        stmt = select(AgentRun).where(AgentRun.id == run_id, AgentRun.user_id == user_id)
+        if for_update:
+            stmt = stmt.with_for_update()
+        run = (await self.db.execute(stmt)).scalar_one_or_none()
+        if run is None:
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Agent 任务不存在")
+        return run
 
-            if not aborted and abort_registry.is_aborted(user_id=user_id, conversation_id=conversation_id):
-                aborted = True
-                final_result.finish_reason = "abort"
+    async def get_run_response(self, user_id: int, run_id: uuid.UUID) -> AgentRunResponse:
+        """查询 Run 并转换为接口响应。"""
+        return self.to_run_response(await self.get_run(user_id, run_id))
 
-            if aborted:
-                assistant_message = await self._save_canceled_assistant_message(
-                    conversation=conversation,
-                    capability=capability,
-                    model_config=model_config,
-                    result=final_result,
-                )
-                yield self.stream_service.format_event(
-                    "aborted",
-                    {
-                        "message_id": assistant_message.message_id,
-                        "status": assistant_message.status,
-                        "model_name": assistant_message.model_name,
-                        "usage": final_result.usage,
-                    },
-                )
-            else:
-                assistant_message = await self._save_successful_assistant_message(
-                    conversation=conversation,
-                    capability=capability,
-                    model_config=model_config,
-                    result=final_result,
-                )
-                yield self.stream_service.format_event(
-                    "done",
-                    {
-                        "message_id": assistant_message.message_id,
-                        "status": assistant_message.status,
-                        "model_name": assistant_message.model_name,
-                        "usage": final_result.usage,
-                    },
-                )
-        except Exception as exc:
-            logger.exception("Chat stream failed: user=%s conv=%s", user_id, conversation_id)
-            error_message = self._error_message(exc)
-            if conversation is not None and model_config is not None:
-                failed_message = await self.message_service.save_assistant_message(
-                    conversation=conversation,
-                    content="",
-                    capability=capability,
-                    model_config=model_config,
-                    status="failed",
-                    error_message=error_message,
-                    finish_reason="error",
-                )
-                await self.conversation_service.update_after_message(
-                    conversation,
-                    capability=capability,
-                    model_config=model_config,
-                    message_count_increment=1,
-                )
-                await self.db.commit()
-                yield self.stream_service.format_event(
-                    "error",
-                    {
-                        "message_id": failed_message.message_id,
-                        "status": failed_message.status,
-                        "message": error_message,
-                    },
-                )
-            else:
-                yield self.stream_service.format_event("error", {"message": error_message})
-        finally:
-            if conversation_id:
-                abort_registry.clear(user_id=user_id, conversation_id=conversation_id)
+    async def get_active_run(
+        self,
+        user_id: int,
+        thread_id: uuid.UUID,
+        *,
+        for_update: bool = False,
+    ) -> AgentRun | None:
+        """查询会话中唯一的非终态 Run，可选择加行锁。"""
+        stmt = select(AgentRun).where(
+            AgentRun.thread_id == thread_id,
+            AgentRun.user_id == user_id,
+            AgentRun.status.in_(ACTIVE_RUN_STATUSES),
+        )
+        if for_update:
+            stmt = stmt.with_for_update()
+        return (await self.db.execute(stmt)).scalar_one_or_none()
 
-    async def abort_chat(self, user_id: int, conversation_id: str) -> bool:
-        """Abort an active streaming conversation."""
-        await self.conversation_service.get_conversation(user_id=user_id, conversation_id=conversation_id)
-        if abort_registry.request_abort(user_id=user_id, conversation_id=conversation_id):
-            logger.info("Aborted chat: conv=%s", conversation_id)
-            return True
-        return False
+    async def request_abort(self, user_id: int, run_id: uuid.UUID) -> AgentRun:
+        """请求中断任务；pending 立即取消，running 标记为等待中断。"""
+        run = await self.get_run(user_id, run_id, for_update=True)
+        if run.status == "pending":
+            run.status = "canceled"
+            run.finish_reason = "abort"
+            run.finished_at = datetime.now()
+            await self._update_assistant(run, status="canceled", finish_reason="abort")
+        elif run.status == "running":
+            run.status = "cancel_requested"
+        await self.db.flush()
+        return run
 
-    async def get_history(self, user_id: int, conversation_id: str) -> list[ChatMessage]:
-        """Return conversation messages."""
-        await self.conversation_service.get_conversation(user_id=user_id, conversation_id=conversation_id)
-        return await self.message_service.get_history(conversation_id)
+    async def _get_by_client_request(self, user_id: int, client_request_id: str) -> AgentRun | None:
+        """通过客户端幂等键查询已创建的 Run。"""
+        stmt = select(AgentRun).where(
+            AgentRun.user_id == user_id,
+            AgentRun.client_request_id == client_request_id,
+        )
+        return (await self.db.execute(stmt)).scalar_one_or_none()
 
-    async def list_conversations(self, user_id: int, limit: int = 20, offset: int = 0) -> list[ConversationSummary]:
-        """Return conversation summaries."""
-        return await self.conversation_service.list_conversations(user_id=user_id, limit=limit, offset=offset)
-
-    async def list_chat_model_options(self, user_id: int) -> list[ChatModelOption]:
-        """Return enabled model configs available on the chat page."""
-        return await self.runtime_model_config_service.list_chat_model_options(user_id)
-
-    async def delete_conversation(self, user_id: int, conversation_id: str) -> bool:
-        """Soft-delete one conversation."""
-        return await self.conversation_service.delete_conversation(user_id=user_id, conversation_id=conversation_id)
+    async def _update_assistant(self, run: AgentRun, *, status: str, finish_reason: str | None = None) -> None:
+        """同步更新 Run 对应的助手消息状态。"""
+        message = (
+            await self.db.execute(select(AgentMessage).where(AgentMessage.id == run.assistant_message_id))
+        ).scalar_one()
+        message.content = run.content_snapshot
+        message.status = status
+        message.finish_reason = finish_reason
 
     @staticmethod
-    def _build_initial_title(message: str) -> str:
-        """Build a short provisional title from the first user message."""
+    def _initial_title(message: str) -> str:
+        """从首条用户消息生成最多 40 个字符的初始标题。"""
         title = " ".join(message.strip().split())
-        return title[:40] if title else "New conversation"
-
-    async def _save_successful_assistant_message(
-        self,
-        *,
-        conversation,
-        capability,
-        model_config,
-        result: GeneralChainResult,
-    ):
-        assistant_message = await self.message_service.save_assistant_message(
-            conversation=conversation,
-            content=result.content,
-            capability=capability,
-            model_config=model_config,
-            usage=result.usage,
-            finish_reason=result.finish_reason,
-        )
-        if result.model_name and result.model_name != assistant_message.model_name:
-            assistant_message.model_name = result.model_name
-        await self.conversation_service.update_after_message(
-            conversation,
-            capability=capability,
-            model_config=model_config,
-            message_count_increment=1,
-            input_tokens=(result.usage or {}).get("input_tokens", (result.usage or {}).get("prompt_tokens", 0)),
-            output_tokens=(result.usage or {}).get("output_tokens", (result.usage or {}).get("completion_tokens", 0)),
-            total_tokens=(result.usage or {}).get("total_tokens"),
-        )
-        await self.db.commit()
-        return assistant_message
-
-    async def _save_canceled_assistant_message(
-        self,
-        *,
-        conversation,
-        capability,
-        model_config,
-        result: GeneralChainResult,
-    ):
-        assistant_message = await self.message_service.save_assistant_message(
-            conversation=conversation,
-            content=result.content,
-            capability=capability,
-            model_config=model_config,
-            status="canceled",
-            usage=result.usage,
-            finish_reason=result.finish_reason or "abort",
-        )
-        if result.model_name and result.model_name != assistant_message.model_name:
-            assistant_message.model_name = result.model_name
-        await self.conversation_service.update_after_message(
-            conversation,
-            capability=capability,
-            model_config=model_config,
-            message_count_increment=1,
-            input_tokens=(result.usage or {}).get("input_tokens", (result.usage or {}).get("prompt_tokens", 0)),
-            output_tokens=(result.usage or {}).get("output_tokens", (result.usage or {}).get("completion_tokens", 0)),
-            total_tokens=(result.usage or {}).get("total_tokens"),
-        )
-        await self.db.commit()
-        return assistant_message
+        return title[:40] or "New conversation"
 
     @staticmethod
-    def _error_message(exc: Exception) -> str:
-        if isinstance(exc, HTTPException):
-            return str(exc.detail)
-        return str(exc) or "AI 对话生成失败"
+    def to_thread_response(thread: AgentThread) -> AgentThreadResponse:
+        """把会话 ORM 模型转换为接口模型。"""
+        return AgentThreadResponse(
+            thread_id=thread.id,
+            title=thread.title,
+            capability=thread.capability,
+            model_config_id=thread.model_config_id,
+            status=thread.status,
+            message_count=thread.message_count,
+            last_message_at=thread.last_message_at,
+            created_at=thread.created_at,
+        )
+
+    @staticmethod
+    def to_run_response(run: AgentRun) -> AgentRunResponse:
+        """把 Run ORM 模型转换为接口模型。"""
+        usage = None
+        if run.input_tokens is not None or run.output_tokens is not None or run.total_tokens is not None:
+            usage = {
+                "input_tokens": run.input_tokens,
+                "output_tokens": run.output_tokens,
+                "total_tokens": run.total_tokens,
+            }
+        return AgentRunResponse(
+            run_id=run.id,
+            thread_id=run.thread_id,
+            user_message_id=run.user_message_id,
+            assistant_message_id=run.assistant_message_id,
+            status=run.status,
+            content=run.content_snapshot,
+            last_event_id=run.last_event_id,
+            model_name=run.model_name,
+            usage=usage,
+            error_message=run.error_message,
+            created_at=run.created_at,
+            started_at=run.started_at,
+            finished_at=run.finished_at,
+        )
+
+    @staticmethod
+    def to_message_response(message: AgentMessage) -> AgentMessageResponse:
+        """把消息 ORM 模型转换为接口模型。"""
+        return AgentMessageResponse(
+            message_id=message.id,
+            run_id=message.run_id,
+            role=message.role,
+            content=message.content,
+            sequence=message.sequence,
+            status=message.status,
+            model_config_id=message.model_config_id,
+            model_name=message.model_name,
+            citations=message.citations or [],
+            tool_calls=message.tool_calls or [],
+            created_at=message.created_at,
+        )
+
+
+async def claim_next_run(db: AsyncSession, worker_id: str) -> AgentRun | None:
+    """使用 SKIP LOCKED 原子领取最早的 pending Run。"""
+    stmt = (
+        select(AgentRun)
+        .where(AgentRun.status == "pending")
+        .order_by(AgentRun.created_at.asc())
+        .with_for_update(skip_locked=True)
+        .limit(1)
+    )
+    run = (await db.execute(stmt)).scalar_one_or_none()
+    if run is None:
+        return None
+    now = datetime.now()
+    run.status = "running"
+    run.worker_id = worker_id
+    run.started_at = run.started_at or now
+    run.lease_expires_at = now + timedelta(seconds=settings.AGENT_RUN_LEASE_SECONDS)
+    run.attempt_count = (run.attempt_count or 0) + 1
+    await db.flush()
+    return run

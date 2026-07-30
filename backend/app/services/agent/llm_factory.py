@@ -1,4 +1,4 @@
-"""Factory for LangChain chat models."""
+"""根据用户模型配置创建 LangChain ChatModel。"""
 
 from typing import Any
 
@@ -9,10 +9,10 @@ from .runtime_model_config_service import RuntimeModelConfig
 
 
 class LLMFactory:
-    """Create LangChain chat models from runtime model config."""
+    """为 OpenAI-compatible 服务创建统一的 LangChain 模型实例。"""
 
     def create_chat_model(self, config: RuntimeModelConfig, *, streaming: bool = True) -> BaseChatModel:
-        """Create a LangChain chat model for OpenAI-compatible providers."""
+        """创建支持流式输出的 ChatOpenAI，并透传兼容服务的扩展参数。"""
         request_params = config.extra_config.get("request_params")
         explicit_params, model_kwargs = self._split_request_params(request_params)
 
@@ -46,12 +46,12 @@ class LLMFactory:
         return ChatOpenAI(**kwargs)
 
     def create_chat_client(self, config: RuntimeModelConfig) -> BaseChatModel:
-        """Backward-compatible alias for create_chat_model."""
+        """兼容旧调用名称，行为与 create_chat_model 相同。"""
         return self.create_chat_model(config)
 
     @staticmethod
     def _split_request_params(request_params: Any) -> tuple[dict[str, Any], dict[str, Any]]:
-        """Split extra request params into ChatOpenAI explicit args and model_kwargs."""
+        """区分 ChatOpenAI 显式参数与需要放入 model_kwargs 的扩展参数。"""
         if not isinstance(request_params, dict):
             return {}, {}
 

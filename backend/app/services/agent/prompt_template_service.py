@@ -1,13 +1,13 @@
-"""Prompt template loading for agent capabilities."""
+"""加载 Agent 提示词模板，并在模板缺失时提供默认值。"""
 
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.models.ai import PromptTemplate
+from app.models.agent import PromptTemplate
 
 
 class PromptTemplateService:
-    """Load prompt templates with safe fallbacks."""
+    """从数据库读取提示词模板。"""
 
     GENERAL_CHAT_SYSTEM = "general_chat_system"
 
@@ -20,7 +20,7 @@ class PromptTemplateService:
         self.db = db
 
     async def get_by_type(self, template_type: str, fallback: str = "") -> str:
-        """Return the first non-empty template content for a template type."""
+        """返回指定类型最新的非空模板，不存在时返回 fallback。"""
         stmt = (
             select(PromptTemplate.content)
             .where(PromptTemplate.type == template_type)
@@ -34,7 +34,7 @@ class PromptTemplateService:
         return fallback
 
     async def get_general_chat_system_prompt(self) -> str:
-        """Return the system prompt used by plain general chat."""
+        """返回普通聊天使用的系统提示词。"""
         return await self.get_by_type(
             self.GENERAL_CHAT_SYSTEM,
             fallback=self.DEFAULT_GENERAL_CHAT_SYSTEM_PROMPT,
