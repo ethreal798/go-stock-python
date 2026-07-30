@@ -32,6 +32,17 @@ class AgentThreadResponse(BaseModel):
     created_at: datetime | None = Field(None, description="会话创建时间")
 
 
+class AgentThreadDeleteResponse(BaseModel):
+    """删除 Agent 会话后的响应。"""
+
+    model_config = ConfigDict(title="删除 Agent 会话响应")
+
+    thread_id: UUID = Field(..., description="已删除的会话 ID")
+    deleted: bool = Field(True, description="是否已完成软删除")
+    active_run_id: UUID | None = Field(None, description="删除时存在的活动任务 ID")
+    run_status: str | None = Field(None, description="活动任务删除后的状态")
+
+
 class AgentRunCreate(BaseModel):
     """在指定会话中创建运行任务的基础参数。"""
 
