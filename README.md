@@ -32,7 +32,7 @@ go-stock 的 Python + React 全栈重构版本，提供股票行情监控、AI �
 ### 基础设施
 - **Nginx** - 反向代理 + 静态文件服务
 - **Redis 7** - 数据缓存
-- **SQLite / PostgreSQL** - 持久化存储
+- **PostgreSQL** - 持久化存储
 - **Docker & Docker Compose** - 容器化部署
 
 ---
@@ -247,7 +247,7 @@ docker image prune -f
 | `AI_API_KEY` | ✅ | AI 模型 API 密钥 |
 | `AI_BASE_URL` | ✅ | AI 服务地址 |
 | `AI_MODEL_NAME` | ✅ | 使用的模型名称 |
-| `DATABASE_URL` | ❌ | 数据库连接串（默认 SQLite） |
+| `DATABASE_URL` | ✅ | PostgreSQL 数据库连接串 |
 | `REDIS_URL` | ❌ | Redis 连接串 |
 | `DINGDING_WEBHOOK_URL` | ❌ | 钉钉机器人 Webhook（预警功能） |
 
