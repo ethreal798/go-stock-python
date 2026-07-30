@@ -41,6 +41,20 @@ if config.config_file_name is not None:
 # MetaData
 target_metadata = Base.metadata
 
+LANGGRAPH_MANAGED_TABLES = {
+    "checkpoint_blobs",
+    "checkpoint_migrations",
+    "checkpoint_writes",
+    "checkpoints",
+}
+
+
+def include_object(object_, name, type_, reflected, compare_to):
+    """Keep LangGraph checkpointer tables outside application Alembic ownership."""
+    if type_ == "table" and name in LANGGRAPH_MANAGED_TABLES:
+        return False
+    return True
+
 
 def run_migrations_offline() -> None:
     """离线模式运行迁移。"""
@@ -50,6 +64,7 @@ def run_migrations_offline() -> None:
         target_metadata=target_metadata,
         literal_binds=True,
         dialect_opts={"paramstyle": "named"},
+        include_object=include_object,
     )
 
     with context.begin_transaction():
@@ -68,6 +83,7 @@ def run_migrations_online() -> None:
         context.configure(
             connection=connection,
             target_metadata=target_metadata,
+            include_object=include_object,
         )
 
         with context.begin_transaction():
