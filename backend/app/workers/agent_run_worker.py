@@ -1,5 +1,5 @@
 """独立执行 LangGraph Agent 后台任务的 Worker 进程。
-    python -m app.workers.agent_run_worker
+python -m app.workers.agent_run_worker
 """
 
 import asyncio
