@@ -1,4 +1,4 @@
-"""Agent service package."""
+"""LangGraph Agent 服务包。"""
 
 from .agent_service import AgentService
 
