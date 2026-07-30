@@ -17,14 +17,6 @@ from .stock import (
     TradingRecord,
     BKDict,
 )
-from .ai import (
-    AIResponseResult,
-    AIRecommendStocks,
-    PromptTemplate,
-    ChatMemory,
-    ChatConversation,
-    ChatMessage,
-)
 from .rag import (
     RagDocument,
     RagChunk,
@@ -56,6 +48,7 @@ from .system import (
     VersionInfo,
 )
 from .settings import UserAIModelConfig
+from .agent import AgentMessage, AgentRun, AgentThread, PromptTemplate
 from .strategy import CustomStrategy
 from .fund import Fund, FollowedFund
 
@@ -82,12 +75,7 @@ __all__ = [
     "TradingRecord",
     "BKDict",
     # ai
-    "AIResponseResult",
-    "AIRecommendStocks",
     "PromptTemplate",
-    "ChatMemory",
-    "ChatConversation",
-    "ChatMessage",
     "RagDocument",
     "RagChunk",
     "RagChunkEmbedding",
@@ -115,6 +103,9 @@ __all__ = [
     "AIConfig",
     "VersionInfo",
     "UserAIModelConfig",
+    "AgentThread",
+    "AgentRun",
+    "AgentMessage",
     # strategy
     "CustomStrategy",
 ]

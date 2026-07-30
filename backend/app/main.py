@@ -13,7 +13,18 @@ from app.config import settings
 from app.core.database import close_db
 from app.core.redis import close_redis
 from app.core.websocket import ws_manager
-from app.routers import agent, ai_rag, auth, cron_tasks, funds, kline, market, news, settings as settings_router, stocks
+from app.routers import (
+    agent,
+    ai_rag,
+    auth,
+    cron_tasks,
+    funds,
+    kline,
+    market,
+    news,
+    settings as settings_router,
+    stocks,
+)
 from app.services.scheduler_service import scheduler_service
 
 logger = logging.getLogger(__name__)
