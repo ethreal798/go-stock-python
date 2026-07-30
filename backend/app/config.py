@@ -96,6 +96,15 @@ class Settings(BaseSettings):
     AI_MODEL_CONFIG_ALLOW_PRIVATE_BASE_URL: bool = False
     AI_MODEL_CONFIG_TEST_TIMEOUT_SECONDS: float = 30.0
 
+    # ---- Lightweight LangGraph agent runtime ----
+    LANGGRAPH_DATABASE_URL: Optional[str] = None  # LangGraph Checkpoint数据库地址 不填复用当前数据库链接
+    AGENT_RUN_POLL_SECONDS: float = 0.5  # Worker查询待执行Run的间隔
+    AGENT_RUN_LEASE_SECONDS: int = 120  # Worker持有Run的租约时间
+    AGENT_EVENT_STREAM_TTL_SECONDS: int = 86400  # Redis流事件保留时间
+    AGENT_EVENT_STREAM_MAXLEN: int = 10000  # 每个Run最多保留的Redis事件数
+    AGENT_STREAM_BLOCK_MS: int = 10000  # SSE读取Redis时的阻塞等待时间
+    AGENT_SNAPSHOT_INTERVAL_SECONDS: float = 0.5  # 部分回答写入PostgreSQL的间隔
+
     # ---- CORS 配置 ----
     # 从环境变量读取，格式：http://localhost:5173,http://localhost:3000
     CORS_ORIGINS_STR: str = "http://localhost:5173,http://localhost:3000,http://127.0.0.1:5173,http://127.0.0.1:3000"
