@@ -1,8 +1,13 @@
 import request from "./index";
 import type {
+  AgentActiveRunResponse,
+  AgentAbortRunResponse,
+  AgentDeleteThreadResponse,
+  AgentRunCreateRequest,
+  AgentRunResponse,
   ChatAvailableModel,
-  ChatHistoryDetailResponse,
   ChatHistoryItem,
+  ChatHistoryMessageItem,
   ChatSession,
   ChatStreamRequest,
 } from "@/types/agent";
@@ -24,24 +29,22 @@ export const getSessionList = () =>
 
 // 获取历史聊天列表
 export const getChatHistory = (params?: { count?: number; page?: number }) =>
-  request.get<ChatHistoryItem[]>("/agent/history", {
+  request.get<ChatHistoryItem[]>("/agent/threads", {
     params: {
       count: params?.count ?? 20,
       page: params?.page ?? 0,
     },
   });
 
-// 获取指定会话的聊天详情
-export const getChatHistoryDetail = (conversationId: string) =>
-  request.get<ChatHistoryDetailResponse>(`/agent/history/${conversationId}`);
+export const getThreadMessages = (threadId: string) =>
+  request.get<ChatHistoryMessageItem[]>(`/agent/threads/${threadId}/messages`);
 
 // 获取会话详情
 export const getSession = (sessionId: string) =>
   request.get<{ data: ChatSession }>(`/agent/sessions/${sessionId}`);
 
-// 删除会话
-export const deleteSession = (sessionId: string) =>
-  request.delete(`/agent/history/${sessionId}`);
+export const deleteThread = (threadId: string) =>
+  request.delete<AgentDeleteThreadResponse>(`/agent/threads/${threadId}`);
 
 // 清空会话消息
 export const clearSession = (sessionId: string) =>
@@ -59,11 +62,15 @@ export const buildStreamChatPayload = (
   data: ChatStreamRequest,
 ): ChatStreamRequest => data;
 
+export const createAgentRun = (data: AgentRunCreateRequest) =>
+  request.post<AgentRunResponse>("/agent/runs", data);
+
+export const getThreadActiveRun = (threadId: string) =>
+  request.get<AgentActiveRunResponse>(`/agent/threads/${threadId}/active-run`);
+
 // 创建新会话
 export const createSession = (title?: string) =>
   request.post<{ data: ChatSession }>("/agent/sessions", { title });
 
-export const abortConversation = (conversationId: string) =>
-  request.post("/agent/abort", null, {
-    params: { conversation_id: conversationId },
-  });
+export const abortRun = (runId: string) =>
+  request.post<AgentAbortRunResponse>(`/agent/runs/${runId}/abort`);

@@ -3,6 +3,7 @@ import { useEffect, useRef, useCallback, useState } from "react";
 export interface SSEMessage {
   event: string;
   data: string;
+  id?: string;
 }
 
 interface UseSSEOptions {
@@ -11,9 +12,15 @@ interface UseSSEOptions {
   onError?: (error: Event) => void;
 }
 
+interface SSEConnectOptions {
+  method?: "GET" | "POST";
+  headers?: Record<string, string>;
+  lastEventId?: string | null;
+}
+
 interface UseSSEReturn {
   loading: boolean;
-  connect: (url: string, body: unknown) => void;
+  connect: (url: string, body?: unknown, options?: SSEConnectOptions) => void;
   abort: () => void;
 }
 
@@ -28,7 +35,7 @@ export const useSSE = (options: UseSSEOptions = {}): UseSSEReturn => {
   }, []);
 
   const connect = useCallback(
-    async (url: string, body: unknown) => {
+    async (url: string, body?: unknown, options?: SSEConnectOptions) => {
       // 先中止上一次请求
       abortControllerRef.current?.abort();
       const controller = new AbortController();
@@ -47,16 +54,25 @@ export const useSSE = (options: UseSSEOptions = {}): UseSSEReturn => {
           token = null;
         }
 
-        const response = await fetch(url, {
-          method: "POST",
-          headers: {
-            ...(token ? { Authorization: `Bearer ${token}` } : {}),
-            "Content-Type": "application/json",
-            Accept: "text/event-stream",
-          },
-          body: JSON.stringify(body),
+        const method = options?.method ?? "POST";
+        const headers: Record<string, string> = {
+          ...(token ? { Authorization: `Bearer ${token}` } : {}),
+          Accept: "text/event-stream",
+          ...(options?.headers ?? {}),
+          ...(options?.lastEventId
+            ? { "Last-Event-ID": options.lastEventId }
+            : {}),
+        };
+        const init: RequestInit = {
+          method,
+          headers,
           signal: controller.signal,
-        });
+        };
+        if (method !== "GET") {
+          headers["Content-Type"] = "application/json";
+          init.body = JSON.stringify(body ?? {});
+        }
+        const response = await fetch(url, init);
 
         if (!response.ok) {
           throw new Error(`HTTP error! status: ${response.status}`);
@@ -73,9 +89,14 @@ export const useSSE = (options: UseSSEOptions = {}): UseSSEReturn => {
         const processEventBlock = (block: string) => {
           const lines = block.split(/\r?\n/);
           let eventName = "message";
+          let eventId: string | undefined = undefined;
           const dataLines: string[] = [];
 
           for (const line of lines) {
+            if (line.startsWith("id:")) {
+              eventId = line.slice(3).trim();
+              continue;
+            }
             if (line.startsWith("event:")) {
               eventName = line.slice(6).trim();
               continue;
@@ -86,14 +107,20 @@ export const useSSE = (options: UseSSEOptions = {}): UseSSEReturn => {
           }
 
           const data = dataLines.join("\n").trim();
-          if (data === "[DONE]" || eventName === "done") {
+          if (data === "[DONE]") {
             onDone?.();
             setLoading(false);
             return true;
           }
 
           if (data) {
-            onMessage?.({ event: eventName, data });
+            onMessage?.({ event: eventName, data, id: eventId });
+          }
+
+          if (eventName === "done") {
+            onDone?.();
+            setLoading(false);
+            return true;
           }
 
           return false;
