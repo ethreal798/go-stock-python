@@ -20,6 +20,30 @@ from app.services.rag.rag_pipeline_service import RagPipelineService
 logger = logging.getLogger(__name__)
 
 
+def build_default_jobs() -> list[dict]:
+    """Return the jobs owned by the standalone scheduler worker."""
+    jobs = [
+        {
+            "job_id": "news_crawl_all",
+            "task_type": "news_crawl",
+            "trigger_config": {"interval_seconds": settings.NEWS_CRAWL_INTERVAL_SECONDS},
+            "params": {"source": "all"},
+            "enabled": settings.NEWS_CRAWL_INTERVAL_SECONDS > 0,
+        }
+    ]
+    if settings.RAG_RECONCILE_INTERVAL_SECONDS > 0:
+        jobs.append(
+            {
+                "job_id": "rag_reconcile",
+                "task_type": "rag_reconcile",
+                "trigger_config": {"interval_seconds": settings.RAG_RECONCILE_INTERVAL_SECONDS},
+                "params": {},
+                "enabled": True,
+            }
+        )
+    return jobs
+
+
 class SchedulerService:
     """定时任务调度服务。"""
 
@@ -78,7 +102,7 @@ class SchedulerService:
             self._schedule_job(job_info)
 
         self._jobs[job_id] = job_info
-        logger.info("Added job: id=%s, type=%s, enabled=%s", job_id, task_type, enabled)
+        logger.debug("Added job: id=%s, type=%s, enabled=%s", job_id, task_type, enabled)
         return job_info
 
     async def remove_job(self, job_id: str) -> bool:
@@ -150,11 +174,14 @@ class SchedulerService:
             id=job_id,
             args=[task_type, job_info.get("params", {})],
             replace_existing=True,
+            coalesce=True,
+            max_instances=1,
         )
 
     async def _execute_task(self, task_type: str, params: dict) -> None:
         """执行定时任务的统一入口。"""
-        logger.info("Executing task: type=%s, params=%s", task_type, params)
+        started_at = time.perf_counter()
+        logger.debug("Executing task: type=%s, params=%s", task_type, params)
 
         async with async_session_factory() as db:
             try:
@@ -170,8 +197,10 @@ class SchedulerService:
                     await self._run_rag_reconcile(db, params)
 
                 await db.commit()
-            except Exception as e:
-                logger.error("Error executing task %s: %s", task_type, e)
+            except Exception:
+                logger.exception(
+                    "Task failed: type=%s duration_ms=%.2f", task_type, (time.perf_counter() - started_at) * 1000
+                )
                 await db.rollback()
 
     async def _execute_news_crawl(self, db, params: dict) -> int:
@@ -181,17 +210,19 @@ class SchedulerService:
         if source == "all":
             results = await service.fetch_all_sources()
             total_new_count = sum(results.values())
-            logger.info("News crawl completed: source=all, total_new_count=%s, results=%s", total_new_count, results)
+            log = logger.info if total_new_count > 0 else logger.debug
+            log("News crawl completed: source=all, total_new_count=%s, results=%s", total_new_count, results)
             return total_new_count
 
         news_type = params.get("type", "fast")
         total_new_count = await service.fetch_remote_news(source, type=news_type)
-        logger.info("News crawl completed: source=%s, total_new_count=%s", source, total_new_count)
+        log = logger.info if total_new_count > 0 else logger.debug
+        log("News crawl completed: source=%s, total_new_count=%s", source, total_new_count)
         return total_new_count
 
     async def _run_rag_pipeline_after_news_crawl(self, db, params: dict, total_new_count: int) -> None:
         if not settings.RAG_PIPELINE_ON_NEWS_CRAWL:
-            logger.info("Skip RAG pipeline after news crawl: disabled")
+            logger.debug("Skip RAG pipeline after news crawl: disabled")
             return
 
         await self._run_rag_pipeline_drain(db, params, reason="news_crawl", total_new_count=total_new_count)
@@ -208,14 +239,14 @@ class SchedulerService:
         total_new_count: int | None = None,
     ) -> None:
         if self._rag_pipeline_lock.locked():
-            logger.info("Skip RAG pipeline: previous pipeline is still running, reason=%s", reason)
+            logger.debug("Skip RAG pipeline: previous pipeline is still running, reason=%s", reason)
             return
 
         now = time.monotonic()
         elapsed = now - self._last_rag_pipeline_run_at
         # 当执行任务间隔小于配置的RAG流水线间隔的最小时间，则不执行流水线作业
         if elapsed < settings.RAG_PIPELINE_MIN_INTERVAL_SECONDS:
-            logger.info(
+            logger.debug(
                 "Skip RAG pipeline: min interval not reached, reason=%s, elapsed=%.2fs, required=%ss",
                 reason,
                 elapsed,
