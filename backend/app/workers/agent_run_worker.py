@@ -18,6 +18,7 @@ from sqlalchemy import select, update
 
 from app.config import settings
 from app.core.database import async_session_factory, close_db
+from app.core.logging import setup_logging
 from app.core.redis import close_redis, get_redis
 from app.models.agent import AgentMessage, AgentRun, AgentThread
 from app.services.agent.llm_factory import LLMFactory
@@ -351,7 +352,7 @@ class AgentRunWorker:
 
 async def main() -> None:
     """启动 Worker，并在退出时释放 Redis 和数据库连接。"""
-    logging.basicConfig(level=logging.INFO)
+    setup_logging()
     worker = AgentRunWorker()
     try:
         await worker.run_forever()
