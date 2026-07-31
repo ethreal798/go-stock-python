@@ -45,7 +45,7 @@ class NewsService:
         self, source: str = "all", source_type: str = "fast", limit: int = 20, page: int = 1, relevant_only: bool = True
     ) -> List[TelegraphResponse]:
         """获取电报快讯或市场要闻（纯查库）。"""
-        stmt = select(Telegraph).where(Telegraph.source_type == source_type)
+        stmt = select(Telegraph).where(Telegraph.type == source_type)
 
         if source != "all" and source in self.SOURCES:
             source_name = self.SOURCES[source]["name"]
