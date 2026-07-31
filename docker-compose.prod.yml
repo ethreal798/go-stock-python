@@ -59,6 +59,22 @@ services:
     command: python -m app.workers.agent_run_worker
     restart: unless-stopped
 
+  scheduler-worker:
+    image: ${BACKEND_IMAGE}
+    environment:
+      LOG_SERVICE_NAME: scheduler-worker
+    volumes:
+      - backend_logs:/app/logs
+    env_file:
+      - ./.env
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    command: python -m app.workers.scheduler_worker
+    restart: unless-stopped
+
   frontend:
     image: ${FRONTEND_IMAGE}
     depends_on:
