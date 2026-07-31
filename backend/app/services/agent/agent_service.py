@@ -12,6 +12,7 @@ from app.config import settings
 from app.models.agent import AgentMessage, AgentRun, AgentThread
 from app.schemas.agent import (
     AgentMessageResponse,
+    AgentModelOption,
     AgentRunCreate,
     AgentRunResponse,
     AgentRunSubmit,
@@ -43,6 +44,10 @@ class AgentService:
         self.db.add(thread)
         await self.db.flush()
         return self.to_thread_response(thread)
+
+    async def list_available_models(self, user_id: int) -> list[AgentModelOption]:
+        """返回当前用户可用于 Agent 对话的模型配置。"""
+        return await self.model_configs.list_available_models(user_id)
 
     async def list_threads(self, user_id: int, *, limit: int = 20, offset: int = 0) -> list[AgentThreadResponse]:
         """分页查询用户未删除的会话。"""

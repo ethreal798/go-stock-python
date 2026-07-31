@@ -43,6 +43,21 @@ class AgentThreadDeleteResponse(BaseModel):
     run_status: str | None = Field(None, description="活动任务删除后的状态")
 
 
+class AgentModelOption(BaseModel):
+    """当前用户可用于 Agent 对话的模型选项。"""
+
+    model_config = ConfigDict(title="Agent 可用模型")
+
+    model_config_id: int = Field(..., description="用户 AI 模型配置 ID")
+    name: str = Field(..., description="用户定义的配置名称")
+    provider: str = Field(..., description="模型供应商标识")
+    base_url: str = Field(..., description="OpenAI-compatible 接口地址")
+    model_name: str = Field(..., description="提交给模型服务的模型名称")
+    api_key_configured: bool = Field(..., description="是否已经配置 API Key")
+    max_output_tokens: int = Field(..., description="最大输出 Token 数")
+    temperature: float = Field(..., description="模型温度参数")
+
+
 class AgentRunCreate(BaseModel):
     """在指定会话中创建运行任务的基础参数。"""
 

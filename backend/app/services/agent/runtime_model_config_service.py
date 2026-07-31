@@ -4,10 +4,11 @@ from dataclasses import dataclass
 from typing import Any
 
 from fastapi import HTTPException, status
-from sqlalchemy import select
+from sqlalchemy import desc, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.settings import UserAIModelConfig
+from app.schemas.agent import AgentModelOption
 from app.services.ai_model_config_secret_service import AIModelConfigSecretService
 
 
@@ -57,4 +58,32 @@ class RuntimeModelConfigService:
             max_output_tokens=config.max_output_tokens,
             timeout_seconds=config.timeout_seconds,
             extra_config=config.extra_config or {},
+        )
+
+    async def list_available_models(self, user_id: int) -> list[AgentModelOption]:
+        """返回当前用户启用且未删除的 Agent 模型配置。"""
+        stmt = (
+            select(UserAIModelConfig)
+            .where(
+                UserAIModelConfig.user_id == user_id,
+                UserAIModelConfig.enabled.is_(True),
+                UserAIModelConfig.deleted_at.is_(None),
+            )
+            .order_by(desc(UserAIModelConfig.updated_at), desc(UserAIModelConfig.id))
+        )
+        result = await self.db.execute(stmt)
+        return [self._to_model_option(config) for config in result.scalars().all()]
+
+    @staticmethod
+    def _to_model_option(config: UserAIModelConfig) -> AgentModelOption:
+        """将数据库模型配置转换为不包含敏感信息的下拉选项。"""
+        return AgentModelOption(
+            model_config_id=config.id,
+            name=config.name,
+            provider=config.provider,
+            base_url=config.base_url,
+            model_name=config.model,
+            api_key_configured=bool(config.api_key_ciphertext),
+            max_output_tokens=config.max_output_tokens,
+            temperature=config.temperature,
         )

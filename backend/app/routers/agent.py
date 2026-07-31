@@ -16,6 +16,7 @@ from app.models.user import User
 from app.routers.auth import get_user_service, oauth2_scheme
 from app.schemas.agent import (
     AgentMessageResponse,
+    AgentModelOption,
     AgentRunAbortResponse,
     AgentRunResponse,
     AgentRunSubmit,
@@ -41,6 +42,20 @@ async def get_current_user(
 ) -> User:
     """解析访问令牌并返回当前用户。"""
     return await user_service.get_current_user(token)
+
+
+@router.get(
+    "/models",
+    response_model=list[AgentModelOption],
+    summary="获取当前用户可用模型",
+    description="返回当前用户已启用且未删除的 AI 模型配置，供 Agent 对话模型选择使用。",
+)
+async def list_available_models(
+    current_user: User = Depends(get_current_user),
+    service: AgentService = Depends(get_agent_service),
+) -> list[AgentModelOption]:
+    """返回不包含 API Key 明文的 Agent 模型选项。"""
+    return await service.list_available_models(current_user.id)
 
 
 @router.get(
