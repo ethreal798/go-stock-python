@@ -196,7 +196,7 @@ class NewsService:
                 url=parsed["url"],
                 source=source_name,
                 is_red=parsed["is_red"],
-                source_type=source_type,
+                type=source_type,
                 sentiment_result="Neutral",
                 is_relevant=is_relevant,
                 relevance_score=relevance_score,

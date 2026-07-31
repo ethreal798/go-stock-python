@@ -123,6 +123,20 @@ jobs:
 
             chmod 600 .env
 
+            set_env_var() {
+              KEY="$1"
+              VALUE="$2"
+
+              if grep -q "^${KEY}=" .env; then
+                sed -i "s|^${KEY}=.*|${KEY}=${VALUE}|" .env
+              else
+                printf "\n%s=%s\n" "$KEY" "$VALUE" >> .env
+              fi
+            }
+
+            set_env_var "BACKEND_IMAGE" "$BACKEND_IMAGE"
+            set_env_var "FRONTEND_IMAGE" "$FRONTEND_IMAGE"
+
             compose() {
               docker compose \
                 --env-file .env \
@@ -171,6 +185,7 @@ jobs:
               -f docker-compose.prod.yml \
               pull \
               backend \
+              agent-worker \
               frontend
 
             # 第一步：确认 PostgreSQL 仍然可用，避免迁移打到不可用数据库。
@@ -216,6 +231,7 @@ jobs:
               --no-build \
               --remove-orphans \
               backend \
+              agent-worker \
               frontend \
               nginx
 
