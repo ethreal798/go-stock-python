@@ -24,15 +24,9 @@ class NewsService:
     """新闻资讯服务"""
 
     # 数据源配置
-    SOURCES: dict[str: dict] = {
-        "cls": {
-            "name": "财联社",
-            "url": "https://www.cls.cn/nodeapi/telegraphList"
-        },
-        "wscn": {
-            "name": "华尔街见闻",
-            "url": "https://api-one-wscn.awtmt.com/apiv1/content/lives"
-        },
+    SOURCES: dict[str:dict] = {
+        "cls": {"name": "财联社", "url": "https://www.cls.cn/nodeapi/telegraphList"},
+        "wscn": {"name": "华尔街见闻", "url": "https://api-one-wscn.awtmt.com/apiv1/content/lives"},
         "sina": {
             "name": "新浪财经快讯",
             "url": "https://zhibo.sina.com.cn/api/zhibo/feed?page=1&page_size=20&zhibo_id=152",
@@ -48,12 +42,7 @@ class NewsService:
         self.db = db
 
     async def get_telegraphs(
-            self, 
-            source: str = "all", 
-            source_type: str = "fast", 
-            limit: int = 20, 
-            page: int = 1, 
-            relevant_only: bool = True
+        self, source: str = "all", source_type: str = "fast", limit: int = 20, page: int = 1, relevant_only: bool = True
     ) -> List[TelegraphResponse]:
         """获取电报快讯或市场要闻（纯查库）。"""
         stmt = select(Telegraph).where(Telegraph.source_type == source_type)
@@ -122,7 +111,7 @@ class NewsService:
         headers = {
             "Referer": "https://www.cls.cn/",
             "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
-                          "AppleWebKit/537.36 (KHTML, like Gecko) Chrome/119.0.0.0 Safari/537.36",
+            "AppleWebKit/537.36 (KHTML, like Gecko) Chrome/119.0.0.0 Safari/537.36",
         }
 
         async with httpx.AsyncClient(timeout=10.0) as client:
@@ -144,7 +133,7 @@ class NewsService:
         params = {"channel": "global-channel", "client": "pc", "limit": 20}
         headers = {
             "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
-                          "AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
+            "AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
         }
 
         async with httpx.AsyncClient(timeout=10.0) as client:
