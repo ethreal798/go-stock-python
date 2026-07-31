@@ -12,6 +12,7 @@ from datetime import datetime
 from pathlib import Path
 from typing import Any
 from uuid import uuid4
+from zoneinfo import ZoneInfo
 
 from app.config import settings
 
@@ -34,7 +35,9 @@ class JsonFormatter(logging.Formatter):
 
     def format(self, record: logging.LogRecord) -> str:
         payload: dict[str, Any] = {
-            "timestamp": datetime.fromtimestamp(record.created).astimezone().isoformat(timespec="milliseconds"),
+            "timestamp": datetime.fromtimestamp(record.created, tz=ZoneInfo(settings.LOG_TIMEZONE)).isoformat(
+                timespec="milliseconds"
+            ),
             "level": record.levelname,
             "service": getattr(record, "service", settings.LOG_SERVICE_NAME),
             "logger": record.name,
@@ -49,14 +52,63 @@ class JsonFormatter(logging.Formatter):
         return json.dumps(payload, ensure_ascii=False, default=str)
 
 
+class PrettyFormatter(logging.Formatter):
+    """Compact human-readable formatter with optional ANSI colors."""
+
+    RESET = "\033[0m"
+    DIM = "\033[2m"
+    LEVEL_COLORS = {
+        "DEBUG": "\033[90m",
+        "INFO": "\033[36m",
+        "WARNING": "\033[33m",
+        "ERROR": "\033[31m",
+        "CRITICAL": "\033[1;31m",
+    }
+
+    def __init__(self, *, color: bool = False) -> None:
+        super().__init__()
+        self.color = color
+        self.timezone = ZoneInfo(settings.LOG_TIMEZONE)
+
+    def format(self, record: logging.LogRecord) -> str:
+        timestamp = datetime.fromtimestamp(record.created, tz=self.timezone).strftime("%Y-%m-%d %H:%M:%S.%f")[:-3]
+        level = record.levelname.ljust(8)
+        service = str(getattr(record, "service", settings.LOG_SERVICE_NAME))
+        request_id = str(getattr(record, "request_id", "-"))
+        separator = " | "
+
+        if self.color:
+            level_color = self.LEVEL_COLORS.get(record.levelname, "")
+            prefix = (
+                f"{self.DIM}{timestamp}{self.RESET}"
+                f"{self.DIM}{separator}{self.RESET}"
+                f"{level_color}{level}{self.RESET}"
+                f"{self.DIM}{separator}{self.RESET}"
+                f"\033[35m{service}{self.RESET}"
+                f"{self.DIM}{separator}{self.RESET}"
+                f"\033[34m{record.name}{self.RESET}"
+            )
+        else:
+            prefix = separator.join((timestamp, level, service, record.name))
+
+        if request_id != "-":
+            prefix += f"{separator}req={request_id}"
+        message = f"{prefix}{separator}{record.getMessage()}"
+        if record.exc_info:
+            message += f"\n{self.formatException(record.exc_info)}"
+        return message
+
+
 def setup_logging() -> Path | None:
     """Configure stdout and an optional daily rotating persistent log file."""
 
+    console_formatter = "json" if settings.LOG_FORMAT == "json" else "pretty_color"
+    file_formatter = "json" if settings.LOG_FORMAT == "json" else "pretty"
     handlers: dict[str, dict[str, Any]] = {
         "console": {
             "class": "logging.StreamHandler",
             "stream": "ext://sys.stdout",
-            "formatter": settings.LOG_FORMAT,
+            "formatter": console_formatter,
             "filters": ["request_context"],
         }
     }
@@ -75,10 +127,27 @@ def setup_logging() -> Path | None:
             "backupCount": settings.LOG_RETENTION_DAYS,
             "encoding": "utf-8",
             "delay": True,
-            "formatter": settings.LOG_FORMAT,
+            "formatter": file_formatter,
             "filters": ["request_context"],
         }
         selected_handlers.append("file")
+
+    configured_loggers: dict[str, dict[str, Any]] = {
+        "uvicorn": {"level": settings.LOG_LEVEL.upper(), "handlers": selected_handlers, "propagate": False},
+        "uvicorn.error": {
+            "level": settings.LOG_LEVEL.upper(),
+            "handlers": selected_handlers,
+            "propagate": False,
+        },
+        "uvicorn.access": {"level": "WARNING", "handlers": selected_handlers, "propagate": False},
+        "app.access": {
+            "level": settings.ACCESS_LOG_LEVEL.upper(),
+            "handlers": selected_handlers,
+            "propagate": False,
+        },
+    }
+    for logger_name, level in settings.LOG_LEVEL_OVERRIDES.items():
+        configured_loggers[logger_name] = {"level": level, "handlers": [], "propagate": True}
 
     logging.config.dictConfig(
         {
@@ -87,19 +156,12 @@ def setup_logging() -> Path | None:
             "filters": {"request_context": {"()": RequestContextFilter}},
             "formatters": {
                 "json": {"()": JsonFormatter},
-                "text": {"format": "%(asctime)s %(levelname)s [%(service)s] [%(request_id)s] %(name)s: %(message)s"},
+                "pretty": {"()": PrettyFormatter, "color": False},
+                "pretty_color": {"()": PrettyFormatter, "color": settings.LOG_COLOR},
             },
             "handlers": handlers,
             "root": {"level": settings.LOG_LEVEL.upper(), "handlers": selected_handlers},
-            "loggers": {
-                "uvicorn": {"level": settings.LOG_LEVEL.upper(), "handlers": selected_handlers, "propagate": False},
-                "uvicorn.error": {
-                    "level": settings.LOG_LEVEL.upper(),
-                    "handlers": selected_handlers,
-                    "propagate": False,
-                },
-                "uvicorn.access": {"level": "WARNING", "handlers": selected_handlers, "propagate": False},
-            },
+            "loggers": configured_loggers,
         }
     )
     return log_path
@@ -123,6 +185,7 @@ class RequestLoggingMiddleware:
         token = request_id_context.set(request_id)
         started_at = time.perf_counter()
         status_code = 500
+        should_log = settings.ACCESS_LOG_ENABLED and scope.get("path") not in settings.ACCESS_LOG_EXCLUDE_PATHS
 
         async def send_with_request_id(message: dict[str, Any]) -> None:
             nonlocal status_code
@@ -136,11 +199,14 @@ class RequestLoggingMiddleware:
         try:
             await self.app(scope, receive, send_with_request_id)
         except Exception:
-            self._write_access_log(scope, status_code, started_at, level=logging.ERROR, exc_info=True)
+            if settings.ACCESS_LOG_ENABLED:
+                self._write_access_log(scope, status_code, started_at, level=logging.ERROR, exc_info=True)
             raise
         else:
-            level = logging.WARNING if status_code >= 400 else logging.INFO
-            self._write_access_log(scope, status_code, started_at, level=level)
+            # Excluded paths stay quiet when healthy, but their failures remain visible.
+            if should_log or status_code >= 400:
+                level = logging.WARNING if status_code >= 400 else logging.INFO
+                self._write_access_log(scope, status_code, started_at, level=level)
         finally:
             request_id_context.reset(token)
 
@@ -173,4 +239,4 @@ class RequestLoggingMiddleware:
         )
 
 
-__all__ = ["JsonFormatter", "RequestLoggingMiddleware", "setup_logging"]
+__all__ = ["JsonFormatter", "PrettyFormatter", "RequestLoggingMiddleware", "setup_logging"]

@@ -29,11 +29,33 @@ class Settings(BaseSettings):
 
     # ---- Logging ----
     LOG_LEVEL: str = "INFO"
-    LOG_FORMAT: Literal["json", "text"] = "json"
+    LOG_FORMAT: Literal["json", "text"] = "text"
+    LOG_COLOR: bool = True
+    LOG_TIMEZONE: str = "Asia/Shanghai"
     LOG_TO_FILE: bool = True
     LOG_DIR: str = "logs"
     LOG_RETENTION_DAYS: int = 30
     LOG_SERVICE_NAME: str = "backend"
+    LOG_LEVEL_OVERRIDES_STR: str = "apscheduler=WARNING,httpx=WARNING,httpcore=WARNING"
+    ACCESS_LOG_ENABLED: bool = True
+    ACCESS_LOG_LEVEL: str = "INFO"
+    ACCESS_LOG_EXCLUDE_PATHS_STR: str = "/health"
+
+    @property
+    def LOG_LEVEL_OVERRIDES(self) -> dict[str, str]:
+        overrides: dict[str, str] = {}
+        for item in self.LOG_LEVEL_OVERRIDES_STR.split(","):
+            if not item.strip():
+                continue
+            logger_name, separator, level = item.partition("=")
+            if not separator or not logger_name.strip() or not level.strip():
+                raise ValueError("LOG_LEVEL_OVERRIDES_STR 必须使用 logger=LEVEL 格式")
+            overrides[logger_name.strip()] = level.strip().upper()
+        return overrides
+
+    @property
+    def ACCESS_LOG_EXCLUDE_PATHS(self) -> set[str]:
+        return {path.strip() for path in self.ACCESS_LOG_EXCLUDE_PATHS_STR.split(",") if path.strip()}
 
     # ---- 安全与认证配置 ----
     SECRET_KEY: str = ""
@@ -123,6 +145,7 @@ class Settings(BaseSettings):
 
     # ---- 定时任务配置 ----
     SCHEDULER_TIMEZONE: str = "Asia/Shanghai"
+    NEWS_CRAWL_INTERVAL_SECONDS: int = 60
 
     # ---- 数据源配置 ----
     EASTMONEY_API_BASE: str = "https://push2.eastmoney.com"

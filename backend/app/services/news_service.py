@@ -207,7 +207,7 @@ class NewsService:
 
         if count > 0:
             await self.db.commit()
-            logger.info(f"Successfully fetched {count} {source_type} news from {source_name}")
+            logger.debug("Fetched %s %s news from %s", count, source_type, source_name)
             # 发送 SSE 信号通知前端刷新
             await sse_manager.broadcast("refresh")
 

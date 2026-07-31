@@ -65,6 +65,25 @@ services:
     command: python -m app.workers.agent_run_worker
     restart: unless-stopped
 
+  scheduler-worker:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    volumes:
+      - ./backend:/app
+      - ./logs:/app/logs
+    environment:
+      LOG_SERVICE_NAME: scheduler-worker
+    env_file:
+      - .env
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    command: python -m app.workers.scheduler_worker
+    restart: unless-stopped
+
   frontend:
     build:
       context: ./frontend

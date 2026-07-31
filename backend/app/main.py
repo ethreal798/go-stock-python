@@ -26,7 +26,6 @@ from app.routers import (
     settings as settings_router,
     stocks,
 )
-from app.services.scheduler_service import scheduler_service
 
 setup_logging()
 logger = logging.getLogger(__name__)
@@ -38,33 +37,10 @@ async def lifespan(app: FastAPI):
     # ---- 启动 ----
     logger.info("Starting %s v%s ...", settings.APP_NAME, settings.APP_VERSION)
 
-    # 启动调度器
-    scheduler_service.start()
-
-    # 添加默认任务
-    await scheduler_service.add_job(
-        job_id="news_crawl_all",
-        task_type="news_crawl",
-        trigger_config={"interval_seconds": 60},
-        params={"source": "all"},
-    )
-    if settings.RAG_RECONCILE_INTERVAL_SECONDS > 0:
-        await scheduler_service.add_job(
-            job_id="rag_reconcile",
-            task_type="rag_reconcile",
-            trigger_config={"interval_seconds": settings.RAG_RECONCILE_INTERVAL_SECONDS},
-            params={},
-        )
-    logger.info("Scheduler started")
-
     yield  # 应用运行中
 
     # ---- 关闭 ----
     logger.info("Shutting down ...")
-
-    # 关闭调度器
-    scheduler_service.shutdown()
-    logger.info("Scheduler stopped")
 
     # 关闭 Redis
     await close_redis()
