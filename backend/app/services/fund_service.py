@@ -344,6 +344,6 @@ class FundService:
                     count += 1
 
             await self.db.commit()
-            logger.info(f"Processed {min(i + batch_size, total)}/{total} funds...")
+            logger.debug("Processed %s/%s funds", min(i + batch_size, total), total)
 
         return count
