@@ -1,6 +1,6 @@
 """应用配置模块，使用 pydantic-settings 管理所有配置项。"""
 
-from typing import Optional
+from typing import Literal, Optional
 
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
@@ -26,6 +26,14 @@ class Settings(BaseSettings):
     APP_NAME: str = "python-stock"
     APP_VERSION: str = "0.1.0"
     API_PREFIX: str = "/api/v1"
+
+    # ---- Logging ----
+    LOG_LEVEL: str = "INFO"
+    LOG_FORMAT: Literal["json", "text"] = "json"
+    LOG_TO_FILE: bool = True
+    LOG_DIR: str = "logs"
+    LOG_RETENTION_DAYS: int = 30
+    LOG_SERVICE_NAME: str = "backend"
 
     # ---- 安全与认证配置 ----
     SECRET_KEY: str = ""

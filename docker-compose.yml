@@ -27,6 +27,9 @@ services:
       - "8000:8000"
     volumes:
       - ./backend:/app
+      - ./logs:/app/logs
+    environment:
+      LOG_SERVICE_NAME: backend
     env_file:
       - .env
     depends_on:
@@ -49,6 +52,9 @@ services:
       dockerfile: Dockerfile
     volumes:
       - ./backend:/app
+      - ./logs:/app/logs
+    environment:
+      LOG_SERVICE_NAME: agent-worker
     env_file:
       - .env
     depends_on:

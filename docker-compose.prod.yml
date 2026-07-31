@@ -20,6 +20,10 @@ services:
 
   backend:
     image: ${BACKEND_IMAGE}
+    environment:
+      LOG_SERVICE_NAME: backend
+    volumes:
+      - backend_logs:/app/logs
     env_file:
       - ./.env
     depends_on:
@@ -41,6 +45,10 @@ services:
 
   agent-worker:
     image: ${BACKEND_IMAGE}
+    environment:
+      LOG_SERVICE_NAME: agent-worker
+    volumes:
+      - backend_logs:/app/logs
     env_file:
       - ./.env
     depends_on:
@@ -91,4 +99,6 @@ volumes:
   postgres_data:
     driver: local
   redis_data:
+    driver: local
+  backend_logs:
     driver: local

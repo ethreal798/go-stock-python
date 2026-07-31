@@ -11,6 +11,7 @@ from fastapi.middleware.cors import CORSMiddleware
 
 from app.config import settings
 from app.core.database import close_db
+from app.core.logging import RequestLoggingMiddleware, setup_logging
 from app.core.redis import close_redis
 from app.core.websocket import ws_manager
 from app.routers import (
@@ -27,6 +28,7 @@ from app.routers import (
 )
 from app.services.scheduler_service import scheduler_service
 
+setup_logging()
 logger = logging.getLogger(__name__)
 
 
@@ -83,6 +85,9 @@ app = FastAPI(
     description="python-stock 后端服务 - 股票分析应用",
     lifespan=lifespan,
 )
+
+# Request ID, status code and latency are persisted without logging query strings.
+app.add_middleware(RequestLoggingMiddleware)
 
 # ---- CORS 中间件 ----
 app.add_middleware(
