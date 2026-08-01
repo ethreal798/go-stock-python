@@ -24,10 +24,15 @@ from .rag import (
     RagEntity,
     RagQueryLog,
 )
+from .news import (
+    NewsSource,
+    NewsRawItem,
+    NewsItem,
+    NewsItemTopic,
+    NewsItemEntity,
+    NewsItemRelation
+)
 from .market import (
-    Telegraph,
-    TelegraphTags,
-    Tags,
     MarketStatistic,
     StockChangeHistory,
     WordAnalyze,
@@ -82,9 +87,12 @@ __all__ = [
     "RagEntity",
     "RagQueryLog",
     # market
-    "Telegraph",
-    "TelegraphTags",
-    "Tags",
+    "NewsSource",
+    "NewsRawItem",
+    "NewsItem",
+    "NewsItemTopic",
+    "NewsItemEntity",
+    "NewsItemRelation",
     "MarketStatistic",
     "StockChangeHistory",
     "WordAnalyze",
