@@ -1,39 +1,15 @@
-import React, { useState, useRef, useEffect, useCallback } from "react";
-import {
-  Input,
-  Button,
-  List,
-  Avatar,
-  Space,
-  Tooltip,
-  Typography,
-  Spin,
-  message,
-  Dropdown,
-} from "antd";
-import {
-  SendOutlined,
-  RobotOutlined,
-  UserOutlined,
-  PlusOutlined,
-  StopOutlined,
-  DeleteOutlined,
-  MenuFoldOutlined,
-  MenuUnfoldOutlined,
-  DownOutlined,
-} from "@ant-design/icons";
-import ReactMarkdown from "react-markdown";
-import remarkGfm from "remark-gfm";
+import React, { useCallback, useEffect, useRef, useState } from "react";
+import { message } from "antd";
 import { useSSE } from "@/hooks/useSSE";
 import { useAuthStore } from "@/stores/authStore";
 import {
-  getChatHistory,
-  getThreadMessages,
-  getAvailableChatModels,
   abortRun,
   createAgentRun,
-  getThreadActiveRun,
   deleteThread,
+  getAvailableChatModels,
+  getChatHistory,
+  getThreadActiveRun,
+  getThreadMessages,
 } from "@/api/agent";
 import type {
   ChatAvailableModel,
@@ -41,13 +17,13 @@ import type {
   ChatHistoryMessageItem,
   ChatMessage,
 } from "@/types/agent";
-import agentLogo from "@/assets/agent.svg";
 import { generateClientRequestId } from "@/utils/clientRequestId";
+import AgentChatHeader from "./components/AgentChatHeader";
+import AgentComposer from "./components/AgentComposer";
+import AgentMessageList from "./components/AgentMessageList";
+import AgentSidebar from "./components/AgentSidebar";
 
-const { TextArea } = Input;
-const { Text } = Typography;
-
-const Agent: React.FC = () => {
+const AgentPage: React.FC = () => {
   const isGuestMode = useAuthStore((state) => state.isGuestMode);
   const [sessions, setSessions] = useState<ChatHistoryItem[]>([]);
   const [currentSession, setCurrentSession] = useState<ChatHistoryItem | null>(
@@ -61,7 +37,7 @@ const Agent: React.FC = () => {
   const [selectedModelConfigId, setSelectedModelConfigId] = useState<
     string | null
   >(null);
-  const [selectedModelName, setSelectedModelName] = useState<string>("");
+  const [selectedModelName, setSelectedModelName] = useState("");
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
   const [historyLoading, setHistoryLoading] = useState(false);
   const activeThreadIdRef = useRef<string | null>(null);
@@ -195,6 +171,7 @@ const Agent: React.FC = () => {
           persistLastEventId(activeRunIdRef.current, id);
         }
       }
+
       if (event === "snapshot") {
         try {
           const parsed = JSON.parse(data) as {
@@ -205,6 +182,7 @@ const Agent: React.FC = () => {
             status?: string;
             last_event_id?: string | null;
           };
+
           if (parsed.run_id) {
             activeRunIdRef.current = parsed.run_id;
           }
@@ -218,20 +196,22 @@ const Agent: React.FC = () => {
             }
           }
           if (parsed.message_id) {
+            const messageId = parsed.message_id;
             setMessages((prev) => {
               const last = prev[prev.length - 1];
-              if (last && last.role === "assistant") {
-                return [
-                  ...prev.slice(0, -1),
-                  {
-                    ...last,
-                    id: parsed.message_id ?? last.id,
-                    content: parsed.content ?? last.content,
-                    loading: parsed.status === "running" ? last.loading : false,
-                  },
-                ];
+              if (!last || last.role !== "assistant") {
+                return prev;
               }
-              return prev;
+
+              return [
+                ...prev.slice(0, -1),
+                {
+                  ...last,
+                  id: messageId,
+                  content: parsed.content ?? last.content,
+                  loading: parsed.status === "running" ? last.loading : false,
+                },
+              ];
             });
           }
         } catch {
@@ -239,6 +219,7 @@ const Agent: React.FC = () => {
         }
         return;
       }
+
       if (event === "metadata") {
         try {
           const parsed = JSON.parse(data) as {
@@ -247,6 +228,7 @@ const Agent: React.FC = () => {
             run_id?: string;
             last_event_id?: string;
           };
+
           const threadId = parsed.thread_id ?? parsed.conversation_id;
           if (threadId) {
             activeThreadIdRef.current = threadId;
@@ -264,12 +246,10 @@ const Agent: React.FC = () => {
           return;
         }
       }
+
       if (event === "done") {
         try {
-          const parsed = JSON.parse(data) as {
-            run_id?: string;
-            status?: string;
-          };
+          const parsed = JSON.parse(data) as { run_id?: string };
           if (parsed.run_id) {
             activeRunIdRef.current = parsed.run_id;
           }
@@ -287,13 +267,13 @@ const Agent: React.FC = () => {
         }
         setMessages((prev) => {
           const last = prev[prev.length - 1];
-          if (last && last.role === "assistant") {
-            return [
-              ...prev.slice(0, -1),
-              { ...last, content: last.content + delta },
-            ];
+          if (!last || last.role !== "assistant") {
+            return prev;
           }
-          return prev;
+          return [
+            ...prev.slice(0, -1),
+            { ...last, content: last.content + delta },
+          ];
         });
       } catch {
         if (event !== "delta") {
@@ -301,13 +281,13 @@ const Agent: React.FC = () => {
         }
         setMessages((prev) => {
           const last = prev[prev.length - 1];
-          if (last && last.role === "assistant") {
-            return [
-              ...prev.slice(0, -1),
-              { ...last, content: last.content + data },
-            ];
+          if (!last || last.role !== "assistant") {
+            return prev;
           }
-          return prev;
+          return [
+            ...prev.slice(0, -1),
+            { ...last, content: last.content + data },
+          ];
         });
       }
     },
@@ -380,7 +360,7 @@ const Agent: React.FC = () => {
     } catch {
       message.error("取消对话失败");
     }
-  }, [abortRun, clearPersistedLastEventId, finalizeAssistantMessage, sseAbort]);
+  }, [clearPersistedLastEventId, finalizeAssistantMessage, sseAbort]);
 
   const loadConversation = useCallback(
     async (threadId: string) => {
@@ -393,6 +373,7 @@ const Agent: React.FC = () => {
       lastEventIdRef.current = null;
       setMessages([]);
       setHistoryLoading(true);
+
       try {
         const res = await getThreadMessages(threadId);
         const list = ((
@@ -401,11 +382,16 @@ const Agent: React.FC = () => {
           res.data ??
           []) as ChatHistoryMessageItem[];
         setMessages(mapHistoryMessages(list));
+
         try {
           const activeRunRes = await getThreadActiveRun(threadId);
           const activeRun =
             (activeRunRes.data as unknown as { data?: unknown })?.data ??
             activeRunRes.data;
+          if (!activeRun) {
+            return;
+          }
+
           const parsed = activeRun as {
             run_id?: string;
             thread_id?: string;
@@ -417,6 +403,7 @@ const Agent: React.FC = () => {
           const runId = parsed.run_id;
           const status = parsed.status ?? "";
           const shouldSubscribe = status === "pending" || status === "running";
+
           if (runId && shouldSubscribe) {
             activeRunIdRef.current = runId;
             activeThreadIdRef.current = parsed.thread_id ?? threadId;
@@ -455,7 +442,6 @@ const Agent: React.FC = () => {
             subscribeRun(runId, afterEventId);
           }
         } catch {
-          message.error("获取活动运行失败");
         }
       } catch {
         message.error("获取聊天记录失败");
@@ -466,10 +452,10 @@ const Agent: React.FC = () => {
     },
     [
       getPersistedLastEventId,
-      persistActiveThreadId,
       mapHistoryMessages,
-      sseAbort,
+      persistActiveThreadId,
       sseLoading,
+      sseAbort,
       subscribeRun,
     ],
   );
@@ -489,13 +475,16 @@ const Agent: React.FC = () => {
     if (sessions.length === 0) {
       return;
     }
+
     restoredThreadRef.current = true;
     const persistedThreadId = getPersistedActiveThreadId();
     if (!persistedThreadId) {
       return;
     }
+
     const matched = sessions.find(
-      (s) => (s.thread_id ?? s.conversation_id) === persistedThreadId,
+      (session) =>
+        (session.thread_id ?? session.conversation_id) === persistedThreadId,
     );
     if (matched) {
       setCurrentSession(matched);
@@ -528,13 +517,15 @@ const Agent: React.FC = () => {
 
   const handleSend = async () => {
     const content = inputValue.trim();
-    if (!content || sseLoading) return;
+    if (!content || sseLoading) {
+      return;
+    }
     if (!selectedModelConfigId) {
       message.warning("请先选择可用模型");
       return;
     }
-    setInputValue("");
 
+    setInputValue("");
     const clientRequestId = generateClientRequestId();
     const tempUserMessageId = `user-${clientRequestId}`;
     const tempAssistantMessageId = `assistant-${clientRequestId}`;
@@ -573,13 +564,13 @@ const Agent: React.FC = () => {
         assistant_message_id: string;
         content: string;
         last_event_id: string | null;
-        stream_url: string;
       };
 
       activeRunIdRef.current = parsed.run_id;
       activeThreadIdRef.current = parsed.thread_id;
       persistActiveThreadId(parsed.thread_id);
       lastEventIdRef.current = parsed.last_event_id;
+
       if (parsed.last_event_id) {
         persistLastEventId(parsed.run_id, parsed.last_event_id);
       } else {
@@ -615,14 +606,14 @@ const Agent: React.FC = () => {
     }
   };
 
-  const handleNewSession = async () => {
+  const handleNewSession = () => {
     setCurrentSession(null);
     setMessages([]);
     setInputValue("");
     activeThreadIdRef.current = null;
-    persistActiveThreadId(null);
     activeRunIdRef.current = null;
     lastEventIdRef.current = null;
+    persistActiveThreadId(null);
   };
 
   const handleDeleteSession = async (threadId: string) => {
@@ -634,6 +625,7 @@ const Agent: React.FC = () => {
             (session.thread_id ?? session.conversation_id) !== threadId,
         ),
       );
+
       if (getSessionThreadId(currentSession) === threadId) {
         sseAbort();
         setCurrentSession(null);
@@ -646,11 +638,35 @@ const Agent: React.FC = () => {
         activeRunIdRef.current = null;
         lastEventIdRef.current = null;
       }
+
       message.success("会话已删除");
     } catch {
       message.error("删除会话失败");
     }
   };
+
+  const handleSelectSession = useCallback(
+    (session: ChatHistoryItem) => {
+      const threadId = session.thread_id ?? session.conversation_id ?? "";
+      if (!threadId) {
+        return;
+      }
+      setCurrentSession(session);
+      loadConversation(threadId);
+    },
+    [loadConversation],
+  );
+
+  const handleModelChange = useCallback(
+    (modelConfigId: string) => {
+      const picked = availableModels.find(
+        (model) => String(model.model_config_id) === modelConfigId,
+      );
+      setSelectedModelConfigId(modelConfigId);
+      setSelectedModelName(picked?.model_name ?? "");
+    },
+    [availableModels],
+  );
 
   return (
     <div
@@ -663,115 +679,16 @@ const Agent: React.FC = () => {
         overflow: "hidden",
       }}
     >
-      {/* 会话列表 */}
-      <div
-        style={{
-          width: sidebarCollapsed ? 0 : 260,
-          flexShrink: 0,
-          display: "flex",
-          flexDirection: "column",
-          background: "#fefefeff",
-          borderRight: sidebarCollapsed ? "none" : "1px solid #f0f0f0",
-          overflow: "hidden",
-          transition: "width 0.2s ease",
-        }}
-      >
-        <div
-          style={{
-            height: 56,
-            padding: "0 12px",
-            display: "flex",
-            alignItems: "center",
-            justifyContent: "space-between",
-          }}
-        >
-          <Space size={10}>
-            <img
-              src={agentLogo}
-              alt="StockMate"
-              style={{ width: 20, height: 20, display: "block", flexShrink: 0 }}
-            />
-            <span style={{ fontSize: 16, fontWeight: 600 }}>StockMate</span>
-          </Space>
-          <Tooltip title={isGuestMode ? "请登录后使用新建会话" : "新建会话"}>
-            <Button
-              size="small"
-              type="text"
-              icon={<PlusOutlined />}
-              onClick={handleNewSession}
-              disabled={isGuestMode}
-            />
-          </Tooltip>
-        </div>
-        <div
-          style={{
-            padding: "12px 12px 8px",
-            fontSize: 13,
-            fontWeight: 600,
-            color: "#666",
-          }}
-        >
-          历史会话
-        </div>
-        <div style={{ flex: 1, overflowY: "auto" }}>
-          <List
-            size="small"
-            dataSource={sessions}
-            locale={{ emptyText: "暂无历史会话" }}
-            renderItem={(session) => {
-              const sessionThreadId =
-                session.thread_id ?? session.conversation_id ?? "";
-              const currentThreadId = getSessionThreadId(currentSession);
-              const selected =
-                sessionThreadId && currentThreadId === sessionThreadId;
-              return (
-                <List.Item
-                  onClick={() => {
-                    if (!sessionThreadId) {
-                      return;
-                    }
-                    setCurrentSession(session);
-                    loadConversation(sessionThreadId);
-                  }}
-                  style={{
-                    cursor: "pointer",
-                    margin: "0 8px 6px",
-                    padding: "10px 12px",
-                    background: selected ? "#e6f4ff" : "#fff",
-                    borderRadius: 8,
-                    border: selected
-                      ? "1px solid #91caff"
-                      : "1px solid transparent",
-                  }}
-                  actions={[
-                    <Tooltip key="delete-tip" title="删除会话">
-                      <Button
-                        type="text"
-                        size="small"
-                        icon={<DeleteOutlined />}
-                        onClick={(event) => {
-                          event.stopPropagation();
-                          if (!sessionThreadId) {
-                            return;
-                          }
-                          handleDeleteSession(sessionThreadId);
-                        }}
-                        disabled={isGuestMode}
-                      />
-                    </Tooltip>,
-                  ]}
-                >
-                  <Text ellipsis style={{ width: "100%", paddingRight: 8 }}>
-                    {session.title || "新会话"}
-                  </Text>
-                </List.Item>
-              );
-            }}
-          />
-        </div>
-      </div>
+      <AgentSidebar
+        collapsed={sidebarCollapsed}
+        currentSession={currentSession}
+        isGuestMode={isGuestMode}
+        sessions={sessions}
+        onDeleteSession={handleDeleteSession}
+        onNewSession={handleNewSession}
+        onSelectSession={handleSelectSession}
+      />
 
-      {/* 聊天区 */}
       <div
         style={{
           flex: 1,
@@ -780,216 +697,30 @@ const Agent: React.FC = () => {
           overflow: "hidden",
         }}
       >
-        <div
-          style={{
-            height: 56,
-            padding: "0 16px",
-            display: "flex",
-            alignItems: "center",
-            justifyContent: "space-between",
-            borderBottom: "1px solid #f0f0f0",
-          }}
-        >
-          <Tooltip title={sidebarCollapsed ? "展开侧边栏" : "收起侧边栏"}>
-            <Button
-              size="small"
-              type="text"
-              icon={
-                sidebarCollapsed ? <MenuUnfoldOutlined /> : <MenuFoldOutlined />
-              }
-              onClick={() => setSidebarCollapsed((prev) => !prev)}
-            />
-          </Tooltip>
-        </div>
-
-        {/* 消息列表 */}
-        <div style={{ flex: 1, overflowY: "auto", padding: "12px 16px" }}>
-          {historyLoading && (
-            <div style={{ textAlign: "center", marginTop: 24 }}>
-              <Spin />
-            </div>
-          )}
-          {messages.length === 0 && (
-            <div style={{ textAlign: "center", color: "#999", marginTop: 80 }}>
-              <RobotOutlined style={{ fontSize: 48, marginBottom: 16 }} />
-              <p>你好！我是AI股票分析助手，有什么可以帮您的？</p>
-            </div>
-          )}
-          {messages.map((msg) => (
-            <div
-              key={msg.id}
-              style={{
-                display: "flex",
-                justifyContent: msg.role === "user" ? "flex-end" : "flex-start",
-                marginBottom: 16,
-              }}
-            >
-              {msg.role === "assistant" && (
-                <Avatar
-                  icon={<RobotOutlined />}
-                  style={{
-                    background: "#1677ff",
-                    flexShrink: 0,
-                    marginRight: 8,
-                  }}
-                />
-              )}
-              <div
-                style={{
-                  maxWidth: "72%",
-                  background: msg.role === "user" ? "#1677ff" : "#f5f5f5",
-                  color: msg.role === "user" ? "#fff" : "#000",
-                  borderRadius: 8,
-                  padding: "8px 12px",
-                  wordBreak: "break-word",
-                }}
-              >
-                {msg.role === "assistant" ? (
-                  <div className="markdown-content">
-                    <ReactMarkdown remarkPlugins={[remarkGfm]}>
-                      {msg.content}
-                    </ReactMarkdown>
-                    {(msg.loading || msg.aborted || msg.error) && (
-                      <div
-                        style={{
-                          marginTop: 8,
-                          display: "flex",
-                          justifyContent: "flex-end",
-                        }}
-                      >
-                        <div
-                          style={{
-                            display: "inline-flex",
-                            alignItems: "center",
-                            gap: 6,
-                            color: msg.aborted
-                              ? "#d46b08"
-                              : msg.error
-                                ? "#ff4d4f"
-                                : "#999",
-                            fontSize: 12,
-                            fontWeight: msg.aborted ? 500 : 400,
-                          }}
-                        >
-                          {msg.loading && <Spin size="small" />}
-                          <span>
-                            {msg.aborted
-                              ? "[已中断！]"
-                              : msg.error
-                                ? "请求失败"
-                                : "生成中..."}
-                          </span>
-                        </div>
-                      </div>
-                    )}
-                  </div>
-                ) : (
-                  <span>{msg.content}</span>
-                )}
-              </div>
-              {msg.role === "user" && (
-                <Avatar
-                  icon={<UserOutlined />}
-                  style={{
-                    background: "#87d068",
-                    flexShrink: 0,
-                    marginLeft: 8,
-                  }}
-                />
-              )}
-            </div>
-          ))}
-          <div ref={messagesEndRef} />
-        </div>
-
-        {/* 输入区 */}
-        <div style={{ padding: "16px" }}>
-          <div
-            style={{
-              border: "1px solid #d9d9d9",
-              borderRadius: 12,
-              padding: 12,
-              background: "#fff",
-            }}
-          >
-            <TextArea
-              value={inputValue}
-              onChange={(e) => setInputValue(e.target.value)}
-              placeholder={
-                isGuestMode
-                  ? "请登录后参与对话..."
-                  : "输入消息，Ctrl+Enter 发送..."
-              }
-              autoSize={{ minRows: 5, maxRows: 8 }}
-              onKeyDown={(e) => {
-                if (e.ctrlKey && e.key === "Enter" && !isGuestMode) {
-                  e.preventDefault();
-                  handleSend();
-                }
-              }}
-              variant="borderless"
-              style={{ padding: 0, resize: "none" }}
-              disabled={isGuestMode}
-            />
-            <div
-              style={{
-                display: "flex",
-                justifyContent: "flex-end",
-                alignItems: "center",
-                gap: 8,
-              }}
-            >
-              <Dropdown
-                trigger={["click"]}
-                menu={{
-                  selectable: true,
-                  selectedKeys: selectedModelConfigId
-                    ? [selectedModelConfigId]
-                    : [],
-                  items: availableModels.map((model) => ({
-                    key: String(model.model_config_id),
-                    label: model.model_name,
-                  })),
-                  onClick: ({ key }) => {
-                    const picked = availableModels.find(
-                      (m) => String(m.model_config_id) === String(key),
-                    );
-                    setSelectedModelConfigId(String(key));
-                    setSelectedModelName(picked?.model_name ?? "");
-                  },
-                }}
-              >
-                <Button type="text" disabled={availableModels.length === 0}>
-                  <Space size={4}>
-                    <span>
-                      {availableModels.length === 0
-                        ? "暂无模型"
-                        : selectedModelName}
-                    </span>
-                    <DownOutlined />
-                  </Space>
-                </Button>
-              </Dropdown>
-              {sseLoading ? (
-                <Button icon={<StopOutlined />} onClick={handleAbort} danger>
-                  停止
-                </Button>
-              ) : (
-                <Button
-                  type="primary"
-                  icon={<SendOutlined />}
-                  onClick={handleSend}
-                  disabled={!inputValue.trim() || isGuestMode}
-                >
-                  发送
-                </Button>
-              )}
-            </div>
-          </div>
-        </div>
+        <AgentChatHeader
+          sidebarCollapsed={sidebarCollapsed}
+          onToggleSidebar={() => setSidebarCollapsed((prev) => !prev)}
+        />
+        <AgentMessageList
+          historyLoading={historyLoading}
+          messages={messages}
+          messagesEndRef={messagesEndRef}
+        />
+        <AgentComposer
+          availableModels={availableModels}
+          inputValue={inputValue}
+          isGuestMode={isGuestMode}
+          selectedModelConfigId={selectedModelConfigId}
+          selectedModelName={selectedModelName}
+          sseLoading={sseLoading}
+          onAbort={handleAbort}
+          onInputChange={setInputValue}
+          onModelChange={handleModelChange}
+          onSend={handleSend}
+        />
       </div>
     </div>
   );
 };
 
-export default Agent;
+export default AgentPage;

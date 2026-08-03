@@ -4,7 +4,7 @@ import { Spin } from "antd";
 
 const Dashboard = lazy(() => import("@/pages/Dashboard"));
 const Market = lazy(() => import("@/pages/Market"));
-const Agent = lazy(() => import("@/pages/Agent"));
+const Agent = lazy(() => import("@/pages/Agent/index"));
 const News = lazy(() => import("@/pages/News"));
 const Fund = lazy(() => import("@/pages/Fund/index")); 
 const CronTasks = lazy(() => import("@/pages/CronTasks"));
