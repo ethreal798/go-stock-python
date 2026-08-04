@@ -13,6 +13,7 @@ from app.schemas.news import (
     NewsListResponse,
     NewsOverviewResponse,
     NewsSourceResponse,
+    NewsUpdatesResponse,
 )
 from app.services.news_service import NewsService
 
@@ -72,4 +73,24 @@ async def news_stream():
             "Connection": "keep-alive",
             "Transfer-Encoding": "chunked",
         },
+    )
+
+
+@router.get("/flash/updates", response_model=NewsUpdatesResponse, summary="增量快讯列表")
+async def list_flash_updates(
+    after_id: int = Query(..., ge=0, description="上次同步响应返回的 sync_id"),
+    source: Literal["cls", "wscn", "sina"] = Query("cls", description="数据源，默认财联社"),
+    period: Literal["today", "week", "all"] = Query("today", description="today/week/all"),
+    important_only: bool = Query(False, description="只看来源标记的重要快讯"),
+    topic_name: str | None = Query(None, min_length=1, max_length=200, description="主题名"),
+    limit: int = Query(100, ge=1, le=200),
+    service: NewsService = Depends(get_news_service),
+) -> NewsUpdatesResponse:
+    return await service.list_flash_updates(
+        source=source,
+        after_id=after_id,
+        period=period,
+        important_only=important_only,
+        topic_name=topic_name,
+        limit=limit,
     )

@@ -46,6 +46,13 @@ class NewsCursorResponse(BaseModel):
 class NewsListResponse(BaseModel):
     items: list[NewsItemResponse]
     next_cursor: Optional[NewsCursorResponse] = None
+    sync_id: int
+    has_more: bool = False
+
+
+class NewsUpdatesResponse(BaseModel):
+    items: list[NewsItemResponse]
+    sync_id: int
     has_more: bool = False
 
 
