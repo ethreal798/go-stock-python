@@ -22,6 +22,7 @@ logger = logging.getLogger(__name__)
 
 def build_default_jobs() -> list[dict]:
     """Return the jobs owned by the standalone scheduler worker."""
+    """构建默认任务"""
     jobs = [
         {
             "job_id": "news_crawl_all",
@@ -38,7 +39,7 @@ def build_default_jobs() -> list[dict]:
                 "task_type": "rag_reconcile",
                 "trigger_config": {"interval_seconds": settings.RAG_RECONCILE_INTERVAL_SECONDS},
                 "params": {},
-                "enabled": True,
+                "enabled": settings.RAG_PIPELINE_SWITCH,
             }
         )
     return jobs
@@ -191,7 +192,7 @@ class SchedulerService:
                     pass
                 elif task_type == "news_crawl":
                     total_new_count = await self._execute_news_crawl(db, params)
-                    if total_new_count > 0:
+                    if total_new_count > 0 and settings.RAG_PIPELINE_SWITCH:
                         await self._run_rag_pipeline_after_news_crawl(db, params, total_new_count)
                 elif task_type == "rag_reconcile":
                     await self._run_rag_reconcile(db, params)
@@ -214,8 +215,8 @@ class SchedulerService:
             log("News crawl completed: source=all, total_new_count=%s, results=%s", total_new_count, results)
             return total_new_count
 
-        news_type = params.get("type", "fast")
-        total_new_count = await service.fetch_remote_news(source, type=news_type)
+        news_type = params.get("type", "flash")
+        total_new_count = await service.fetch_remote_news(source, source_type=news_type)
         log = logger.info if total_new_count > 0 else logger.debug
         log("News crawl completed: source=%s, total_new_count=%s", source, total_new_count)
         return total_new_count
