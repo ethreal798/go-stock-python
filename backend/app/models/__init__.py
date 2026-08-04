@@ -24,14 +24,7 @@ from .rag import (
     RagEntity,
     RagQueryLog,
 )
-from .news import (
-    NewsSource,
-    NewsRawItem,
-    NewsItem,
-    NewsItemTopic,
-    NewsItemEntity,
-    NewsItemRelation
-)
+from .news import NewsSource, NewsRawItem, NewsItem, NewsItemTopic, NewsItemEntity, NewsItemRelation
 from .market import (
     MarketStatistic,
     StockChangeHistory,
