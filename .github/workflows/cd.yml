@@ -186,6 +186,7 @@ jobs:
               pull \
               backend \
               agent-worker \
+              scheduler-worker \
               frontend
 
             # 第一步：确认 PostgreSQL 仍然可用，避免迁移打到不可用数据库。
@@ -232,6 +233,7 @@ jobs:
               --remove-orphans \
               backend \
               agent-worker \
+              scheduler-worker \
               frontend \
               nginx
 
