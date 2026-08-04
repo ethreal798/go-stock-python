@@ -28,10 +28,10 @@ from app.schemas.news import (
     NewsListResponse,
     NewsOverviewResponse,
     NewsRelationResponse,
-    # NewsSourceCountResponse,
     NewsSourceResponse,
     NewsTopicCountResponse,
     NewsTopicResponse,
+    NewsUpdatesResponse,
 )
 from app.services.news import PARSERS, ParsedEntity, ParsedNewsItem, ParsedRelation, ParsedTopic
 
@@ -275,6 +275,7 @@ class NewsService:
         cursor_id: int | None = None,
         limit: int = 20,
     ) -> NewsListResponse:
+        sync_id = await self._source_high_watermark(source)
         # 1. 查出所有快讯数据
         stmt = self._news_select().where(NewsItem.content_type == "flash")
         # 2. 根据条件进行数据过滤
@@ -309,6 +310,44 @@ class NewsService:
         return NewsListResponse(
             items=[self._to_response(item) for item in page_items],
             next_cursor=next_cursor,
+            sync_id=sync_id,
+            has_more=has_more,
+        )
+
+    async def list_flash_updates(
+        self,
+        *,
+        source: str = "cls",
+        after_id: int,
+        period: str = "today",
+        important_only: bool = False,
+        topic_name: str | None = None,
+        limit: int = 100,
+    ) -> NewsUpdatesResponse:
+        """按入库 ID 拉取指定来源在同步水位之后的新快讯。"""
+        source_watermark = await self._source_high_watermark(source)
+        stmt = self._news_select().where(
+            NewsItem.content_type == "flash",
+            NewsItem.id > after_id,
+        )
+        stmt = self._apply_common_filters(
+            stmt,
+            source=source,
+            period=period,
+            important_only=important_only,
+            topic_name=topic_name,
+        )
+        stmt = stmt.order_by(NewsItem.id).limit(limit + 1)
+        result = await self.db.execute(stmt)
+        items = list(result.scalars().unique().all())
+        has_more = len(items) > limit
+        page_items = items[:limit]
+
+        last_item_id = page_items[-1].id if page_items else after_id
+        sync_id = last_item_id if has_more else max(source_watermark, last_item_id)
+        return NewsUpdatesResponse(
+            items=[self._to_response(item) for item in page_items],
+            sync_id=sync_id,
             has_more=has_more,
         )
 
@@ -366,6 +405,20 @@ class NewsService:
             selectinload(NewsItem.entities),
             selectinload(NewsItem.relations),
         )
+
+    async def _source_high_watermark(self, source: str) -> int:
+        """返回指定来源当前最大的快讯入库 ID，不受页面筛选条件影响。"""
+        self._require_query_source(source)
+        stmt = (
+            select(func.coalesce(func.max(NewsItem.id), 0))
+            .select_from(NewsItem)
+            .join(NewsSource, NewsSource.id == NewsItem.source_id)
+            .where(
+                NewsItem.content_type == "flash",
+                NewsSource.code == source,
+            )
+        )
+        return int((await self.db.execute(stmt)).scalar_one())
 
     @classmethod
     def _require_query_source(cls, source: str) -> None:
