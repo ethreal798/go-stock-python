@@ -152,3 +152,5 @@ media/
 *.bak
 *.backup
 /docs/
+/backend/tests/
+/outputs/
