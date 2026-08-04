@@ -1,279 +1,432 @@
-"""新闻资讯服务。
+"""多源财经快讯采集、入库与查询服务。"""
 
-负责从财联社、华尔街见闻、新浪财经、东方财富等源获取快讯和要闻。
-"""
-
-import re
+import json
 import logging
+from datetime import datetime, timedelta
+from typing import Any
+from zoneinfo import ZoneInfo
+
 import httpx
-from datetime import datetime
-from typing import List, Optional, Dict, Any
-
-from sqlalchemy import select, desc
+from sqlalchemy import and_, desc, distinct, exists, func, or_, select
+from sqlalchemy.dialects.postgresql import insert as pg_insert
 from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.orm import selectinload
 
-from app.models.market import Telegraph
-from app.schemas.news import TelegraphResponse
 from app.core.sse import sse_manager
-from app.services.news_filter_service import NewsFilterService
+from app.models.news import (
+    NewsItem,
+    NewsItemEntity,
+    NewsItemRelation,
+    NewsItemTopic,
+    NewsRawItem,
+    NewsSource,
+)
+from app.schemas.news import (
+    NewsCursorResponse,
+    NewsEntityResponse,
+    NewsItemResponse,
+    NewsListResponse,
+    NewsOverviewResponse,
+    NewsRelationResponse,
+    # NewsSourceCountResponse,
+    NewsSourceResponse,
+    NewsTopicCountResponse,
+    NewsTopicResponse,
+)
+from app.services.news import PARSERS, ParsedEntity, ParsedNewsItem, ParsedRelation, ParsedTopic
 
 logger = logging.getLogger(__name__)
+SHANGHAI_TZ = ZoneInfo("Asia/Shanghai")
+GENERIC_TOPIC_NAMES = {"其他", "全球", "7x24快讯", "7×24快讯", "选股宝"}
 
 
 class NewsService:
-    """新闻资讯服务"""
+    """三个快讯来源的后端统一入口。"""
 
-    # 数据源配置
-    SOURCES: dict[str:dict] = {
-        "cls": {"name": "财联社", "url": "https://www.cls.cn/nodeapi/telegraphList"},
-        "wscn": {"name": "华尔街见闻", "url": "https://api-one-wscn.awtmt.com/apiv1/content/lives"},
-        "sina": {
-            "name": "新浪财经快讯",
-            "url": "https://zhibo.sina.com.cn/api/zhibo/feed?page=1&page_size=20&zhibo_id=152",
+    SOURCES: dict[str, dict[str, str]] = {
+        "cls": {
+            "name": "财联社",
+            "url": "https://www.cls.cn/api/cache?app=CailianpressWeb&name=telegraph&os=web&sv=8.7.9",
         },
-        "sina_market": {
-            "name": "新浪市场要闻",
-            "source_type": "news",
-            "url": "https://feed.mix.sina.com.cn/api/roll/get?pageid=153&lid=2509&num=20&page=1",
+        "wscn": {
+            "name": "华尔街见闻",
+            "url": "https://api-one-wscn.awtmt.com/apiv1/content/lives",
+        },
+        "sina": {
+            "name": "新浪财经",
+            "url": "https://zhibo.sina.com.cn/api/zhibo/feed?page=1&page_size=20&zhibo_id=152",
         },
     }
 
     def __init__(self, db: AsyncSession) -> None:
         self.db = db
 
-    async def get_telegraphs(
-        self, source: str = "all", source_type: str = "fast", limit: int = 20, page: int = 1, relevant_only: bool = True
-    ) -> List[TelegraphResponse]:
-        """获取电报快讯或市场要闻（纯查库）。"""
-        stmt = select(Telegraph).where(Telegraph.type == source_type)
+    # ------------------------------------------------------------------
+    # 采集与入库
+    # ------------------------------------------------------------------
 
-        if source != "all" and source in self.SOURCES:
-            source_name = self.SOURCES[source]["name"]
-            stmt = stmt.where(Telegraph.source.contains(source_name))
-
-        if relevant_only:
-            stmt = stmt.where(Telegraph.is_relevant == bool(1))
-
-        stmt = stmt.order_by(desc(Telegraph.data_time)).limit(limit).offset((page - 1) * limit)
-
-        result = await self.db.execute(stmt)
-        telegraphs = result.scalars().all()
-
-        return [
-            TelegraphResponse(
-                id=t.id,
-                time=t.time,
-                data_time=t.data_time,
-                title=t.title or "",
-                content=t.content,
-                is_red=t.is_red,
-                url=t.url or "",
-                source=t.source,
-                sentiment_result=t.sentiment_result or "Neutral",
-                subjects=[],
-                stocks=[],
-                is_relevant=t.is_relevant,
-                relevance_score=t.relevance_score or 0,
-                category=t.category,
-            )
-            for t in telegraphs
-        ]
-
-    async def fetch_all_sources(self) -> Dict[str, int]:
-        """后台定时任务调用：抓取所有源。"""
-        results = {}
-        for source in self.SOURCES.keys():
-            source_type = self.SOURCES.get(source).get("source_type", "fast")
-            count = await self.fetch_remote_news(source, source_type)
-            results[source] = count
-
+    async def fetch_all_sources(self) -> dict[str, int]:
+        results: dict[str, int] = {}
+        for source_code in self.SOURCES:
+            results[source_code] = await self.fetch_remote_news(source_code)
         return results
 
-    async def fetch_remote_news(self, source: str, source_type: str) -> int:
-        """从远程接口抓取最新新闻并入库。"""
+    async def fetch_remote_news(self, source: str, source_type: str = "flash") -> int:
+        """抓取一个来源。V1 仅支持 flash，参数保留用于调度器兼容。"""
+        if source_type not in {"flash"}:
+            logger.debug("Skip unsupported news content type: source=%s type=%s", source, source_type)
+            return 0
+        if source not in self.SOURCES:
+            logger.warning("Unknown news source: %s", source)
+            return 0
+
         try:
-            if source == "cls":
-                return await self._fetch_cls_news(source_type)
-            elif source == "wscn":
-                return await self._fetch_wscn_news(source_type)
-            elif source == "sina":
-                return await self._fetch_sina_news(source_type)
-            elif source == "sina_market":
-                return await self._fetch_sina_market_news(source_type)
-            return 0
-        except Exception as e:
-            logger.error(f"Error fetching remote news from {source}: {e}")
+            items = await self._fetch_source_items(source)
+            return await self._save_news_batch(items, source)
+        except Exception:
+            logger.exception("News source crawl failed: source=%s", source)
+            await self.db.rollback()
             return 0
 
-    async def _fetch_cls_news(self, source_type: str) -> int:
-        """抓取财联社电报。"""
-        url = self.SOURCES["cls"]["url"]
+    async def _fetch_source_items(self, source: str) -> list[dict[str, Any]]:
+        config = self.SOURCES[source]
+        url = config["url"].strip()
         headers = {
-            "Referer": "https://www.cls.cn/",
-            "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
-            "AppleWebKit/537.36 (KHTML, like Gecko) Chrome/119.0.0.0 Safari/537.36",
-        }
-
-        async with httpx.AsyncClient(timeout=10.0) as client:
-            try:
-                response = await client.get(url, headers=headers)
-                if response.status_code != 200:
-                    return 0
-
-                data = response.json()
-                items = data.get("data", {}).get("roll_data", [])
-                return await self._save_news_batch(items, "cls", source_type)
-
-            except Exception as e:
-                logger.error(f"CLS API Error: {e}")
-                return 0
-
-    async def _fetch_wscn_news(self, source_type: str) -> int:
-        """抓取华尔街见闻快讯。"""
-        params = {"channel": "global-channel", "client": "pc", "limit": 20}
-        headers = {
-            "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
-            "AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
-        }
-
-        async with httpx.AsyncClient(timeout=10.0) as client:
-            try:
-                response = await client.get(self.SOURCES["wscn"]["url"], params=params, headers=headers)
-                data = response.json()
-                items = data.get("data", {}).get("items", [])
-                return await self._save_news_batch(items, "wscn", source_type)
-            except Exception as e:
-                logger.error(f"WSCN API Error: {e}")
-                return 0
-
-    async def _fetch_sina_news(self, source_type: str) -> int:
-        """抓取新浪财经直播快讯。"""
-        async with httpx.AsyncClient(timeout=10.0) as client:
-            try:
-                response = await client.get(self.SOURCES["sina"]["url"])
-                data = response.json()
-                items = data.get("result", {}).get("data", {}).get("feed", {}).get("list", [])
-                return await self._save_news_batch(items, "sina", source_type)
-            except Exception as e:
-                logger.error(f"Sina API Error: {e}")
-                return 0
-
-    async def _fetch_sina_market_news(self, source_type: str = "news") -> int:
-        """抓取新浪市场要闻。"""
-        async with httpx.AsyncClient(timeout=10.0) as client:
-            try:
-                response = await client.get(self.SOURCES["sina_market"]["url"])
-                data = response.json()
-                items = data.get("result", {}).get("data", [])
-                return await self._save_news_batch(items, "sina_market", source_type)
-            except Exception as e:
-                logger.error(f"Sina Market API Error: {e}")
-                return 0
-
-    async def _save_news_batch(self, items: List[Dict[str, Any]], source_key: str, source_type: str) -> int:
-        """通用的批量入库逻辑。"""
-        count = 0
-        source_name = self.SOURCES[source_key]["name"]
-
-        for item in items:
-            parsed = self._parse_item(item, source_key)
-            if not parsed or not parsed["content"]:
-                continue
-
-            stmt = select(Telegraph).where(Telegraph.content == parsed["content"])
-            result = await self.db.execute(stmt)
-            if result.scalar_one_or_none():
-                continue
-
-            # 使用过滤服务分析新闻
-            is_relevant, relevance_score, category = NewsFilterService.analyze(parsed["title"] or "", parsed["content"])
-
-            new_news = Telegraph(
-                title=parsed["title"],
-                content=parsed["content"],
-                time=parsed["data_time"].strftime("%H:%M:%S"),
-                data_time=parsed["data_time"],
-                url=parsed["url"],
-                source=source_name,
-                is_red=parsed["is_red"],
-                type=source_type,
-                sentiment_result="Neutral",
-                is_relevant=is_relevant,
-                relevance_score=relevance_score,
-                category=category,
+            "User-Agent": (
+                "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
+                "AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
             )
-            self.db.add(new_news)
-            count += 1
+        }
+        params: dict[str, Any] | None = None
+        if source == "cls":
+            headers["Referer"] = "https://www.cls.cn/"
+        elif source == "wscn":
+            params = {"channel": "global-channel", "client": "pc", "limit": 20}
 
-        if count > 0:
+        async with httpx.AsyncClient(timeout=10.0) as client:
+            response = await client.get(url, params=params, headers=headers)
+            response.raise_for_status()
+            payload = response.json()
+
+        if source == "cls":
+            items = payload.get("data", {}).get("roll_data", [])
+        elif source == "wscn":
+            if payload.get("code") != 20000:
+                raise ValueError(f"华尔街见闻接口返回失败: {payload.get('message')}")
+            items = payload.get("data", {}).get("items", [])
+        else:
+            result = payload.get("result", {})
+            status = result.get("status", {})
+            if status.get("code") != 0:
+                raise ValueError(f"新浪财经接口返回失败: {status.get('msg')}")
+            items = result.get("data", {}).get("feed", {}).get("list", [])
+
+        if not isinstance(items, list):
+            raise ValueError(f"来源 {source} 的快讯列表不是数组")
+        return [item for item in items if isinstance(item, dict)]
+
+    async def _save_news_batch(self, items: list[dict[str, Any]], source_code: str) -> int:
+        # 1. 如果当前源在数据库不存在则新建记录
+        source = await self._get_or_create_source(source_code)
+        # 2. 获取对应源的解析方法
+        parser = PARSERS[source_code]
+        inserted_count = 0
+
+        for payload in items:
+            try:
+                parsed = parser(payload)
+                #
+                inserted = await self._insert_parsed_item(source, payload, parsed)
+                inserted_count += int(inserted)
+            except Exception:
+                logger.exception(
+                    "News item parse/insert failed: source=%s source_item_id=%s",
+                    source_code,
+                    payload.get("id"),
+                )
+
+        if inserted_count:
             await self.db.commit()
-            logger.debug("Fetched %s %s news from %s", count, source_type, source_name)
-            # 发送 SSE 信号通知前端刷新
-            await sse_manager.broadcast("refresh")
+            await sse_manager.broadcast(
+                json.dumps(
+                    {"event": "news_flash", "source": source_code, "count": inserted_count},
+                    ensure_ascii=False,
+                )
+            )
+            logger.info("News batch inserted: source=%s count=%s", source_code, inserted_count)
+        else:
+            # 结束查询开启的只读事务，避免调度器后续阶段持有无用事务。
+            await self.db.rollback()
+        return inserted_count
 
-        return count
+    async def _get_or_create_source(self, source_code: str) -> NewsSource:
+        """如果当前配置抓取源在来源表中不存在则创建记录"""
+        result = await self.db.execute(select(NewsSource).where(NewsSource.code == source_code))
+        source = result.scalar_one_or_none()
+        if source:
+            return source
 
-    def _parse_item(self, item: Dict[str, Any], source: str) -> Optional[Dict[str, Any]]:
-        """解析不同源的数据字段。"""
-        try:
-            if source == "eastmoney":
-                content = item.get("digest", "")
-                return {
-                    "title": item.get("title", ""),
-                    "content": self._clean_html(content),
-                    "data_time": datetime.strptime(item.get("showtime", ""), "%Y-%m-%d %H:%M:%S"),
-                    "url": item.get("url", ""),
-                    "is_red": False,
-                }
-            elif source == "cls":
-                return {
-                    "title": item.get("title", ""),
-                    "content": self._clean_html(item.get("content", "")),
-                    "data_time": datetime.fromtimestamp(item.get("ctime", 0)),
-                    "url": item.get("shareurl", ""),
-                    "is_red": item.get("level", "") != "C",
-                }
-            elif source == "wscn":
-                content = item.get("content_text", "") or item.get("content", "")
-                return {
-                    "title": item.get("title", ""),
-                    "content": self._clean_html(content),
-                    "data_time": datetime.fromtimestamp(item.get("display_time", 0)),
-                    "url": item.get("uri", ""),
-                    "is_red": item.get("score", 0) > 1,
-                }
-            elif source == "sina":
-                content = item.get("rich_text", "")
-                create_time = item.get("create_time", "")
-                try:
-                    dt = datetime.strptime(create_time, "%Y-%m-%d %H:%M:%S")
-                except Exception:
-                    dt = datetime.now()
-                return {
-                    "title": "",
-                    "content": self._clean_html(content),
-                    "data_time": dt,
-                    "url": "",
-                    "is_red": "焦点" in item.get("tag", []),
-                }
-            elif source == "sina_market":
-                content = item.get("intro", "") or item.get("title", "")
-                dt = datetime.fromtimestamp(int(item.get("ctime", 0)))
-                return {
-                    "title": item.get("title", ""),
-                    "content": self._clean_html(content),
-                    "data_time": dt,
-                    "url": item.get("url", ""),
-                    "is_red": False,
-                }
-        except Exception as e:
-            logger.warning(f"Parse error for {source}: {e}")
-        return None
+        source = NewsSource(code=source_code, name=self.SOURCES[source_code]["name"], enabled=True)
+        self.db.add(source)
+        await self.db.flush()
+        return source
 
-    def _clean_html(self, text: str) -> str:
-        """清理 HTML 标签和多余空格。"""
-        if not text:
-            return ""
-        text = re.sub(r"<[^>]+>", "", text)
-        text = text.replace("&nbsp;", " ").strip()
-        return text
+    async def _insert_parsed_item(self, source: NewsSource, payload: dict[str, Any], parsed: ParsedNewsItem) -> bool:
+        """数据入库"""
+        async with self.db.begin_nested():
+            raw_insert = (
+                pg_insert(NewsRawItem)
+                .values(
+                    source_id=source.id,
+                    source_item_id=parsed.source_item_id,
+                    payload=payload,
+                    published_at=parsed.published_at,
+                )
+                .on_conflict_do_nothing(constraint="uq_news_raw_source_item")
+                .returning(NewsRawItem.id)
+            )
+            raw_result = await self.db.execute(raw_insert)
+            raw_item_id = raw_result.scalar_one_or_none()
+            if raw_item_id is None:
+                return False
+
+            news_item = NewsItem(
+                raw_item_id=raw_item_id,
+                source_id=source.id,
+                content_type=parsed.content_type,
+                title=parsed.title,
+                content=parsed.content,
+                is_source_important=parsed.is_source_important,
+                published_at=parsed.published_at,
+            )
+            self.db.add(news_item)
+            await self.db.flush()
+
+            self.db.add_all(self._build_topic_models(news_item.id, parsed.topics))
+            self.db.add_all(self._build_entity_models(news_item.id, parsed.entities))
+            self.db.add_all(self._build_relation_models(news_item.id, parsed.relations))
+            await self.db.flush()
+            return True
+
+    @staticmethod
+    def _build_topic_models(news_item_id: int, topics: list[ParsedTopic]) -> list[NewsItemTopic]:
+        models: list[NewsItemTopic] = []
+        seen: set[str] = set()
+        for topic in topics:
+            if not topic.name or topic.name in seen:
+                continue
+            seen.add(topic.name)
+            models.append(
+                NewsItemTopic(
+                    news_item_id=news_item_id,
+                    name=topic.name,
+                )
+            )
+        return models
+
+    @staticmethod
+    def _build_entity_models(news_item_id: int, entities: list[ParsedEntity]) -> list[NewsItemEntity]:
+        models: list[NewsItemEntity] = []
+        seen: set[tuple[str, str]] = set()
+        for entity in entities:
+            key = (entity.entity_type, entity.symbol)
+            if not entity.symbol or key in seen:
+                continue
+            seen.add(key)
+            models.append(
+                NewsItemEntity(
+                    news_item_id=news_item_id,
+                    entity_type=entity.entity_type,
+                    symbol=entity.symbol,
+                    name=entity.name,
+                )
+            )
+        return models
+
+    @staticmethod
+    def _build_relation_models(news_item_id: int, relations: list[ParsedRelation]) -> list[NewsItemRelation]:
+        models: list[NewsItemRelation] = []
+        seen: set[str] = set()
+        for relation in relations:
+            if not relation.url or relation.url in seen:
+                continue
+            seen.add(relation.url)
+            models.append(NewsItemRelation(news_item_id=news_item_id, url=relation.url))
+        return models
+
+    # ------------------------------------------------------------------
+    # 查询
+    # ------------------------------------------------------------------
+
+    async def list_sources(self) -> list[NewsSourceResponse]:
+        result = await self.db.execute(
+            select(NewsSource).where(NewsSource.enabled.is_(True)).order_by(NewsSource.sort_order, NewsSource.id)
+        )
+        return [NewsSourceResponse(code=source.code, name=source.name) for source in result.scalars().all()]
+
+    async def list_flash_news(
+        self,
+        *,
+        source: str = "cls",
+        period: str = "today",
+        important_only: bool = False,
+        topic_name: str | None = None,
+        cursor_time: datetime | None = None,
+        cursor_id: int | None = None,
+        limit: int = 20,
+    ) -> NewsListResponse:
+        # 1. 查出所有快讯数据
+        stmt = self._news_select().where(NewsItem.content_type == "flash")
+        # 2. 根据条件进行数据过滤
+        stmt = self._apply_common_filters(
+            stmt,
+            source=source,
+            period=period,
+            important_only=important_only,
+            topic_name=topic_name,
+        )
+        # 3. 根据时间进行游标过滤
+        if cursor_time is not None and cursor_id is not None:
+            if cursor_time.tzinfo is None:
+                cursor_time = cursor_time.replace(tzinfo=SHANGHAI_TZ)
+            stmt = stmt.where(
+                or_(
+                    NewsItem.published_at < cursor_time,
+                    and_(NewsItem.published_at == cursor_time, NewsItem.id < cursor_id),
+                )
+            )
+
+        # 4. 查询执行与“多查一条”技巧 用于判断是否还有更多数据
+        stmt = stmt.order_by(desc(NewsItem.published_at), desc(NewsItem.id)).limit(limit + 1)
+        result = await self.db.execute(stmt)
+        items = list(result.scalars().unique().all())
+        has_more = len(items) > limit
+        page_items = items[:limit]
+        next_cursor = None
+        if has_more and page_items:
+            last = page_items[-1]
+            next_cursor = NewsCursorResponse(time=last.published_at, id=last.id)
+        return NewsListResponse(
+            items=[self._to_response(item) for item in page_items],
+            next_cursor=next_cursor,
+            has_more=has_more,
+        )
+
+    async def get_overview(
+        self, *, source: str = "cls", period: str = "today", topic_limit: int = 10
+    ) -> NewsOverviewResponse:
+        # 检查合法来源
+        self._require_query_source(source)
+        # 根据period构造查询时间
+        start_time = self._period_start(period)
+
+        # 构造筛选条件
+        filters = [NewsItem.content_type == "flash"]
+        if start_time is not None:
+            filters.append(NewsItem.published_at >= start_time)
+        filters.append(NewsSource.code == source)
+
+        # 计算快讯条数、重要快讯条数指标
+        count_stmt = (
+            select(
+                func.count(NewsItem.id),
+                func.count(NewsItem.id).filter(NewsItem.is_source_important.is_(True)),
+            )
+            .select_from(NewsItem)
+            .join(NewsSource, NewsSource.id == NewsItem.source_id)
+            .where(*filters)
+        )
+        total_count, important_count = (await self.db.execute(count_stmt)).one()
+
+        # 查询主题数量
+        topic_stmt = (
+            select(NewsItemTopic.name, func.count(distinct(NewsItemTopic.news_item_id)).label("news_count"))
+            .select_from(NewsItemTopic)
+            .join(NewsItem, NewsItem.id == NewsItemTopic.news_item_id)
+            .join(NewsSource, NewsSource.id == NewsItem.source_id)
+            .where(*filters, NewsItemTopic.name.not_in(GENERIC_TOPIC_NAMES))
+            .group_by(NewsItemTopic.name)
+            .order_by(desc("news_count"), NewsItemTopic.name)
+            .limit(topic_limit)
+        )
+        topic_rows = (await self.db.execute(topic_stmt)).all()
+
+        return NewsOverviewResponse(
+            total_count=int(total_count or 0),
+            important_count=int(important_count or 0),
+            top_topics=[NewsTopicCountResponse(name=name, news_count=int(count)) for name, count in topic_rows],
+        )
+
+    @staticmethod
+    def _news_select():
+        """工具函数 用于一次性查出信息对应的源，内容，主题，关联"""
+        return select(NewsItem).options(
+            selectinload(NewsItem.source),
+            selectinload(NewsItem.topics),
+            selectinload(NewsItem.entities),
+            selectinload(NewsItem.relations),
+        )
+
+    @classmethod
+    def _require_query_source(cls, source: str) -> None:
+        """展示查询必须明确选择一个来源，禁止使用 all 聚合不同口径。"""
+        if source not in cls.SOURCES:
+            raise ValueError(f"Unsupported news source: {source}")
+
+    @staticmethod
+    def _period_start(period: str) -> datetime | None:
+        now = datetime.now(tz=SHANGHAI_TZ)
+        if period == "today":
+            return now.replace(hour=0, minute=0, second=0, microsecond=0)
+        if period == "week":
+            return now - timedelta(days=7)
+        if period == "all":
+            return None
+        raise ValueError(f"Unsupported news period: {period}")
+
+    @staticmethod
+    def _to_response(item: NewsItem) -> NewsItemResponse:
+        return NewsItemResponse(
+            id=item.id,
+            source=NewsSourceResponse(code=item.source.code, name=item.source.name),
+            content_type=item.content_type,
+            title=item.title,
+            content=item.content,
+            is_source_important=bool(item.is_source_important),
+            published_at=item.published_at,
+            topics=[NewsTopicResponse(name=topic.name) for topic in item.topics],
+            entities=[
+                NewsEntityResponse(
+                    type=entity.entity_type,
+                    name=entity.name,
+                    symbol=entity.symbol,
+                )
+                for entity in item.entities
+            ],
+            relations=[NewsRelationResponse(url=relation.url) for relation in item.relations],
+        )
+
+    def _apply_common_filters(
+        self,
+        stmt,
+        *,
+        source: str,
+        period: str,
+        important_only: bool,
+        topic_name: str | None = None,
+    ):
+        """工具函数 根据传入的参数对stmt添加过滤数据逻辑"""
+        self._require_query_source(source)
+        stmt = stmt.join(NewsSource, NewsSource.id == NewsItem.source_id).where(NewsSource.code == source)
+        start_time = self._period_start(period)
+        if start_time is not None:
+            stmt = stmt.where(NewsItem.published_at >= start_time)
+        if important_only:
+            stmt = stmt.where(NewsItem.is_source_important.is_(True))
+        if topic_name:
+            topic_filters = [
+                NewsItemTopic.news_item_id == NewsItem.id,
+                NewsItemTopic.name == topic_name,
+            ]
+            stmt = stmt.where(exists(select(1).where(*topic_filters)))
+        return stmt
