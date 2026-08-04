@@ -1,12 +1,19 @@
-"""新闻资讯路由。"""
+"""多源财经快讯路由。"""
 
-from fastapi import APIRouter, Depends, Query
+from datetime import datetime
+from typing import Literal
+
+from fastapi import APIRouter, Depends, HTTPException, Query
 from fastapi.responses import StreamingResponse
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.database import get_db
 from app.core.sse import sse_manager
-from app.schemas.news import TelegraphResponse
+from app.schemas.news import (
+    NewsListResponse,
+    NewsOverviewResponse,
+    NewsSourceResponse,
+)
 from app.services.news_service import NewsService
 
 router = APIRouter(prefix="/news", tags=["news"])
@@ -16,22 +23,47 @@ def get_news_service(db: AsyncSession = Depends(get_db)) -> NewsService:
     return NewsService(db)
 
 
-@router.get("/telegraph", response_model=list[TelegraphResponse], summary="7x24快讯")
-async def get_telegraph(
-    count: int = Query(20, ge=1, le=100, description="返回数量"),
-    page: int = Query(1, ge=1, description="页码"),
-    source: str = Query("all", description="数据源: all / eastmoney / cls / wscn / sina"),
-    relevant_only: bool = Query(True, description="仅返回金融相关新闻"),
+@router.get("/sources", response_model=list[NewsSourceResponse], summary="快讯来源")
+async def list_news_sources(service: NewsService = Depends(get_news_service)) -> list[NewsSourceResponse]:
+    return await service.list_sources()
+
+
+@router.get("/flash/overview", response_model=NewsOverviewResponse, summary="快讯概览与热门主题")
+async def get_flash_overview(
+    period: Literal["today", "week", "all"] = Query("today", description="today/week/all"),
+    source: Literal["cls", "wscn", "sina"] = Query("cls", description="数据源，默认财联社"),
+    topic_limit: int = Query(10, ge=1, le=50),
     service: NewsService = Depends(get_news_service),
-) -> list[TelegraphResponse]:
-    """获取7x24小时财经快讯(从数据库读取)。"""
-
-    return await service.get_telegraphs(source=source, limit=count, page=page, relevant_only=relevant_only)
+) -> NewsOverviewResponse:
+    return await service.get_overview(source=source, period=period, topic_limit=topic_limit)
 
 
-@router.get("/stream", summary="新闻实时通知流 (SSE)")
+@router.get("/flash", response_model=NewsListResponse, summary="分来源快讯列表")
+async def list_flash_news(
+    source: Literal["cls", "wscn", "sina"] = Query("cls", description="数据源，默认财联社"),
+    period: Literal["today", "week", "all"] = Query("today", description="today/week/all"),
+    important_only: bool = Query(False, description="只看来源标记的重要快讯"),
+    topic_name: str | None = Query(None, min_length=1, max_length=200, description="主题名"),
+    cursor_time: datetime | None = Query(None),
+    cursor_id: int | None = Query(None, ge=1),
+    limit: int = Query(20, ge=1, le=100),
+    service: NewsService = Depends(get_news_service),
+) -> NewsListResponse:
+    if (cursor_time is None) != (cursor_id is None):
+        raise HTTPException(status_code=422, detail="cursor_time 和 cursor_id 必须同时提供")
+    return await service.list_flash_news(
+        source=source,
+        period=period,
+        important_only=important_only,
+        topic_name=topic_name,
+        cursor_time=cursor_time,
+        cursor_id=cursor_id,
+        limit=limit,
+    )
+
+
+@router.get("/stream", summary="快讯实时通知流 (SSE)")
 async def news_stream():
-    """SSE 端点，当有新新闻入库时发送 'refresh' 信号。"""
     return StreamingResponse(
         sse_manager.subscribe(),
         media_type="text/event-stream",
@@ -41,34 +73,3 @@ async def news_stream():
             "Transfer-Encoding": "chunked",
         },
     )
-
-
-@router.get("/market", response_model=list[TelegraphResponse], summary="市场要闻")
-async def get_market_news(
-    count: int = Query(20, ge=1, le=100, description="返回数量"),
-    page: int = Query(1, ge=1, description="页码"),
-    relevant_only: bool = Query(True, description="仅返回金融相关新闻"),
-    service: NewsService = Depends(get_news_service),
-) -> list[TelegraphResponse]:
-    """获取市场重要新闻资讯（从数据库读取）。"""
-    return await service.get_telegraphs(type="news", limit=count, page=page, relevant_only=relevant_only)
-
-
-@router.get("/stock/{code}", summary="个股新闻")
-async def get_stock_news(
-    code: str,
-    count: int = Query(10, ge=1, le=50, description="返回数量"),
-) -> list[dict]:
-    """获取指定股票相关新闻。"""
-    # TODO: 调用新闻服务
-    return []
-
-
-@router.get("/research/{code}", summary="研报")
-async def get_research_reports(
-    code: str,
-    count: int = Query(10, ge=1, le=50, description="返回数量"),
-) -> list[dict]:
-    """获取指定股票的研究报告。"""
-    # TODO: 调用研报服务
-    return []
