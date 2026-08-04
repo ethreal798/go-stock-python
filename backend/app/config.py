@@ -148,12 +148,6 @@ class Settings(BaseSettings):
     SCHEDULER_TIMEZONE: str = "Asia/Shanghai"
     NEWS_CRAWL_INTERVAL_SECONDS: int = 60
 
-    # ---- 数据源配置 ----
-    EASTMONEY_API_BASE: str = "https://push2.eastmoney.com"
-    SINA_API_BASE: str = "https://hq.sinajs.cn"
-    TUSHARE_API_BASE: str = "https://api.tushare.pro"
-    TUSHARE_TOKEN: str = ""
-
     def validate_required_settings(self) -> None:
         """验证必需的配置项，在生产环境必须设置。"""
         if not self.DATABASE_URL.startswith("postgresql"):
