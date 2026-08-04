@@ -91,6 +91,7 @@ class Settings(BaseSettings):
     AI_EMBEDDING_RETRY_BASE_SECONDS: float = 2.0
 
     # ---- RAG 流水线配置 ----
+    RAG_PIPELINE_SWITCH: bool = False
     # 立刻执行RAG流水线当新增资讯新闻后
     RAG_PIPELINE_ON_NEWS_CRAWL: bool = True
     # RAG流水线最小间隔时间
