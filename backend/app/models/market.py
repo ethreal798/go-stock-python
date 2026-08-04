@@ -1,71 +1,7 @@
 """市场数据模型"""
 
-from sqlalchemy import Column, BigInteger, String, Integer, Boolean, Float, DateTime, Text, ForeignKey, Index, func
-from sqlalchemy.orm import relationship
+from sqlalchemy import Column, BigInteger, String, Integer, Float, DateTime, Text, Index, func
 from .base import Base, GormBaseModel
-
-
-class Telegraph(GormBaseModel):
-    """电报/快讯"""
-
-    __tablename__ = "telegraph_list"
-
-    time = Column(String(50), comment="发布时间(HH:mm:ss)")
-    data_time = Column(DateTime, index=True, nullable=True, name="data_time", comment="完整日期时间")
-    title = Column(String(500), index=True, comment="快讯标题")
-    content = Column(Text, index=True, comment="快讯内容")
-    is_red = Column(Boolean, default=False, index=True, name="is_red", comment="是否加红/重要")
-    url = Column(String(500), comment="原文链接")
-    source = Column(String(100), index=True, comment="来源: 财联社/华尔街见闻")
-    type = Column(String(20), default="fast", index=True)  # fast: 快讯, news: 要闻
-    sentiment_result = Column(String(50), index=True, name="sentiment_result", comment="AI情感分析结果")
-
-    # 新增：金融相关性字段
-    is_relevant = Column(Boolean, default=True, index=True, name="is_relevant", comment="是否为金融相关新闻")
-    relevance_score = Column(Integer, default=0, index=True, name="relevance_score", comment="相关性评分 0-100")
-    category = Column(
-        String(50),
-        index=True,
-        name="category",
-        comment="新闻分类: macro/industry/company/regulatory/international/other",
-    )
-
-    telegraph_tags = relationship("TelegraphTags", back_populates="telegraph", cascade="all, delete-orphan")
-    tags = relationship(
-        "Tags",
-        secondary="telegraph_tags",
-        back_populates="telegraphs",
-        viewonly=True,
-    )
-
-
-class TelegraphTags(GormBaseModel):
-    """电报标签关联"""
-
-    __tablename__ = "telegraph_tags"
-
-    tag_id = Column(BigInteger, ForeignKey("tags.id"), name="tag_id")
-    telegraph_id = Column(BigInteger, ForeignKey("telegraph_list.id"), name="telegraph_id")
-
-    telegraph = relationship("Telegraph", back_populates="telegraph_tags")
-    tag = relationship("Tags", back_populates="telegraph_tags")
-
-
-class Tags(GormBaseModel):
-    """标签"""
-
-    __tablename__ = "tags"
-
-    name = Column(String(100))
-    type = Column(String(50))
-
-    telegraph_tags = relationship("TelegraphTags", back_populates="tag", cascade="all, delete-orphan")
-    telegraphs = relationship(
-        "Telegraph",
-        secondary="telegraph_tags",
-        back_populates="tags",
-        viewonly=True,
-    )
 
 
 class MarketStatistic(Base):

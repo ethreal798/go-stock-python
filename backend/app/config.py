@@ -91,6 +91,7 @@ class Settings(BaseSettings):
     AI_EMBEDDING_RETRY_BASE_SECONDS: float = 2.0
 
     # ---- RAG 流水线配置 ----
+    RAG_PIPELINE_SWITCH: bool = False
     # 立刻执行RAG流水线当新增资讯新闻后
     RAG_PIPELINE_ON_NEWS_CRAWL: bool = True
     # RAG流水线最小间隔时间
@@ -146,12 +147,6 @@ class Settings(BaseSettings):
     # ---- 定时任务配置 ----
     SCHEDULER_TIMEZONE: str = "Asia/Shanghai"
     NEWS_CRAWL_INTERVAL_SECONDS: int = 60
-
-    # ---- 数据源配置 ----
-    EASTMONEY_API_BASE: str = "https://push2.eastmoney.com"
-    SINA_API_BASE: str = "https://hq.sinajs.cn"
-    TUSHARE_API_BASE: str = "https://api.tushare.pro"
-    TUSHARE_TOKEN: str = ""
 
     def validate_required_settings(self) -> None:
         """验证必需的配置项，在生产环境必须设置。"""
