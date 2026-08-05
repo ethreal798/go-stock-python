@@ -306,7 +306,7 @@ class NewsService:
         next_cursor = None
         if has_more and page_items:
             last = page_items[-1]
-            next_cursor = NewsCursorResponse(time=last.published_at, id=last.id)
+            next_cursor = NewsCursorResponse(cursor_time=last.published_at, cursor_id=last.id)
         return NewsListResponse(
             items=[self._to_response(item) for item in page_items],
             next_cursor=next_cursor,

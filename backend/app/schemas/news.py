@@ -39,8 +39,8 @@ class NewsItemResponse(BaseModel):
 
 
 class NewsCursorResponse(BaseModel):
-    time: datetime
-    id: int
+    cursor_time: datetime
+    cursor_id: int
 
 
 class NewsListResponse(BaseModel):
