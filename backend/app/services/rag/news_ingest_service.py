@@ -1,19 +1,19 @@
-"""新闻入 RAG 主表服务。"""
+"""统一资讯主表进入 RAG 文档表的服务。"""
 
 import hashlib
+from datetime import timezone
 from typing import Any
 
-from sqlalchemy import Select, desc, select
+from sqlalchemy import Select, and_, desc, select
 from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.orm import selectinload
 
-from app.models.market import Telegraph
+from app.models.news import NewsItem
 from app.models.rag import RagDocument
 
 
 class NewsIngestService:
-    """将新闻主表同步到 RAG 文档表。"""
-
-    SOURCE_TYPE = "telegraph"
+    """将尚未同步的 NewsItem 写入 RAG 文档表。"""
 
     def __init__(self, db: AsyncSession) -> None:
         self.db = db
@@ -21,96 +21,103 @@ class NewsIngestService:
     async def ingest_telegraphs(
         self, limit: int = 100, news_type: str = "all", relevant_only: bool = True
     ) -> dict[str, int]:
-        """将 telegraph_list 中的新闻同步到 rag_documents。"""
-        # 根据请求参数初步筛选
-        stmt = self._build_telegraph_query(limit=limit, news_type=news_type, relevant_only=relevant_only)
+        """方法名保留 API 兼容；V1 没有相关性分析，relevant_only 暂不参与过滤。"""
+        del relevant_only
+        stmt = self._build_news_query(limit=limit, news_type=news_type)
         result = await self.db.execute(stmt)
-        telegraphs = result.scalars().all()
+        news_items = list(result.scalars().unique().all())
 
-        stats = {
-            "scanned": len(telegraphs),
-            "ingested": 0,
-            "skipped_invalid": 0,
-        }
-
-        for telegraph in telegraphs:
-            # 过滤没有有效内容的资讯或新闻
-            if not telegraph.content or not telegraph.content.strip():
+        stats = {"scanned": len(news_items), "ingested": 0, "skipped_invalid": 0}
+        for item in news_items:
+            if not item.content or not item.content.strip():
                 stats["skipped_invalid"] += 1
                 continue
-
-            # 将资讯或新闻入库
-            document = self._build_document_from_telegraph(telegraph)
-            self.db.add(document)
+            self.db.add(self._build_document(item))
             stats["ingested"] += 1
 
-        if stats["ingested"] > 0:
+        if stats["ingested"]:
             await self.db.commit()
-
         return stats
 
     async def list_documents(self, limit: int = 20) -> list[RagDocument]:
-        """列出最新的 RAG 文档。"""
-        stmt = select(RagDocument).order_by(desc(RagDocument.created_at)).limit(limit)
-        result = await self.db.execute(stmt)
+        result = await self.db.execute(select(RagDocument).order_by(desc(RagDocument.created_at)).limit(limit))
         return list(result.scalars().all())
 
-    def _build_telegraph_query(self, limit: int, news_type: str, relevant_only: bool) -> Select[tuple[Telegraph]]:
-        stmt = select(Telegraph)
+    def _build_news_query(self, limit: int, news_type: str) -> Select[tuple[NewsItem]]:
+        stmt = select(NewsItem).options(
+            selectinload(NewsItem.source),
+            selectinload(NewsItem.topics),
+            selectinload(NewsItem.entities),
+            selectinload(NewsItem.relations),
+        )
 
-        if news_type != "all":
-            stmt = stmt.where(Telegraph.type == news_type)
-
-        if relevant_only:
-            stmt = stmt.where(Telegraph.is_relevant == bool(1))
+        normalized_type = {"fast": "flash", "news": "article"}.get(news_type, news_type)
+        if normalized_type != "all":
+            stmt = stmt.where(NewsItem.content_type == normalized_type)
 
         existing_document = (
             select(RagDocument.source_id)
             .where(
-                RagDocument.source_type == self.SOURCE_TYPE,
-                RagDocument.source_id == Telegraph.id,
+                and_(
+                    RagDocument.source_type == NewsItem.content_type,
+                    RagDocument.source_id == NewsItem.id,
+                )
             )
             .exists()
         )
-
-        stmt = stmt.where(
-            ~existing_document,
-            Telegraph.content.is_not(None),
-            Telegraph.content != "",
+        return (
+            stmt.where(~existing_document, NewsItem.content.is_not(None), NewsItem.content != "")
+            .order_by(desc(NewsItem.published_at), desc(NewsItem.id))
+            .limit(limit)
         )
 
-        return stmt.order_by(desc(Telegraph.data_time), desc(Telegraph.id)).limit(limit)
-
-    def _build_document_from_telegraph(self, telegraph: Telegraph) -> RagDocument:
-        content = telegraph.content.strip()
-        title = (telegraph.title or "").strip() or None
+    def _build_document(self, item: NewsItem) -> RagDocument:
+        content = item.content.strip()
 
         return RagDocument(
-            source_type=self.SOURCE_TYPE,
-            source_id=telegraph.id,
-            title=title,
+            source_type=item.content_type,
+            source_id=item.id,
+            title=(item.title or "").strip() or None,
             content=content,
             content_hash=self._hash_text(content),
-            published_at=telegraph.data_time,
-            source_name=telegraph.source,
-            url=telegraph.url,
-            category=telegraph.category,
-            importance_score=int(telegraph.relevance_score or 0),
-            sentiment=telegraph.sentiment_result,
+            published_at=self._rag_datetime(item.published_at),
+            source_name=item.source.name,
+            url=self._original_document_url(item),
+            category=None,
+            importance_score=100 if item.is_source_important else 0,
+            sentiment=None,
             language="zh",
             status="pending",
-            extra_metadata=self._build_metadata(telegraph),
+            extra_metadata=self._build_metadata(item),
         )
 
-    def _build_metadata(self, telegraph: Telegraph) -> dict[str, Any]:
+    @staticmethod
+    def _build_metadata(item: NewsItem) -> dict[str, Any]:
         return {
-            "time": telegraph.time,
-            "is_red": bool(telegraph.is_red),
-            "type": telegraph.type,
-            "is_relevant": bool(telegraph.is_relevant),
-            "relevance_score": int(telegraph.relevance_score or 0),
+            "source_code": item.source.code,
+            "is_source_important": bool(item.is_source_important),
+            "topics": [topic.name for topic in item.topics],
+            "entities": [
+                {
+                    "type": entity.entity_type,
+                    "name": entity.name,
+                    "symbol": entity.symbol,
+                }
+                for entity in item.entities
+            ],
         }
 
     @staticmethod
     def _hash_text(text: str) -> str:
         return hashlib.sha256(text.encode("utf-8")).hexdigest()
+
+    @staticmethod
+    def _original_document_url(item: NewsItem) -> str | None:
+        return next((relation.url for relation in item.relations if relation.url), None)
+
+    @staticmethod
+    def _rag_datetime(value):
+        """旧 RAG 时间列不带时区，统一写入 UTC naive 值。"""
+        if value is None or value.tzinfo is None:
+            return value
+        return value.astimezone(timezone.utc).replace(tzinfo=None)
