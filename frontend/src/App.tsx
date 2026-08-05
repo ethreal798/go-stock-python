@@ -43,6 +43,8 @@ const pageTitleMap: Record<string, string> = {
   "/market": "行情中心",
   "/agent": "AI智能助手",
   "/news": "新闻资讯",
+  "/news/news": "新闻",
+  "/news/flash": "快讯",
   "/fund": "我的关注",
   "/fund/market": "基金市场",
   "/cron-tasks": "定时任务",
@@ -56,7 +58,15 @@ const menuItems: MenuProps["items"] = [
   { key: "/", icon: <DashboardOutlined />, label: "自选股" },
   { key: "/market", icon: <StockOutlined />, label: "行情中心" },
   { key: "/agent", icon: <RobotOutlined />, label: "AI 对话" },
-  { key: "/news", icon: <NotificationOutlined />, label: "新闻资讯" },
+  {
+    key: "/news",
+    icon: <NotificationOutlined />,
+    label: "新闻资讯",
+    children: [
+      { key: "/news/news", label: "新闻" },
+      { key: "/news/flash", label: "快讯" },
+    ],
+  },
   {
     key: "/fund",
     icon: <FundOutlined />,

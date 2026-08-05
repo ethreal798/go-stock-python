@@ -1,12 +1,12 @@
 import React, { Suspense, lazy } from "react";
-import { Routes, Route } from "react-router-dom";
+import { Routes, Route, Navigate } from "react-router-dom";
 import { Spin } from "antd";
 
 const Dashboard = lazy(() => import("@/pages/Dashboard"));
 const Market = lazy(() => import("@/pages/Market"));
 const Agent = lazy(() => import("@/pages/Agent/index"));
 const News = lazy(() => import("@/pages/News"));
-const Fund = lazy(() => import("@/pages/Fund/index")); 
+const Fund = lazy(() => import("@/pages/Fund/index"));
 const CronTasks = lazy(() => import("@/pages/CronTasks"));
 const Settings = lazy(() => import("@/pages/Settings"));
 const About = lazy(() => import("@/pages/About"));
@@ -34,7 +34,9 @@ const AppRouter: React.FC = () => {
           <Route path="/" element={<Dashboard />} />
           <Route path="/market" element={<Market />} />
           <Route path="/agent" element={<Agent />} />
-          <Route path="/news" element={<News />} />
+          <Route path="/news" element={<Navigate to="/news/news" replace />} />
+          <Route path="/news/news" element={<News />} />
+          <Route path="/news/flash" element={<News />} />
           <Route path="/fund" element={<Fund />} />
           <Route path="/fund/market" element={<Fund />} />
           <Route path="/cron-tasks" element={<CronTasks />} />
