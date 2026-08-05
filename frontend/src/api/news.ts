@@ -6,7 +6,8 @@ import type {
   NewsSourceItem,
 } from "@/types/news";
 
-export const getNewsSources = () => request.get<NewsSourceItem[]>("/news/sources");
+export const getNewsSources = () =>
+  request.get<NewsSourceItem[]>("/news/sources");
 
 export const getFlashOverview = (params: {
   period: "today" | "week" | "all";
@@ -15,7 +16,7 @@ export const getFlashOverview = (params: {
 }) => request.get<FlashOverviewResponse>("/news/flash/overview", { params });
 
 export const getFlashList = (params: {
-  source?: string;
+  source: string;
   period: "today" | "week" | "all";
   important_only?: boolean;
   limit: number;
@@ -25,7 +26,7 @@ export const getFlashList = (params: {
 
 export const getFlashUpdates = (params: {
   after_id: number;
-  source?: string;
+  source: string;
   period: "today" | "week" | "all";
   important_only?: boolean;
   limit: number;

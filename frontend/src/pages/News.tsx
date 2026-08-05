@@ -41,7 +41,7 @@ const News: React.FC = () => {
   const [newsSources, setNewsSources] = useState<
     { value: string; label: string }[]
   >([]);
-  const [flashSource, setFlashSource] = useState<string>("all");
+  const [flashSource, setFlashSource] = useState<string>("cls");
   const [flashPeriod, setFlashPeriod] = useState<"today" | "week" | "all">(
     "today",
   );
@@ -104,12 +104,11 @@ const News: React.FC = () => {
       if (flashLoadingRef.current) return;
       setFlashLoading(true);
       try {
-        const resolvedSource = flashSource === "all" ? undefined : flashSource;
         const cursor = isRefresh ? null : flashCursorRef.current;
         const cursorId = cursor?.cursor_id ?? Number.MAX_SAFE_INTEGER;
         const cursorTime = cursor?.cursor_time ?? new Date().toISOString();
         const res = await getFlashList({
-          source: resolvedSource,
+          source: flashSource,
           period: flashPeriod,
           important_only: onlyImportant,
           limit: 20,
@@ -153,13 +152,12 @@ const News: React.FC = () => {
     if (!isFlashPageRef.current) return;
     if (flashLoadingRef.current) return;
 
-    const resolvedSource = flashSource === "all" ? undefined : flashSource;
     let afterId = flashSyncId;
     for (let i = 0; i < 3; i += 1) {
       try {
         const res = await getFlashUpdates({
           after_id: afterId,
-          source: resolvedSource,
+          source: flashSource,
           period: flashPeriod,
           important_only: onlyImportant,
           limit: 20,
@@ -267,12 +265,13 @@ const News: React.FC = () => {
           value: x.code,
           label: x.name,
         }));
-        const allOption = { value: "all", label: "全部来源" };
-        const next = [allOption, ...options];
         if (mounted) {
-          setNewsSources(next);
-          if (flashSource === "all" && options.length > 0) {
-            setFlashSource(allOption.value);
+          setNewsSources(options);
+          if (options.length > 0) {
+            const exists = options.some((x) => x.value === flashSource);
+            if (!exists) {
+              setFlashSource(options[0].value);
+            }
           }
         }
       } catch {}
@@ -285,15 +284,10 @@ const News: React.FC = () => {
 
   useEffect(() => {
     if (!isFlashPage) return;
-    const sourceForOverview =
-      flashSource === "all"
-        ? (newsSources.find((x) => x.value !== "all")?.value ?? "cls")
-        : flashSource;
-
     setOverviewLoading(true);
     getFlashOverview({
       period: flashPeriod,
-      source: sourceForOverview,
+      source: flashSource,
       topic_limit: 10,
     })
       .then((res) => {
@@ -305,7 +299,7 @@ const News: React.FC = () => {
       .finally(() => {
         setOverviewLoading(false);
       });
-  }, [isFlashPage, flashPeriod, flashSource, newsSources]);
+  }, [isFlashPage, flashPeriod, flashSource]);
 
   // 快讯触底加载逻辑
   const handleFlashScroll = (e: React.UIEvent<HTMLDivElement>) => {
