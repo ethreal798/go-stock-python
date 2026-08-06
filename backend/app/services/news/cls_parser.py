@@ -17,8 +17,6 @@ def parse_cls_item(item: dict[str, Any]) -> ParsedNewsItem:
         raise ValueError("财联社快讯缺少 id")
 
     content = clean_text(item.get("content") or item.get("brief"))
-    if not content:
-        raise ValueError(f"财联社快讯 {source_item_id} 缺少正文")
 
     level = (optional_str(item.get("level")) or "").upper() or None
 

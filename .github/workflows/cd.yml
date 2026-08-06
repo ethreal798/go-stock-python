@@ -237,6 +237,9 @@ jobs:
               frontend \
               nginx
 
+            echo "Restarting Nginx to refresh upstream container addresses..."
+            compose restart nginx
+
             echo "等待后端容器运行..."
             BACKEND_READY=0
 
