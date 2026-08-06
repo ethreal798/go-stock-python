@@ -9,31 +9,60 @@ import {
   Checkbox,
   Spin,
   Empty,
-  Tabs,
   Divider,
+  Select,
+  Segmented,
+  Dropdown,
 } from "antd";
+import { ReloadOutlined, DownOutlined } from "@ant-design/icons";
+import { getNewsList } from "@/api/market";
 import {
-  ReloadOutlined,
-  ThunderboltOutlined,
-  ReadOutlined,
-} from "@ant-design/icons";
-import { getFlashNews, getNewsList } from "@/api/market";
-import type { NewsItem } from "@/types/news";
+  getFlashList,
+  getFlashOverview,
+  getFlashUpdates,
+  getNewsSources,
+} from "@/api/news";
+import type { NewsFlashItem, NewsItem } from "@/types/news";
 import dayjs from "dayjs";
+import { useLocation } from "react-router-dom";
 
 const { Text, Link } = Typography;
 
 const News: React.FC = () => {
-  const [flashNews, setFlashNews] = useState<NewsItem[]>([]);
+  const location = useLocation();
+  const isFlashPage = location.pathname === "/news/flash";
+  const isFlashPageRef = useRef(isFlashPage);
+  const [flashNews, setFlashNews] = useState<NewsFlashItem[]>([]);
   const [newsList, setNewsList] = useState<NewsItem[]>([]);
   const [flashLoading, setFlashLoading] = useState(false);
   const [newsLoading, setNewsLoading] = useState(false);
   const [currentTime, setCurrentTime] = useState(dayjs());
   const [onlyImportant, setOnlyImportant] = useState(false);
+  const [newsSources, setNewsSources] = useState<
+    { value: string; label: string }[]
+  >([]);
+  const [flashSource, setFlashSource] = useState<string>("cls");
+  const [flashPeriod, setFlashPeriod] = useState<"today" | "week" | "all">(
+    "today",
+  );
+  const [overview, setOverview] = useState<{
+    total_count: number;
+    important_count: number;
+    top_topics: { name: string; news_count: number }[];
+  } | null>(null);
+  const [overviewLoading, setOverviewLoading] = useState(false);
 
   // 快讯分页状态
-  const [flashPage, setFlashPage] = useState(1);
   const [flashHasMore, setFlashHasMore] = useState(true);
+  const [flashCursor, setFlashCursor] = useState<{
+    cursor_id: number;
+    cursor_time: string;
+  } | null>(null);
+  const flashCursorRef = useRef<{
+    cursor_id: number;
+    cursor_time: string;
+  } | null>(null);
+  const [flashSyncId, setFlashSyncId] = useState(0);
   const flashScrollRef = useRef<HTMLDivElement>(null);
 
   // 新闻分页状态
@@ -46,13 +75,19 @@ const News: React.FC = () => {
   const newsLoadingRef = useRef(newsLoading);
   const fetchFlashRef = useRef<typeof fetchFlash>();
   const fetchNewsRef = useRef<typeof fetchNews>();
+  const pullFlashUpdatesRef = useRef<() => void>();
 
   // 同步状态到 ref
   useEffect(() => {
+    isFlashPageRef.current = isFlashPage;
     flashLoadingRef.current = flashLoading;
     newsLoadingRef.current = newsLoading;
     fetchFlashRef.current = fetchFlash;
     fetchNewsRef.current = fetchNews;
+    pullFlashUpdatesRef.current = () => {
+      void pullFlashUpdates();
+    };
+    flashCursorRef.current = flashCursor;
   });
 
   // 更新实时时间
@@ -65,36 +100,94 @@ const News: React.FC = () => {
 
   // 获取快讯数据
   const fetchFlash = useCallback(
-    async (pageNum: number, isRefresh = false) => {
+    async (isRefresh = false) => {
       if (flashLoadingRef.current) return;
       setFlashLoading(true);
       try {
-        const res = await getFlashNews({
-          count: 20,
-          page: pageNum,
-          source: "all",
+        const cursor = isRefresh ? null : flashCursorRef.current;
+        const cursorId = cursor?.cursor_id ?? Number.MAX_SAFE_INTEGER;
+        const cursorTime = cursor?.cursor_time ?? new Date().toISOString();
+        const res = await getFlashList({
+          source: flashSource,
+          period: flashPeriod,
+          important_only: onlyImportant,
+          limit: 20,
+          cursor_id: cursorId,
+          cursor_time: cursorTime,
         });
-        const data = res.data || [];
-        console.log(data);
+        const data = res.data;
+        const items = data.items ?? [];
+        const nextCursor = data.next_cursor ?? null;
+
+        setFlashHasMore(Boolean(data.has_more));
+        setFlashCursor(nextCursor);
+
+        setFlashNews((prev) => {
+          const map = new Map<number, NewsFlashItem>();
+          if (!isRefresh) {
+            for (const x of prev) map.set(x.id, x);
+          }
+          for (const x of items) map.set(x.id, x);
+          const merged = Array.from(map.values());
+          merged.sort(
+            (a, b) =>
+              dayjs(b.published_at).valueOf() - dayjs(a.published_at).valueOf(),
+          );
+          return merged;
+        });
 
         if (isRefresh) {
-          setFlashNews(data);
-          setFlashPage(1);
-          setFlashHasMore(data.length > 0);
-        } else {
-          setFlashNews((prev) => [...prev, ...data]);
-          if (data.length === 0) {
-            setFlashHasMore(false);
-          }
+          const nextSyncId = items.reduce((max, x) => Math.max(max, x.id), 0);
+          setFlashSyncId(nextSyncId);
         }
       } catch {
-        // ignore
       } finally {
         setFlashLoading(false);
       }
     },
-    [], // 依赖项现在是空的，用 ref 读 loading
+    [flashPeriod, flashSource, onlyImportant],
   );
+
+  const pullFlashUpdates = useCallback(async () => {
+    if (!isFlashPageRef.current) return;
+    if (flashLoadingRef.current) return;
+
+    let afterId = flashSyncId;
+    for (let i = 0; i < 3; i += 1) {
+      try {
+        const res = await getFlashUpdates({
+          after_id: afterId,
+          source: flashSource,
+          period: flashPeriod,
+          important_only: onlyImportant,
+          limit: 20,
+        });
+        const data = res.data;
+        const items = data.items ?? [];
+        if (items.length > 0) {
+          setFlashNews((prev) => {
+            const map = new Map<number, NewsFlashItem>();
+            for (const x of prev) map.set(x.id, x);
+            for (const x of items) map.set(x.id, x);
+            const merged = Array.from(map.values());
+            merged.sort(
+              (a, b) =>
+                dayjs(b.published_at).valueOf() -
+                dayjs(a.published_at).valueOf(),
+            );
+            return merged;
+          });
+        }
+        afterId = data.sync_id ?? afterId;
+        setFlashSyncId(afterId);
+        if (!data.has_more) {
+          break;
+        }
+      } catch {
+        break;
+      }
+    }
+  }, [flashPeriod, flashSource, flashSyncId, onlyImportant]);
 
   // 获取普通新闻数据
   const fetchNews = useCallback(
@@ -104,7 +197,6 @@ const News: React.FC = () => {
       try {
         const res = await getNewsList({ count: 20, page: pageNum });
         const data = res.data || [];
-        console.log(res);
 
         if (isRefresh) {
           setNewsList(data);
@@ -126,9 +218,18 @@ const News: React.FC = () => {
   );
 
   useEffect(() => {
-    fetchFlash(1, true);
+    if (!isFlashPage) return;
+    setFlashCursor(null);
+    setFlashHasMore(true);
+    setFlashNews([]);
+    setFlashSyncId(0);
+    fetchFlash(true);
+  }, [fetchFlash, flashPeriod, flashSource, isFlashPage, onlyImportant]);
+
+  useEffect(() => {
+    if (isFlashPage) return;
     fetchNews(1, true);
-  }, [fetchFlash, fetchNews]); // 目前可以安全地依赖了
+  }, [fetchNews, isFlashPage]);
 
   // SSE 实时监听新快讯
   useEffect(() => {
@@ -136,15 +237,17 @@ const News: React.FC = () => {
     const eventSource = new EventSource("/api/v1/news/stream");
 
     eventSource.onmessage = (event) => {
-      console.log("SSE 收到消息:", event.data);
       if (event.data === "refresh" || event.data) {
-        fetchFlashRef.current?.(1, true);
+        if (isFlashPageRef.current) {
+          pullFlashUpdatesRef.current?.();
+          return;
+        }
         fetchNewsRef.current?.(1, true);
       }
     };
 
     eventSource.onerror = (error) => {
-      console.error("SSE 连接错误:", error);
+      void error;
     };
 
     return () => {
@@ -152,14 +255,58 @@ const News: React.FC = () => {
     };
   }, []); // 保持依赖项为空，因为我们用 ref 调用函数
 
+  useEffect(() => {
+    if (!isFlashPage) return;
+    let mounted = true;
+    const run = async () => {
+      try {
+        const res = await getNewsSources();
+        const options = (res.data ?? []).map((x) => ({
+          value: x.code,
+          label: x.name,
+        }));
+        if (mounted) {
+          setNewsSources(options);
+          if (options.length > 0) {
+            const exists = options.some((x) => x.value === flashSource);
+            if (!exists) {
+              setFlashSource(options[0].value);
+            }
+          }
+        }
+      } catch {}
+    };
+    run();
+    return () => {
+      mounted = false;
+    };
+  }, [isFlashPage]);
+
+  useEffect(() => {
+    if (!isFlashPage) return;
+    setOverviewLoading(true);
+    getFlashOverview({
+      period: flashPeriod,
+      source: flashSource,
+      topic_limit: 10,
+    })
+      .then((res) => {
+        setOverview(res.data);
+      })
+      .catch(() => {
+        setOverview(null);
+      })
+      .finally(() => {
+        setOverviewLoading(false);
+      });
+  }, [isFlashPage, flashPeriod, flashSource]);
+
   // 快讯触底加载逻辑
   const handleFlashScroll = (e: React.UIEvent<HTMLDivElement>) => {
     const target = e.currentTarget;
     if (target.scrollHeight - target.scrollTop - target.clientHeight < 50) {
       if (flashHasMore && !flashLoading) {
-        const nextPage = flashPage + 1;
-        setFlashPage(nextPage);
-        fetchFlash(nextPage);
+        fetchFlash(false);
       }
     }
   };
@@ -177,28 +324,28 @@ const News: React.FC = () => {
   };
 
   // 过滤重要快讯
-  const filteredFlash = onlyImportant
-    ? flashNews.filter((item) => item.is_red)
-    : flashNews;
+  const filteredFlash = flashNews;
 
   // 渲染单条快讯或日期分隔符
-  const renderFlashItem = (item: NewsItem, index: number) => {
-    const currentDate = dayjs(item.data_time).format("MM月DD日，dddd");
+  const renderFlashItem = (item: NewsFlashItem, index: number) => {
+    const currentDate = dayjs(item.published_at).format("MM月DD日");
     const prevItem = index > 0 ? filteredFlash[index - 1] : null;
     const prevDate = prevItem
-      ? dayjs(prevItem.data_time).format("MM月DD日，dddd")
+      ? dayjs(prevItem.published_at).format("MM月DD日")
       : null;
     const showDateSeparator = currentDate !== prevDate;
+    const timeText = dayjs(item.published_at).format("HH:mm:ss");
+    const important = item.is_source_important;
 
     return (
       <React.Fragment key={item.id}>
         {showDateSeparator && (
           <div
             style={{
-              padding: "20px 0 10px 76px",
-              color: "rgba(0, 0, 0, 0.45)",
-              fontSize: "14px",
-              fontWeight: 500,
+              padding: "20px 0 10px 10px",
+              color: "rgba(0, 0, 0, 0.74)",
+              fontSize: "15px",
+              fontWeight: 600,
               background: "#fff",
             }}
           >
@@ -219,18 +366,33 @@ const News: React.FC = () => {
                 textAlign: "right",
               }}
             >
-              {item.time}
+              {timeText}
             </div>
             <div
               style={{
                 flex: 1,
                 fontSize: "14px",
                 lineHeight: "1.6",
-                color: item.is_red ? "#8b0000" : "rgba(0, 0, 0, 0.88)",
-                fontWeight: item.is_red ? 500 : 400,
+                color: important ? "#8b0000" : "rgba(0, 0, 0, 0.88)",
+                fontWeight: important ? 500 : 400,
               }}
             >
-              {item.content}
+              <div>{item.content}</div>
+              <div style={{ marginTop: 8 }}>
+                <Space size={8} wrap>
+                  <Tag>{item.source?.name ?? item.source?.code}</Tag>
+                  {(item.topics ?? []).map((t) => (
+                    <Tag key={t.name} color="processing">
+                      {t.name}
+                    </Tag>
+                  ))}
+                  {(item.entities ?? []).map((x) => (
+                    <Tag key={`${x.type}:${x.symbol ?? x.name}`}>
+                      {x.symbol ? `${x.name} ${x.symbol}` : x.name}
+                    </Tag>
+                  ))}
+                </Space>
+              </div>
             </div>
           </div>
         </List.Item>
@@ -244,12 +406,103 @@ const News: React.FC = () => {
       ref={flashScrollRef}
       onScroll={handleFlashScroll}
       style={{
-        height: "calc(100vh - 200px)",
+        height: "calc(100vh - 140px )",
         minHeight: "400px",
         overflowY: "auto",
-        padding: "0 16px",
+        padding: "0 16px 20px 16px",
       }}
     >
+      <div
+        style={{
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "space-between",
+          gap: 12,
+          padding: "12px 0",
+          borderBottom: "1px solid #f0f0f0",
+          flexWrap: "wrap",
+        }}
+      >
+        <Space size={12} align="center" wrap>
+          <Segmented
+            value={flashPeriod}
+            options={[
+              { label: "今天", value: "today" },
+              { label: "近7天", value: "week" },
+              { label: "全部", value: "all" },
+            ]}
+            onChange={(v) => setFlashPeriod(v as "today" | "week" | "all")}
+          />
+          {overviewLoading ? (
+            <Spin size="small" />
+          ) : overview ? (
+            <Space size={8} wrap>
+              <Text>
+                {flashPeriod === "today"
+                  ? "今日"
+                  : flashPeriod === "week"
+                    ? "近7天"
+                    : "全部"}{" "}
+                {overview.total_count} 条
+              </Text>
+              <Text>·</Text>
+              <Text>重要 {overview.important_count} 条</Text>
+            </Space>
+          ) : null}
+        </Space>
+        <Space size={12}>
+          <Select
+            value={flashSource}
+            options={newsSources}
+            style={{ width: 140 }}
+            onChange={setFlashSource}
+          />
+          <Checkbox
+            checked={onlyImportant}
+            onChange={(e) => setOnlyImportant(e.target.checked)}
+          >
+            只看重要
+          </Checkbox>
+        </Space>
+      </div>
+
+      {overview?.top_topics?.length ? (
+        <div style={{ padding: "12px 0" }}>
+          <Space size={8} wrap>
+            <Text type="secondary">热门主题：</Text>
+            {(() => {
+              const topics = overview.top_topics ?? [];
+              const visible = topics.slice(0, 8);
+              const rest = topics.slice(8);
+              return (
+                <>
+                  {visible.map((t) => (
+                    <Tag key={t.name}>
+                      {t.name} {t.news_count}
+                    </Tag>
+                  ))}
+                  {rest.length > 0 && (
+                    <Dropdown
+                      menu={{
+                        items: rest.map((t) => ({
+                          key: t.name,
+                          label: `${t.name} ${t.news_count}`,
+                        })),
+                      }}
+                      trigger={["click"]}
+                    >
+                      <Button size="small" type="link">
+                        更多 <DownOutlined />
+                      </Button>
+                    </Dropdown>
+                  )}
+                </>
+              );
+            })()}
+          </Space>
+        </div>
+      ) : null}
+
       <List
         dataSource={filteredFlash}
         split={false}
@@ -273,113 +526,86 @@ const News: React.FC = () => {
     </div>
   );
 
-  const tabItems = [
-    {
-      key: "flash",
-      label: (
-        <span>
-          <ThunderboltOutlined style={{ color: "#faad14" }} />
-          快讯
-        </span>
-      ),
-      children: flashContent,
-    },
-    {
-      key: "news",
-      label: (
-        <span>
-          <ReadOutlined />
-          新闻
-        </span>
-      ),
-      children: (
+  const newsContent = (
+    <div
+      ref={newsScrollRef}
+      onScroll={handleNewsScroll}
+      style={{
+        padding: "0 16px 20px 16px",
+        height: "calc(100vh - 200px - 20px)",
+        minHeight: "400px",
+        overflowY: "auto",
+      }}
+    >
+      <List
+        dataSource={newsList}
+        split={false}
+        renderItem={(item) => (
+          <List.Item>
+            <List.Item.Meta
+              title={
+                item.url ? (
+                  <Link href={item.url} target="_blank" rel="noreferrer">
+                    {item.title}
+                  </Link>
+                ) : (
+                  item.title
+                )
+              }
+              description={
+                <Space>
+                  <Tag>{item.source}</Tag>
+                  <Text type="secondary">
+                    {dayjs(item.data_time).format("YYYY-MM-DD HH:mm")}
+                  </Text>
+                </Space>
+              }
+            />
+          </List.Item>
+        )}
+      />
+      {newsLoading && (
+        <div style={{ textAlign: "center", padding: "16px 0" }}>
+          <Spin size="small" tip="加载中..." />
+        </div>
+      )}
+      {!newsHasMore && newsList.length > 0 && (
         <div
-          ref={newsScrollRef}
-          onScroll={handleNewsScroll}
           style={{
-            padding: "0 16px",
-            height: "calc(100vh - 200px)",
-            overflowY: "auto",
+            textAlign: "center",
+            padding: "24px 0",
+            color: "#bfbfbf",
           }}
         >
-          <List
-            dataSource={newsList}
-            split={false}
-            renderItem={(item) => (
-              <List.Item>
-                <List.Item.Meta
-                  title={
-                    item.url ? (
-                      <Link href={item.url} target="_blank" rel="noreferrer">
-                        {item.title}
-                      </Link>
-                    ) : (
-                      item.title
-                    )
-                  }
-                  description={
-                    <Space>
-                      <Tag>{item.source}</Tag>
-                      <Text type="secondary">
-                        {dayjs(item.data_time).format("YYYY-MM-DD HH:mm")}
-                      </Text>
-                    </Space>
-                  }
-                />
-              </List.Item>
-            )}
-          />
-          {newsLoading && (
-            <div style={{ textAlign: "center", padding: "16px 0" }}>
-              <Spin size="small" tip="加载中..." />
-            </div>
-          )}
-          {!newsHasMore && newsList.length > 0 && (
-            <div
-              style={{
-                textAlign: "center",
-                padding: "24px 0",
-                color: "#bfbfbf",
-              }}
-            >
-              当前已是最后一页
-            </div>
-          )}
-          {!newsLoading && newsList.length === 0 && (
-            <Empty image={Empty.PRESENTED_IMAGE_SIMPLE} />
-          )}
+          当前已是最后一页
         </div>
-      ),
-    },
-  ];
+      )}
+      {!newsLoading && newsList.length === 0 && (
+        <Empty image={Empty.PRESENTED_IMAGE_SIMPLE} />
+      )}
+    </div>
+  );
 
   return (
     <Card
       title={
         <div style={{ display: "flex", alignItems: "center", gap: 16 }}>
           <Text style={{ fontSize: "14px" }}>
-            {currentTime.format("MM月DD日，dddd，HH:mm:ss")}
+            {isFlashPage ? "快讯" : "新闻"}
           </Text>
-          <Divider type="vertical" />
-          <Checkbox
-            checked={onlyImportant}
-            onChange={(e) => setOnlyImportant(e.target.checked)}
-          >
-            只看重要的
-          </Checkbox>
+          {isFlashPage && (
+            <>
+              <Divider type="vertical" />
+              <Text type="secondary" style={{ fontSize: 14 }}>
+                {currentTime.format("YYYY-MM-DD dddd HH:mm:ss")}
+              </Text>
+            </>
+          )}
         </div>
-      }
-      extra={
-        <Button icon={<ReloadOutlined />} onClick={() => fetchFlash(1, true)}>
-          刷新
-        </Button>
       }
       bodyStyle={{ padding: 0 }}
     >
-      <Tabs
-        items={tabItems}
-        tabBarStyle={{ padding: "0 16px", marginBottom: 0 }}
-      />
+      {isFlashPage ? flashContent : newsContent}
     </Card>
   );
 };
