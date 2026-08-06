@@ -328,10 +328,10 @@ const News: React.FC = () => {
 
   // 渲染单条快讯或日期分隔符
   const renderFlashItem = (item: NewsFlashItem, index: number) => {
-    const currentDate = dayjs(item.published_at).format("MM月DD日，dddd");
+    const currentDate = dayjs(item.published_at).format("MM月DD日");
     const prevItem = index > 0 ? filteredFlash[index - 1] : null;
     const prevDate = prevItem
-      ? dayjs(prevItem.published_at).format("MM月DD日，dddd")
+      ? dayjs(prevItem.published_at).format("MM月DD日")
       : null;
     const showDateSeparator = currentDate !== prevDate;
     const timeText = dayjs(item.published_at).format("HH:mm:ss");
@@ -342,10 +342,10 @@ const News: React.FC = () => {
         {showDateSeparator && (
           <div
             style={{
-              padding: "20px 0 10px 76px",
-              color: "rgba(0, 0, 0, 0.45)",
-              fontSize: "12px",
-              fontWeight: 400,
+              padding: "20px 0 10px 10px",
+              color: "rgba(0, 0, 0, 0.74)",
+              fontSize: "15px",
+              fontWeight: 600,
               background: "#fff",
             }}
           >
@@ -406,10 +406,10 @@ const News: React.FC = () => {
       ref={flashScrollRef}
       onScroll={handleFlashScroll}
       style={{
-        height: "calc(100vh - 200px)",
+        height: "calc(100vh - 140px )",
         minHeight: "400px",
         overflowY: "auto",
-        padding: "0 16px",
+        padding: "0 16px 20px 16px",
       }}
     >
       <div
@@ -420,17 +420,36 @@ const News: React.FC = () => {
           gap: 12,
           padding: "12px 0",
           borderBottom: "1px solid #f0f0f0",
+          flexWrap: "wrap",
         }}
       >
-        <Segmented
-          value={flashPeriod}
-          options={[
-            { label: "今天", value: "today" },
-            { label: "近7天", value: "week" },
-            { label: "全部", value: "all" },
-          ]}
-          onChange={(v) => setFlashPeriod(v as "today" | "week" | "all")}
-        />
+        <Space size={12} align="center" wrap>
+          <Segmented
+            value={flashPeriod}
+            options={[
+              { label: "今天", value: "today" },
+              { label: "近7天", value: "week" },
+              { label: "全部", value: "all" },
+            ]}
+            onChange={(v) => setFlashPeriod(v as "today" | "week" | "all")}
+          />
+          {overviewLoading ? (
+            <Spin size="small" />
+          ) : overview ? (
+            <Space size={8} wrap>
+              <Text>
+                {flashPeriod === "today"
+                  ? "今日"
+                  : flashPeriod === "week"
+                    ? "近7天"
+                    : "全部"}{" "}
+                {overview.total_count} 条
+              </Text>
+              <Text>·</Text>
+              <Text>重要 {overview.important_count} 条</Text>
+            </Space>
+          ) : null}
+        </Space>
         <Space size={12}>
           <Select
             value={flashSource}
@@ -447,35 +466,14 @@ const News: React.FC = () => {
         </Space>
       </div>
 
-      <div style={{ padding: "8px 0 12px" }}>
-        {overviewLoading ? (
-          <Spin size="small" />
-        ) : overview ? (
-          <Space size={8} wrap>
-            <Text>
-              {flashPeriod === "today"
-                ? "今日"
-                : flashPeriod === "week"
-                  ? "近7天"
-                  : "全部"}{" "}
-              {overview.total_count} 条
-            </Text>
-            <Text type="secondary">·</Text>
-            <Text>重要 {overview.important_count} 条</Text>
-          </Space>
-        ) : (
-          <Text type="secondary">概览数据暂不可用</Text>
-        )}
-      </div>
-
       {overview?.top_topics?.length ? (
-        <div style={{ paddingBottom: 12 }}>
+        <div style={{ padding: "12px 0" }}>
           <Space size={8} wrap>
             <Text type="secondary">热门主题：</Text>
             {(() => {
               const topics = overview.top_topics ?? [];
-              const visible = topics.slice(0, 6);
-              const rest = topics.slice(6);
+              const visible = topics.slice(0, 8);
+              const rest = topics.slice(8);
               return (
                 <>
                   {visible.map((t) => (
@@ -533,8 +531,9 @@ const News: React.FC = () => {
       ref={newsScrollRef}
       onScroll={handleNewsScroll}
       style={{
-        padding: "0 16px",
-        height: "calc(100vh - 200px)",
+        padding: "0 16px 20px 16px",
+        height: "calc(100vh - 200px - 20px)",
+        minHeight: "400px",
         overflowY: "auto",
       }}
     >
@@ -603,14 +602,6 @@ const News: React.FC = () => {
             </>
           )}
         </div>
-      }
-      extra={
-        <Button
-          icon={<ReloadOutlined />}
-          onClick={() => (isFlashPage ? fetchFlash(true) : fetchNews(1, true))}
-        >
-          刷新
-        </Button>
       }
       bodyStyle={{ padding: 0 }}
     >
