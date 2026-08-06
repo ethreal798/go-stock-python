@@ -344,8 +344,8 @@ const News: React.FC = () => {
             style={{
               padding: "20px 0 10px 76px",
               color: "rgba(0, 0, 0, 0.45)",
-              fontSize: "14px",
-              fontWeight: 500,
+              fontSize: "12px",
+              fontWeight: 400,
               background: "#fff",
             }}
           >
@@ -445,12 +445,6 @@ const News: React.FC = () => {
             只看重要
           </Checkbox>
         </Space>
-      </div>
-
-      <div style={{ padding: "12px 0 0" }}>
-        <Text type="secondary" style={{ fontSize: 12 }}>
-          {currentTime.format("YYYY-MM-DD HH:mm:ss")}
-        </Text>
       </div>
 
       <div style={{ padding: "8px 0 12px" }}>
@@ -600,10 +594,14 @@ const News: React.FC = () => {
           <Text style={{ fontSize: "14px" }}>
             {isFlashPage ? "快讯" : "新闻"}
           </Text>
-          <Divider type="vertical" />
-          <Text type="secondary" style={{ fontSize: 12 }}>
-            {currentTime.format("MM月DD日，dddd")}
-          </Text>
+          {isFlashPage && (
+            <>
+              <Divider type="vertical" />
+              <Text type="secondary" style={{ fontSize: 14 }}>
+                {currentTime.format("YYYY-MM-DD dddd HH:mm:ss")}
+              </Text>
+            </>
+          )}
         </div>
       }
       extra={
