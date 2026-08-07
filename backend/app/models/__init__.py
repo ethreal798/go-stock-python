@@ -48,7 +48,7 @@ from .system import (
 from .settings import UserAIModelConfig
 from .agent import AgentMessage, AgentRun, AgentThread, PromptTemplate
 from .strategy import CustomStrategy
-from .fund import Fund, FollowedFund
+from .fund import Fund, FollowedFund, FundOpenRankLatest, FundExchangeRankLatest, FundMoneyRankLatest
 
 __all__ = [
     "Base",
@@ -58,6 +58,9 @@ __all__ = [
     # fund
     "Fund",
     "FollowedFund",
+    "FundOpenRankLatest",
+    "FundExchangeRankLatest",
+    "FundMoneyRankLatest",
     # user
     "User",
     # stock
