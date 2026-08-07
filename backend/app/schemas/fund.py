@@ -1,6 +1,6 @@
 """基金相关 Pydantic Schema。"""
 
-from datetime import datetime
+from datetime import date, datetime
 from typing import Optional
 from pydantic import BaseModel, Field
 
@@ -21,17 +21,10 @@ class FundResponse(FundBase):
     """基金详细信息响应。"""
 
     id: int
-    nav: Optional[float] = Field(None, description="单位净值")
-    acc_nav: Optional[float] = Field(None, description="累计净值")
-    day_growth: Optional[float] = Field(None, description="日增长率(%)")
-    week_growth: Optional[float] = Field(None, description="近一周增长率(%)")
-    month_growth: Optional[float] = Field(None, description="近一月增长率(%)")
-    three_month_growth: Optional[float] = Field(None, description="近三月增长率(%)")
-    six_month_growth: Optional[float] = Field(None, description="近六月增长率(%)")
-    year_growth: Optional[float] = Field(None, description="近一年增长率(%)")
-    current_year_growth: Optional[float] = Field(None, description="今年以来增长率(%)")
-    manager: Optional[str] = Field(None, description="基金经理")
-    last_update: Optional[datetime] = Field(None, description="最后更新时间")
+    category: str = Field("unknown", description="数据路由分类")
+    status: str = Field("unknown", description="排行可观测状态")
+    last_seen_data_date: Optional[date] = Field(None, description="最近一次排行数据日期")
+    last_seen_at: Optional[datetime] = Field(None, description="最近一次排行抓取时间")
     is_followed: Optional[bool] = Field(False, description="是否已关注")
 
     model_config = {"from_attributes": True}

@@ -3,9 +3,7 @@
 import re
 import json
 import logging
-import httpx
 from typing import List, Optional, Dict, Any
-from datetime import datetime
 
 from sqlalchemy import select, or_
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -20,99 +18,15 @@ class FundService:
 
     # 天天基金全量列表接口 (包含约 1.5w 只基金)
     FUND_LIST_URL = "http://fund.eastmoney.com/js/fundcode_search.js"
-    # 基金估值/基础信息接口
-    FUND_GZ_URL = "https://fundgz.1234567.com.cn/js/{code}.js"
-    # 基金净值历史接口 (用于获取最新准确净值)
-    FUND_LSJZ_URL = "https://fundf10.eastmoney.com/F10DataApi.aspx?type=lsjz&code={code}&page=1&per=1"
 
     def __init__(self, db: AsyncSession) -> None:
         self.db = db
 
     async def get_fund_detail(self, code: str) -> Optional[Fund]:
-        """获取基金详情（包含实时刷新逻辑）。"""
+        """获取基金身份和排行可观测状态。"""
         stmt = select(Fund).where(Fund.code == code)
         result = await self.db.execute(stmt)
-        fund = result.scalar_one_or_none()
-
-        if not fund:
-            return None
-
-        # 如果数据超过 1 小时未更新，则触发刷新  1小时会不会太久了
-        now = datetime.now()
-        if not fund.last_update or (now - fund.last_update).total_seconds() > 3600:
-            if await self.refresh_fund_detail(fund):
-                result = await self.db.execute(stmt)
-                fund = result.scalar_one_or_none()
-
-        return fund
-
-    async def refresh_fund_detail(self, fund: Fund) -> bool:
-        """刷新基金详情数据。"""
-        try:
-            # 1. 获取最新净值和日增长率 (从 LSJZ 接口获取最准确的昨日净值)
-            lsjz_url = self.FUND_LSJZ_URL.format(code=fund.code)
-            async with httpx.AsyncClient(timeout=10.0) as client:
-                resp = await client.get(lsjz_url)
-                if resp.status_code == 200:
-                    # 解析 var apidata={ content:"...", ...}
-                    match = re.search(r'content:"(.*?)",', resp.text)
-                    if match:
-                        content = match.group(1)
-                        # 提取第一行数据: <td>2026-06-08</td><td class='tor bold'>1.2400</td>
-                        # <td class='tor bold'>3.8130</td><td class='tor bold grn'>-2.82%</td>
-                        row_match = re.search(
-                            r"<td>(.*?)</td><td.*?>(.*?)</td><td.*?>(.*?)</td><td.*?>(.*?)</td>", content
-                        )
-                        if row_match:
-                            date_str, nav, acc_nav, growth = row_match.groups()
-                            fund.nav = float(nav)
-                            fund.acc_nav = float(acc_nav)
-                            # 清理增长率中的百分号和 HTML 标签
-                            growth_clean = re.sub(r"<[^>]+>", "", growth).replace("%", "")
-                            fund.day_growth = float(growth_clean)
-                            fund.last_update = datetime.now()
-
-            # 2. 获取阶段涨幅 (从 H5 详情页解析)
-            detail_url = f"https://fundf10.eastmoney.com/tsdata_{fund.code}.html"
-            async with httpx.AsyncClient(timeout=10.0) as client:
-                resp = await client.get(detail_url)
-                if resp.status_code == 200:
-                    html = resp.text
-                    # 解析阶段涨幅表格
-                    # 格式通常是: <td class='...'>近1周</td><td class='...'>-0.24%</td>
-                    periods = {
-                        "week_growth": "近1周",
-                        "month_growth": "近1月",
-                        "three_month_growth": "近3月",
-                        "six_month_growth": "近6月",
-                        "year_growth": "近1年",
-                        "current_year_growth": "今年以来",
-                    }
-                    for attr, label in periods.items():
-                        # 更加宽松的正则匹配
-                        match = re.search(rf"<td>{label}</td><td.*?>(.*?)%</td>", html)
-                        if not match:
-                            # 尝试带 class 的匹配
-                            match = re.search(rf"<td.*?>{label}</td><td.*?>(.*?)%</td>", html)
-
-                        if match:
-                            try:
-                                val_str = re.sub(r"<[^>]+>", "", match.group(1)).strip()
-                                val = float(val_str)
-                                setattr(fund, attr, val)
-                            except Exception:
-                                pass
-
-                    # 尝试解析基金经理 (更加宽松的正则)
-                    manager_match = re.search(r"基金经理.*?<a.*?>([\u4e00-\u9fa5]+)</a>", html)
-                    if manager_match:
-                        fund.manager = manager_match.group(1)
-
-            await self.db.commit()
-            return True
-        except Exception as e:
-            logger.error(f"Error refreshing fund {fund.code}: {e}")
-            return False
+        return result.scalar_one_or_none()
 
     async def get_funds(
         self, keyword: Optional[str] = None, limit: int = 20, page: int = 1, user_id: Optional[int] = None
@@ -143,17 +57,10 @@ class FundService:
                 "code": fund.code,
                 "name": fund.name,
                 "type": fund.type,
-                "nav": fund.nav,
-                "acc_nav": fund.acc_nav,
-                "day_growth": fund.day_growth,
-                "week_growth": fund.week_growth,
-                "month_growth": fund.month_growth,
-                "three_month_growth": fund.three_month_growth,
-                "six_month_growth": fund.six_month_growth,
-                "year_growth": fund.year_growth,
-                "current_year_growth": fund.current_year_growth,
-                "manager": fund.manager,
-                "last_update": fund.last_update,
+                "category": fund.category,
+                "status": fund.status,
+                "last_seen_data_date": fund.last_seen_data_date,
+                "last_seen_at": fund.last_seen_at,
                 "is_followed": fund.code in followed_codes,
             }
             for fund in funds
@@ -199,17 +106,10 @@ class FundService:
                 "code": fund.code,
                 "name": fund.name,
                 "type": fund.type,
-                "nav": fund.nav,
-                "acc_nav": fund.acc_nav,
-                "day_growth": fund.day_growth,
-                "week_growth": fund.week_growth,
-                "month_growth": fund.month_growth,
-                "three_month_growth": fund.three_month_growth,
-                "six_month_growth": fund.six_month_growth,
-                "year_growth": fund.year_growth,
-                "current_year_growth": fund.current_year_growth,
-                "manager": fund.manager,
-                "last_update": fund.last_update,
+                "category": fund.category,
+                "status": fund.status,
+                "last_seen_data_date": fund.last_seen_data_date,
+                "last_seen_at": fund.last_seen_at,
                 "is_followed": fund.code in followed_codes,
             }
             for fund in funds
