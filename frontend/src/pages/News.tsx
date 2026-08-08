@@ -51,6 +51,7 @@ const News: React.FC = () => {
     top_topics: { name: string; news_count: number }[];
   } | null>(null);
   const [overviewLoading, setOverviewLoading] = useState(false);
+  const [activeTopic, setActiveTopic] = useState<string | null>(null);
 
   // 快讯分页状态
   const [flashHasMore, setFlashHasMore] = useState(true);
@@ -98,6 +99,10 @@ const News: React.FC = () => {
     return () => clearInterval(timer);
   }, []);
 
+  const handleSelectTopic = useCallback((topicName: string | null) => {
+    setActiveTopic((prev) => (prev === topicName ? null : topicName));
+  }, []);
+
   // 获取快讯数据
   const fetchFlash = useCallback(
     async (isRefresh = false) => {
@@ -111,6 +116,7 @@ const News: React.FC = () => {
           source: flashSource,
           period: flashPeriod,
           important_only: onlyImportant,
+          topic_name: activeTopic ?? undefined,
           limit: 20,
           cursor_id: cursorId,
           cursor_time: cursorTime,
@@ -145,7 +151,7 @@ const News: React.FC = () => {
         setFlashLoading(false);
       }
     },
-    [flashPeriod, flashSource, onlyImportant],
+    [flashPeriod, flashSource, onlyImportant, activeTopic],
   );
 
   const pullFlashUpdates = useCallback(async () => {
@@ -160,6 +166,7 @@ const News: React.FC = () => {
           source: flashSource,
           period: flashPeriod,
           important_only: onlyImportant,
+          topic_name: activeTopic ?? undefined,
           limit: 20,
         });
         const data = res.data;
@@ -187,7 +194,7 @@ const News: React.FC = () => {
         break;
       }
     }
-  }, [flashPeriod, flashSource, flashSyncId, onlyImportant]);
+  }, [flashPeriod, flashSource, flashSyncId, onlyImportant, activeTopic]);
 
   // 获取普通新闻数据
   const fetchNews = useCallback(
@@ -223,8 +230,15 @@ const News: React.FC = () => {
     setFlashHasMore(true);
     setFlashNews([]);
     setFlashSyncId(0);
-    fetchFlash(true);
-  }, [fetchFlash, flashPeriod, flashSource, isFlashPage, onlyImportant]);
+    void fetchFlash(true);
+  }, [
+    fetchFlash,
+    flashPeriod,
+    flashSource,
+    isFlashPage,
+    onlyImportant,
+    activeTopic,
+  ]);
 
   useEffect(() => {
     if (isFlashPage) return;
@@ -431,7 +445,10 @@ const News: React.FC = () => {
               { label: "近7天", value: "week" },
               { label: "全部", value: "all" },
             ]}
-            onChange={(v) => setFlashPeriod(v as "today" | "week" | "all")}
+            onChange={(v) => {
+              setFlashPeriod(v as "today" | "week" | "all");
+              setActiveTopic(null);
+            }}
           />
           {overviewLoading ? (
             <Spin size="small" />
@@ -450,16 +467,32 @@ const News: React.FC = () => {
             </Space>
           ) : null}
         </Space>
-        <Space size={12}>
+        <Space size={12} wrap>
+          {activeTopic ? (
+            <Tag
+              closable
+              color="blue"
+              onClose={() => setActiveTopic(null)}
+              style={{ marginInlineEnd: 0 }}
+            >
+              主题：{activeTopic}
+            </Tag>
+          ) : null}
           <Select
             value={flashSource}
             options={newsSources}
             style={{ width: 140 }}
-            onChange={setFlashSource}
+            onChange={(v) => {
+              setFlashSource(v);
+              setActiveTopic(null);
+            }}
           />
           <Checkbox
             checked={onlyImportant}
-            onChange={(e) => setOnlyImportant(e.target.checked)}
+            onChange={(e) => {
+              setOnlyImportant(e.target.checked);
+              setActiveTopic(null);
+            }}
           >
             只看重要
           </Checkbox>
@@ -477,7 +510,12 @@ const News: React.FC = () => {
               return (
                 <>
                   {visible.map((t) => (
-                    <Tag key={t.name}>
+                    <Tag
+                      key={t.name}
+                      color={activeTopic === t.name ? "blue" : undefined}
+                      style={{ cursor: "pointer" }}
+                      onClick={() => handleSelectTopic(t.name)}
+                    >
                       {t.name} {t.news_count}
                     </Tag>
                   ))}
@@ -487,6 +525,7 @@ const News: React.FC = () => {
                         items: rest.map((t) => ({
                           key: t.name,
                           label: `${t.name} ${t.news_count}`,
+                          onClick: () => handleSelectTopic(t.name),
                         })),
                       }}
                       trigger={["click"]}
