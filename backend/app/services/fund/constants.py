@@ -65,3 +65,29 @@ class FundRankingColumns:
             "成立来",
         }
     )
+
+
+class FundHistoryColumns:
+    """东方财富基金历史接口返回的必需表头。"""
+
+    OPEN_UNIT_NAV = frozenset({"净值日期", "单位净值", "日增长率"})
+    OPEN_ACCUMULATED_NAV = frozenset({"净值日期", "累计净值"})
+    MONEY_YIELD = frozenset(
+        {
+            "净值日期",
+            "每万份收益",
+            "7日年化收益率",
+            "申购状态",
+            "赎回状态",
+        }
+    )
+    EXCHANGE_NAV = frozenset(
+        {
+            "净值日期",
+            "单位净值",
+            "累计净值",
+            "日增长率",
+            "申购状态",
+            "赎回状态",
+        }
+    )
