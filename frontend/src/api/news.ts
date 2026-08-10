@@ -19,6 +19,7 @@ export const getFlashList = (params: {
   source: string;
   period: "today" | "week" | "all";
   important_only?: boolean;
+  topic_name?: string;
   limit: number;
   cursor_id?: number;
   cursor_time?: string;
@@ -29,5 +30,6 @@ export const getFlashUpdates = (params: {
   source: string;
   period: "today" | "week" | "all";
   important_only?: boolean;
+  topic_name?: string;
   limit: number;
 }) => request.get<FlashUpdatesResponse>("/news/flash/updates", { params });
