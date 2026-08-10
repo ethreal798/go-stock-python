@@ -13,6 +13,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.fund import Fund, FundExchangeRankLatest, FundMoneyRankLatest, FundOpenRankLatest
 from app.services.fund.formatter import format_exchange_rank, format_money_rank, format_open_rank
+from app.services.fund.history_sync import FundHistorySyncService
 from app.services.fund.utils import iter_batches
 
 logger = logging.getLogger(__name__)
@@ -101,6 +102,9 @@ class FundRankingSyncService:
         await self._replace_latest(FundOpenRankLatest, open_rows, fund_ids)
         await self._replace_latest(FundExchangeRankLatest, exchange_rows, fund_ids)
         await self._replace_latest(FundMoneyRankLatest, money_rows, fund_ids)
+        history_counts = await FundHistorySyncService(self.db).append_rank_snapshots(
+            open_rows, exchange_rows, money_rows, fund_ids
+        )
         # 4. 将本次未更新的基金状态设置为 stale
         await self.db.execute(update(Fund).where(Fund.code.not_in(all_codes)).values(status="stale"))
 
@@ -110,6 +114,9 @@ class FundRankingSyncService:
             "open": len(open_rows),
             "exchange": len(exchange_rows),
             "money": len(money_rows),
+            "history_open_rows": history_counts["open_rows"],
+            "history_exchange_rows": history_counts["exchange_rows"],
+            "history_money_rows": history_counts["money_rows"],
         }
         logger.info("基金排行同步完成: %s", counts)
         return counts
