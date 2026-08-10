@@ -3,9 +3,10 @@
 from __future__ import annotations
 
 from datetime import date, datetime
+from decimal import Decimal
 from typing import Any
 
-from app.services.fund.constants import FundHistoryColumns, FundRankingColumns
+from app.services.fund.constants import FundHistoryColumns, FundMetadataColumns, FundRankingColumns
 from app.services.fund.utils import (
     dataframe_records,
     ensure_unique_fund_codes,
@@ -242,4 +243,98 @@ def format_exchange_nav_history(
             }
         )
     rows.sort(key=lambda row: row["data_date"])
+    return rows
+
+
+# ------------------------------------------------------------------
+# 基金档案与风险指标
+# ------------------------------------------------------------------
+def _normalize_scale_cny(value: Any) -> Decimal | None:
+    """将雪球的基金规模转换为人民币元。"""
+    text = normalize_text(value)
+    if text is None:
+        return None
+    multipliers = {
+        "万亿": Decimal("1000000000000"),
+        "亿": Decimal("100000000"),
+        "万": Decimal("10000"),
+        "元": Decimal("1"),
+    }
+    for suffix, multiplier in multipliers.items():
+        if text.endswith(suffix):
+            number = normalize_decimal(text.removesuffix(suffix))
+            return number * multiplier if number is not None else None
+    return normalize_decimal(text)
+
+
+def format_fund_profile(
+    frame: Any,
+    *,
+    fund_code: str,
+    fetched_at: datetime,
+) -> dict[str, Any]:
+    """将雪球 item/value 基金基本信息转换为档案最新记录。"""
+    records = dataframe_records(frame, FundMetadataColumns.PROFILE, "雪球基金基本信息", minimum_rows=1)
+    items = {normalize_text(row["item"]): row.get("value") for row in records if normalize_text(row["item"])}
+    source_code = normalize_text(items.get("基金代码"))
+    if source_code is not None and normalize_fund_code(source_code) != fund_code:
+        raise ValueError(f"雪球基金基本信息代码不匹配: requested={fund_code}, returned={source_code}")
+    fund_name = normalize_text(items.get("基金名称"))
+    if fund_name is None:
+        raise ValueError(f"雪球基金基本信息缺少基金名称: {fund_code}")
+    return {
+        "fund_code": fund_code,
+        "fund_name": fund_name,
+        "full_name": normalize_text(items.get("基金全称")),
+        "inception_date": normalize_date(items.get("成立时间")),
+        "latest_scale_cny": _normalize_scale_cny(items.get("最新规模")),
+        "fund_company": normalize_text(items.get("基金公司")),
+        "fund_manager": normalize_text(items.get("基金经理")),
+        "custodian_bank": normalize_text(items.get("托管银行")),
+        "fund_type": normalize_text(items.get("基金类型")),
+        "rating_agency": normalize_text(items.get("评级机构")),
+        "fund_rating": normalize_text(items.get("基金评级")),
+        "investment_strategy": normalize_text(items.get("投资策略")),
+        "investment_objective": normalize_text(items.get("投资目标")),
+        "performance_benchmark": normalize_text(items.get("业绩比较基准")),
+        "fetched_at": fetched_at,
+    }
+
+
+def format_fund_risk_metrics(
+    frame: Any,
+    *,
+    fund_code: str,
+    fetched_at: datetime,
+) -> list[dict[str, Any]]:
+    """格式化雪球按周期返回的基金风险指标。"""
+    columns = getattr(frame, "columns", None) if frame is not None else None
+    if columns is None or len(columns) == 0:
+        return []
+    rows = []
+    seen_periods: set[str] = set()
+    for raw in dataframe_records(frame, FundMetadataColumns.RISK, "雪球基金风险指标", minimum_rows=0):
+        period = normalize_text(raw["周期"])
+        if period is None:
+            continue
+        if period in seen_periods:
+            raise ValueError(f"雪球基金风险指标返回重复周期: fund={fund_code}, period={period}")
+        seen_periods.add(period)
+        metrics = {
+            "peer_risk_return_score": normalize_decimal(raw["较同类风险收益比"]),
+            "peer_risk_control_score": normalize_decimal(raw["较同类抗风险波动"]),
+            "annualized_volatility_pct": normalize_decimal(raw["年化波动率"]),
+            "annualized_sharpe_ratio": normalize_decimal(raw["年化夏普比率"]),
+            "max_drawdown_pct": normalize_decimal(raw["最大回撤"]),
+        }
+        if all(value is None for value in metrics.values()):
+            continue
+        rows.append(
+            {
+                "fund_code": fund_code,
+                "period": period,
+                **metrics,
+                "fetched_at": fetched_at,
+            }
+        )
     return rows
