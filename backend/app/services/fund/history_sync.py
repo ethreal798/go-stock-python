@@ -172,9 +172,7 @@ class FundHistorySyncService:
             ]
             # asyncio.gather阻塞当前流程，直到 tasks 列表里的所有任务都执行完毕（无论成功还是失败）。
             responses = await asyncio.gather(*tasks, return_exceptions=True)
-            values_by_category: dict[str, list[dict[str, Any]]] = {
-                category: [] for category in selected_categories
-            }
+            values_by_category: dict[str, list[dict[str, Any]]] = {category: [] for category in selected_categories}
             batch_failed = 0
             # fund_batch 和 responses 是两个独立的列表。如果用索引去写（比如 for i in range(len): fund = fund_batch[i]...），代码会很丑且容易出错。
             # 用了 zip，你可以直接在循环里同时拿到“我是谁（fund）”和“我干得怎么样”。
@@ -455,9 +453,7 @@ class FundHistorySyncService:
                 "fetched_at": row["fetched_at"],
             }
             for row in open_rows
-            if row.get("data_date") is not None
-            and row["fund_code"] in fund_ids
-            and row["fund_code"] in open_codes
+            if row.get("data_date") is not None and row["fund_code"] in fund_ids and row["fund_code"] in open_codes
         ]
         money_values = [
             {
@@ -469,9 +465,7 @@ class FundHistorySyncService:
                 "fetched_at": row["fetched_at"],
             }
             for row in money_rows
-            if row.get("data_date") is not None
-            and row["fund_code"] in fund_ids
-            and row["fund_code"] in money_codes
+            if row.get("data_date") is not None and row["fund_code"] in fund_ids and row["fund_code"] in money_codes
         ]
         exchange_values = [
             {
@@ -484,9 +478,7 @@ class FundHistorySyncService:
                 "fetched_at": row["fetched_at"],
             }
             for row in exchange_rows
-            if row.get("data_date") is not None
-            and row["fund_code"] in fund_ids
-            and row["fund_code"] in exchange_codes
+            if row.get("data_date") is not None and row["fund_code"] in fund_ids and row["fund_code"] in exchange_codes
         ]
         if open_values:
             await self._upsert_history(FundOpenNavHistory, open_values)

@@ -5,8 +5,10 @@
     python -m app.services.fund.sync_history --category open --limit 5
     python -m app.services.fund.sync_history --category all
 """
+
 # 允许在类型注解中使用前置引用（即类名在定义之前就能被用于类型提示），这是 Python 3.7+ 为了支持延迟类型评估的常用写法。
 from __future__ import annotations
+
 # 用于解析命令行参数
 import argparse
 import asyncio

@@ -10,7 +10,6 @@ from typing import Sequence, Union
 from alembic import op
 import sqlalchemy as sa
 
-
 revision: str = "b4e6f8a2c310"
 down_revision: Union[str, None] = "9a3b5c7d1e20"
 branch_labels: Union[str, Sequence[str], None] = None
@@ -37,12 +36,8 @@ def upgrade() -> None:
         sa.PrimaryKeyConstraint("id"),
         sa.UniqueConstraint("fund_id", "data_date", name="uq_fund_exchange_nav_history_fund_date"),
     )
-    op.create_index(
-        "ix_fund_exchange_nav_history_data_date", "fund_exchange_nav_history", ["data_date"]
-    )
-    op.create_index(
-        "ix_fund_exchange_nav_history_deleted_at", "fund_exchange_nav_history", ["deleted_at"]
-    )
+    op.create_index("ix_fund_exchange_nav_history_data_date", "fund_exchange_nav_history", ["data_date"])
+    op.create_index("ix_fund_exchange_nav_history_deleted_at", "fund_exchange_nav_history", ["deleted_at"])
 
 
 def downgrade() -> None:

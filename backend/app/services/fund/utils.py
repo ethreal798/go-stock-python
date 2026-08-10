@@ -27,7 +27,7 @@ def normalize_text(value: Any) -> str | None:
     if value is None:
         return None
     text = str(value).strip()
-    if not text or text.lower() in {"nan", "none", "nat", "--"}:
+    if not text or text.lower() in {"nan", "none", "nat", "--", "---", "<na>", "暂无数据"}:
         return None
     return text
 
@@ -74,10 +74,10 @@ def normalize_date(value: Any) -> date | None:
 
 
 def dataframe_records(
-        frame: Any,
-        required_columns: set[str] | frozenset[str],
-        source: str,
-        minimum_rows: int = 1,
+    frame: Any,
+    required_columns: set[str] | frozenset[str],
+    source: str,
+    minimum_rows: int = 1,
 ) -> list[dict[str, Any]]:
     """校验 DataFrame 列和最小行数，然后输出 records。"""
     columns = set(getattr(frame, "columns", []))
@@ -104,4 +104,4 @@ def ensure_unique_fund_codes(rows: list[dict[str, Any]], source: str) -> list[di
 def iter_batches(values: list[dict[str, Any]], size: int = 500) -> Iterable[list[dict[str, Any]]]:
     """把批量入库数据切成固定大小的批次。"""
     for index in range(0, len(values), size):
-        yield values[index: index + size]
+        yield values[index : index + size]
