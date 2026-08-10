@@ -14,7 +14,7 @@ import {
   Segmented,
   Dropdown,
 } from "antd";
-import { ReloadOutlined, DownOutlined } from "@ant-design/icons";
+import { DownOutlined } from "@ant-design/icons";
 import { getNewsList } from "@/api/market";
 import {
   getFlashList,
@@ -146,8 +146,7 @@ const News: React.FC = () => {
           const nextSyncId = items.reduce((max, x) => Math.max(max, x.id), 0);
           setFlashSyncId(nextSyncId);
         }
-      } catch {
-      } finally {
+      } catch { /* empty */ } finally {
         setFlashLoading(false);
       }
     },
@@ -288,13 +287,13 @@ const News: React.FC = () => {
             }
           }
         }
-      } catch {}
+      } catch { /* empty */ }
     };
     run();
     return () => {
       mounted = false;
     };
-  }, [isFlashPage]);
+  }, [flashSource, isFlashPage]);
 
   useEffect(() => {
     if (!isFlashPage) return;
