@@ -9,7 +9,6 @@ import {
   Checkbox,
   Spin,
   Empty,
-  Divider,
   Select,
   Segmented,
   Dropdown,
@@ -146,7 +145,9 @@ const News: React.FC = () => {
           const nextSyncId = items.reduce((max, x) => Math.max(max, x.id), 0);
           setFlashSyncId(nextSyncId);
         }
-      } catch { /* empty */ } finally {
+      } catch {
+        /* empty */
+      } finally {
         setFlashLoading(false);
       }
     },
@@ -287,7 +288,9 @@ const News: React.FC = () => {
             }
           }
         }
-      } catch { /* empty */ }
+      } catch {
+        /* empty */
+      }
     };
     run();
     return () => {
@@ -419,7 +422,7 @@ const News: React.FC = () => {
       ref={flashScrollRef}
       onScroll={handleFlashScroll}
       style={{
-        height: "calc(100vh - 140px )",
+        height: "calc(100vh - 80px )",
         minHeight: "400px",
         overflowY: "auto",
         padding: "0 16px 20px 16px",
@@ -465,6 +468,9 @@ const News: React.FC = () => {
               <Text>重要 {overview.important_count} 条</Text>
             </Space>
           ) : null}
+          <Text type="secondary" style={{ fontSize: 14 }}>
+            {currentTime.format("YYYY-MM-DD dddd HH:mm:ss")}
+          </Text>
         </Space>
         <Space size={12} wrap>
           {activeTopic ? (
@@ -626,21 +632,6 @@ const News: React.FC = () => {
 
   return (
     <Card
-      title={
-        <div style={{ display: "flex", alignItems: "center", gap: 16 }}>
-          <Text style={{ fontSize: "14px" }}>
-            {isFlashPage ? "快讯" : "新闻"}
-          </Text>
-          {isFlashPage && (
-            <>
-              <Divider type="vertical" />
-              <Text type="secondary" style={{ fontSize: 14 }}>
-                {currentTime.format("YYYY-MM-DD dddd HH:mm:ss")}
-              </Text>
-            </>
-          )}
-        </div>
-      }
       bodyStyle={{ padding: 0 }}
     >
       {isFlashPage ? flashContent : newsContent}
