@@ -1,6 +1,6 @@
 """基金相关模型。"""
 
-from sqlalchemy import BigInteger, Column, Date, DateTime, ForeignKey, Numeric, String, UniqueConstraint
+from sqlalchemy import BigInteger, Column, Date, DateTime, ForeignKey, Numeric, String, Text, UniqueConstraint
 from .base import GormBaseModel
 
 
@@ -147,4 +147,44 @@ class FundExchangeNavHistory(GormBaseModel):
     daily_growth_pct = Column(Numeric(12, 6), comment="日增长率(%)")
     purchase_status = Column(String(50), comment="申购状态")
     redemption_status = Column(String(50), comment="赎回状态")
+    fetched_at = Column(DateTime, nullable=False, comment="抓取时间")
+
+
+class FundProfileLatest(GormBaseModel):
+    """雪球基金档案最新值。"""
+
+    __tablename__ = "fund_profile_latest"
+
+    fund_id = Column(BigInteger, ForeignKey("funds.id"), unique=True, index=True, nullable=False)
+    fund_code = Column(String(20), unique=True, index=True, nullable=False, comment="基金代码")
+    fund_name = Column(String(200), comment="基金名称")
+    full_name = Column(String(300), comment="基金全称")
+    inception_date = Column(Date, comment="成立时间")
+    latest_scale_cny = Column(Numeric(24, 2), comment="最新规模（元）")
+    fund_company = Column(String(200), comment="基金公司")
+    fund_manager = Column(String(300), comment="基金经理")
+    custodian_bank = Column(String(200), comment="托管银行")
+    fund_type = Column(String(100), comment="雪球基金类型")
+    rating_agency = Column(String(100), comment="评级机构")
+    fund_rating = Column(String(50), comment="基金评级")
+    investment_strategy = Column(Text, comment="投资策略")
+    investment_objective = Column(Text, comment="投资目标")
+    performance_benchmark = Column(Text, comment="业绩比较基准")
+    fetched_at = Column(DateTime, nullable=False, comment="抓取时间")
+
+
+class FundRiskMetricLatest(GormBaseModel):
+    """雪球基金风险指标最新值；每只基金每个周期一行。"""
+
+    __tablename__ = "fund_risk_metric_latest"
+    __table_args__ = (UniqueConstraint("fund_id", "period", name="uq_fund_risk_metric_latest_fund_period"),)
+
+    fund_id = Column(BigInteger, ForeignKey("funds.id"), nullable=False)
+    fund_code = Column(String(20), index=True, nullable=False, comment="基金代码")
+    period = Column(String(20), nullable=False, comment="指标周期")
+    peer_risk_return_score = Column(Numeric(12, 6), comment="较同类风险收益比")
+    peer_risk_control_score = Column(Numeric(12, 6), comment="较同类抗风险波动")
+    annualized_volatility_pct = Column(Numeric(12, 6), comment="年化波动率(%)")
+    annualized_sharpe_ratio = Column(Numeric(12, 6), comment="年化夏普比率")
+    max_drawdown_pct = Column(Numeric(12, 6), comment="最大回撤(%)")
     fetched_at = Column(DateTime, nullable=False, comment="抓取时间")
