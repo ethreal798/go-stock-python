@@ -2,10 +2,14 @@
 
 from __future__ import annotations
 
+import json
 import math
+import random
 from datetime import date, datetime
 from decimal import Decimal, InvalidOperation
 from typing import Any, Iterable
+
+from app.core.redis import get_redis
 
 
 def normalize_fund_code(value: Any) -> str:
@@ -105,3 +109,37 @@ def iter_batches(values: list[dict[str, Any]], size: int = 500) -> Iterable[list
     """把批量入库数据切成固定大小的批次。"""
     for index in range(0, len(values), size):
         yield values[index : index + size]
+
+
+async def read_json_cache(cache_key: str) -> Any | None:
+    """按完整缓存键读取JSON；无数据或内容损坏时返回None。"""
+    redis = await get_redis()
+    raw = await redis.get(cache_key)
+    if raw is None:
+        return None
+    try:
+        return json.loads(raw)
+    except (TypeError, json.JSONDecodeError):
+        await redis.delete(cache_key)
+        return None
+
+
+async def write_json_cache(
+    cache_key: str,
+    payload: Any,
+    *,
+    ttl_seconds: int,
+    jitter_seconds: int = 0,
+) -> None:
+    """按完整缓存键写入JSON，可增加随机TTL抖动以避免集中失效。"""
+    if ttl_seconds < 1 or jitter_seconds < 0:
+        raise ValueError("ttl_seconds必须大于0，jitter_seconds不能小于0")
+    ttl = ttl_seconds + (random.randint(0, jitter_seconds) if jitter_seconds else 0)
+    redis = await get_redis()
+    await redis.set(cache_key, json.dumps(payload, ensure_ascii=False, separators=(",", ":")), ex=ttl)
+
+
+async def delete_cache(cache_key: str) -> None:
+    """按完整缓存键删除缓存。"""
+    redis = await get_redis()
+    await redis.delete(cache_key)
