@@ -41,8 +41,6 @@ class FundLatestResponse(BaseModel):
     annualized_7d_pct: Optional[float] = None
     annualized_14d_pct: Optional[float] = None
     annualized_28d_pct: Optional[float] = None
-    fund_type: Optional[str] = None
-    inception_date: Optional[date] = None
 
 
 class FundResponse(FundBase):
