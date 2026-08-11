@@ -1,5 +1,1 @@
-"""基金数据同步服务。"""
-
-from .ranking_sync import FundRankingSyncService
-
-__all__ = ["FundRankingSyncService"]
+"""基金领域服务，按 common、sources、sync、query、command 分层。"""
