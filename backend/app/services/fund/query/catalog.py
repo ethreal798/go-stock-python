@@ -5,6 +5,7 @@ from __future__ import annotations
 from typing import Any
 
 from sqlalchemy import or_, select
+from sqlalchemy.orm import aliased
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.fund import Fund, FundExchangeRankLatest, FundMoneyRankLatest, FundOpenRankLatest, FollowedFund
@@ -23,21 +24,6 @@ class FundCatalogQueryService:
             return None
         return self._fund_payload(*row)
 
-    async def get_funds(
-        self,
-        keyword: str | None = None,
-        limit: int = 20,
-        page: int = 1,
-        user_id: int | None = None,
-    ) -> list[dict[str, Any]]:
-        statement = self._fund_with_latest_query().where(Fund.status == "active")
-        if keyword:
-            statement = statement.where(or_(Fund.code.contains(keyword), Fund.name.contains(keyword)))
-        statement = statement.order_by(Fund.code).limit(limit).offset((page - 1) * limit)
-        rows = list((await self.db.execute(statement)).all())
-        followed_codes = await self._followed_codes(user_id)
-        return [self._fund_payload(*row, is_followed=row[0].code in followed_codes) for row in rows]
-
     async def search_funds(
         self,
         keyword: str,
@@ -45,40 +31,64 @@ class FundCatalogQueryService:
         page: int = 1,
         user_id: int | None = None,
     ) -> list[dict[str, Any]]:
-        statement = self._fund_with_latest_query().where(
-            Fund.status == "active",
-            or_(Fund.code.ilike(f"%{keyword}%"), Fund.name.ilike(f"%{keyword}%")),
-        )
-        statement = (
-            statement.order_by(
-                Fund.code.ilike(f"{keyword}%").desc(),
-                Fund.name.ilike(f"{keyword}%").desc(),
+        contains_pattern = f"%{keyword}%"
+        prefix_pattern = f"{keyword}%"
+
+        # 第一步：只在基金主表中完成筛选、排序和分页
+        fund_page = (
+            select(Fund)
+            .where(
+                Fund.status == "active",
+                or_(
+                    Fund.code.ilike(contains_pattern),
+                    Fund.name.ilike(contains_pattern),
+                ),
+            )
+            .order_by(
+                Fund.code.ilike(prefix_pattern).desc(),
+                Fund.name.ilike(prefix_pattern).desc(),
                 Fund.code,
             )
             .limit(limit)
             .offset((page - 1) * limit)
+            .subquery()
         )
+
+        page_fund = aliased(Fund, fund_page)
+
+        # 第二步：只为这一页基金关联 latest_rank
+        statement = (
+            self._fund_with_latest_query(page_fund).order_by(
+                page_fund.code.ilike(prefix_pattern).desc(),
+                page_fund.name.ilike(prefix_pattern).desc(),
+                page_fund.code,
+            )
+        )
+
         rows = list((await self.db.execute(statement)).all())
         followed_codes = await self._followed_codes(user_id)
         return [self._fund_payload(*row, is_followed=row[0].code in followed_codes) for row in rows]
 
     async def _followed_codes(self, user_id: int | None) -> set[str]:
+        """查询当前用户关注的基金列表"""
         if user_id is None:
             return set()
         statement = select(FollowedFund.fund_code).where(FollowedFund.user_id == user_id)
         return set((await self.db.execute(statement)).scalars().all())
 
     @staticmethod
-    def _fund_with_latest_query():
+    def _fund_with_latest_query(fund_source=Fund):
         return (
-            select(Fund, FundOpenRankLatest, FundExchangeRankLatest, FundMoneyRankLatest)
-            .outerjoin(FundOpenRankLatest, FundOpenRankLatest.fund_id == Fund.id)
-            .outerjoin(FundExchangeRankLatest, FundExchangeRankLatest.fund_id == Fund.id)
-            .outerjoin(FundMoneyRankLatest, FundMoneyRankLatest.fund_id == Fund.id)
+            select(fund_source, FundOpenRankLatest, FundExchangeRankLatest, FundMoneyRankLatest)
+            .select_from(fund_source)
+            .outerjoin(FundOpenRankLatest, FundOpenRankLatest.fund_id == fund_source.id)
+            .outerjoin(FundExchangeRankLatest, FundExchangeRankLatest.fund_id == fund_source.id)
+            .outerjoin(FundMoneyRankLatest, FundMoneyRankLatest.fund_id == fund_source.id)
         )
 
     @staticmethod
     def _latest_payload(open_rank, exchange_rank, money_rank, category: str) -> dict[str, Any] | None:
+        """根据基金类型组装其相关字段数据  目前纳入范围 场内/场外/货币"""
         if category == "money":
             rank = money_rank
             metric_kind = "money_yield"
@@ -112,8 +122,6 @@ class FundCatalogQueryService:
                 "return_3y_pct",
                 "return_ytd_pct",
                 "return_since_inception_pct",
-                "fund_type",
-                "inception_date",
             )
         else:
             rank = open_rank
@@ -149,6 +157,7 @@ class FundCatalogQueryService:
         money_rank,
         is_followed: bool = False,
     ) -> dict[str, Any]:
+        """组装响应结果返回"""
         return {
             "id": fund.id,
             "code": fund.code,

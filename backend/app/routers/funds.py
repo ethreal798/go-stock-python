@@ -73,20 +73,7 @@ def get_fund_ranking_sync_service(db: AsyncSession = Depends(get_db)) -> FundRan
     return FundRankingSyncService(db)
 
 
-@router.get("/", response_model=List[FundResponse], summary="获取基金列表")
-async def get_funds(
-    keyword: Optional[str] = Query(None, description="搜索关键词(代码/名称)"),
-    page: int = Query(1, ge=1, description="页码"),
-    limit: int = Query(20, ge=1, le=100, description="每页数量"),
-    current_user: Optional[User] = Depends(get_optional_current_user),
-    service: FundCatalogQueryService = Depends(get_fund_catalog_query_service),
-) -> List[FundResponse]:
-    """获取全量基金列表，支持模糊搜索。"""
-    user_id = current_user.id if current_user else None
-    return await service.get_funds(keyword=keyword, page=page, limit=limit, user_id=user_id)
-
-
-@router.get("/search", response_model=List[FundResponse], summary="搜索基金")
+@router.get("/search", response_model=List[FundResponse], summary="搜索基金", response_model_exclude_unset=True)
 async def search_funds(
     keyword: str = Query(..., description="搜索关键词(代码/名称)"),
     page: int = Query(1, ge=1, description="页码"),
