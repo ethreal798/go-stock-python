@@ -1,6 +1,20 @@
 """基金相关模型。"""
 
-from sqlalchemy import BigInteger, Column, Date, DateTime, ForeignKey, Numeric, String, Text, UniqueConstraint
+from sqlalchemy import (
+    BigInteger,
+    CheckConstraint,
+    Column,
+    Date,
+    DateTime,
+    ForeignKey,
+    Integer,
+    Numeric,
+    SmallInteger,
+    String,
+    Text,
+    UniqueConstraint,
+)
+from sqlalchemy.dialects.postgresql import JSONB
 from .base import GormBaseModel
 
 
@@ -188,3 +202,28 @@ class FundRiskMetricLatest(GormBaseModel):
     annualized_sharpe_ratio = Column(Numeric(12, 6), comment="年化夏普比率")
     max_drawdown_pct = Column(Numeric(12, 6), comment="最大回撤(%)")
     fetched_at = Column(DateTime, nullable=False, comment="抓取时间")
+
+
+class FundPerformanceTrendLatest(GormBaseModel):
+    """开放式基金按周期累计收益率绘图最新快照；每只基金每个周期一行。"""
+
+    __tablename__ = "fund_performance_trend_latest"
+    __table_args__ = (
+        UniqueConstraint("fund_id", "period", name="uq_fund_performance_trend_latest_fund_period"),
+        CheckConstraint(
+            "period IN ('1m', '3m', '6m', '1y', '3y', '5y', 'ytd', 'since_inception')",
+            name="ck_fund_performance_trend_latest_period",
+        ),
+    )
+
+    fund_id = Column(BigInteger, ForeignKey("funds.id"), nullable=False)
+    period = Column(String(20), nullable=False, comment="系统标准周期编码")
+    start_date = Column(Date, nullable=False, comment="曲线实际开始日期")
+    end_date = Column(Date, nullable=False, comment="曲线实际结束日期")
+    series_data = Column(JSONB, nullable=False, comment="ECharts 可直接消费的完整曲线数组")
+    source = Column(String(30), nullable=False, default="eastmoney", comment="数据来源")
+    schema_version = Column(SmallInteger, nullable=False, default=1, comment="series_data 结构版本")
+    content_hash = Column(String(64), nullable=False, comment="规范化曲线内容 SHA-256")
+    point_count = Column(Integer, nullable=False, comment="全部曲线的点数合计")
+    fetched_at = Column(DateTime, nullable=False, comment="成功抓取时间")
+    expires_at = Column(DateTime, nullable=False, index=True, comment="建议刷新时间")
