@@ -1,4 +1,4 @@
-"""基金历史数据源适配。
+"""基金历史数据外部来源适配。
 
 开放式基金沿用 AKShare 的 ``fund_open_fund_info_em``；货币基金使用其
 ``fund_money_fund_info_em`` 的同一东方财富接口和字段语义，但在本地按字段名

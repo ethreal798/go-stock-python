@@ -2,8 +2,8 @@
 
 示例::
 
-    python -m app.services.fund.sync_history --category open --limit 5
-    python -m app.services.fund.sync_history --category all
+    python -m app.commands.fund.sync_history --category open --limit 5
+    python -m app.commands.fund.sync_history --category all
 """
 
 # 允许在类型注解中使用前置引用（即类名在定义之前就能被用于类型提示），这是 Python 3.7+ 为了支持延迟类型评估的常用写法。
@@ -17,7 +17,7 @@ from datetime import date
 
 from app.core.database import async_session_factory, close_db
 from app.core.logging import setup_logging
-from app.services.fund.history_sync import FundHistorySyncService
+from app.services.fund.sync.history import FundHistorySyncService
 
 
 def _parse_date(value: str) -> date:

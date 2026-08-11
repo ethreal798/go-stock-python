@@ -15,13 +15,13 @@ from sqlalchemy.dialects.postgresql import insert as pg_insert
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.fund import Fund, FundExchangeNavHistory, FundMoneyYieldHistory, FundOpenNavHistory
-from app.services.fund.formatter import (
+from app.services.fund.common.formatter import (
     format_exchange_nav_history,
     format_money_yield_history,
     format_open_nav_history,
 )
-from app.services.fund.history_source import fetch_exchange_nav_frame, fetch_money_yield_frame, fetch_open_nav_frames
-from app.services.fund.utils import iter_batches, normalize_fund_code
+from app.services.fund.common.utils import iter_batches, normalize_fund_code
+from app.services.fund.sources.history import fetch_exchange_nav_frame, fetch_money_yield_frame, fetch_open_nav_frames
 
 logger = logging.getLogger(__name__)
 

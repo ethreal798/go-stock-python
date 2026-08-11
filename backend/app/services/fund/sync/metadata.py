@@ -15,9 +15,9 @@ from sqlalchemy.dialects.postgresql import insert as pg_insert
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.fund import Fund, FundProfileLatest, FundRiskMetricLatest
-from app.services.fund.formatter import format_fund_profile, format_fund_risk_metrics
-from app.services.fund.metadata_source import fetch_fund_profile_frame, fetch_fund_risk_frame
-from app.services.fund.utils import iter_batches, normalize_fund_code
+from app.services.fund.common.formatter import format_fund_profile, format_fund_risk_metrics
+from app.services.fund.common.utils import iter_batches, normalize_fund_code
+from app.services.fund.sources.metadata import fetch_fund_profile_frame, fetch_fund_risk_frame
 
 logger = logging.getLogger(__name__)
 

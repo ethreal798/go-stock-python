@@ -1,11 +1,11 @@
-"""命令行同步入口：python -m app.services.fund.sync_rankings。"""
+"""命令行同步入口：python -m app.commands.fund.sync_rankings。"""
 
 import asyncio
 import logging
 
 from app.core.database import async_session_factory, close_db
 from app.core.logging import setup_logging
-from app.services.fund.ranking_sync import FundRankingSyncService
+from app.services.fund.sync.ranking import FundRankingSyncService
 
 
 async def main() -> None:

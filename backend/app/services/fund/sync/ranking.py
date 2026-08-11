@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-import asyncio
 import logging
 from datetime import datetime
 from typing import Any
@@ -12,9 +11,10 @@ from sqlalchemy.dialects.postgresql import insert as pg_insert
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.fund import Fund, FundExchangeRankLatest, FundMoneyRankLatest, FundOpenRankLatest
-from app.services.fund.formatter import format_exchange_rank, format_money_rank, format_open_rank
-from app.services.fund.history_sync import FundHistorySyncService
-from app.services.fund.utils import iter_batches
+from app.services.fund.common.formatter import format_exchange_rank, format_money_rank, format_open_rank
+from app.services.fund.common.utils import iter_batches
+from app.services.fund.sources.ranking import fetch_rank_frames
+from app.services.fund.sync.history import FundHistorySyncService
 
 logger = logging.getLogger(__name__)
 
@@ -46,20 +46,6 @@ def build_fund_candidates(
                 "deleted_at": None,
             }
     return candidates
-
-
-async def fetch_rank_frames() -> tuple[Any, Any, Any]:
-    """依次调用三个同步 AKShare 接口，规避其排行解析过程的并发不安全。"""
-    try:
-        import akshare as ak
-    except ImportError as exc:
-        raise RuntimeError("缺少 akshare，请先执行 pip install -r requirements.txt") from exc
-
-    return (
-        await asyncio.to_thread(ak.fund_open_fund_rank_em, symbol="全部"),
-        await asyncio.to_thread(ak.fund_exchange_rank_em),
-        await asyncio.to_thread(ak.fund_money_rank_em),
-    )
 
 
 class FundRankingSyncService:

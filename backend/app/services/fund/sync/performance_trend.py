@@ -16,10 +16,10 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.config import settings
 from app.models.fund import Fund, FollowedFund, FundPerformanceTrendLatest
-from app.services.fund.constants import FundCacheKeys
-from app.services.fund.formatter import format_performance_trend_snapshot
-from app.services.fund.performance_trend_source import PERIOD_TO_SOURCE_TYPE, fetch_performance_trend_payload
-from app.services.fund.utils import delete_cache, normalize_fund_code
+from app.services.fund.common.constants import FundCacheKeys
+from app.services.fund.common.formatter import format_performance_trend_snapshot
+from app.services.fund.common.utils import delete_cache, normalize_fund_code
+from app.services.fund.sources.performance_trend import PERIOD_TO_SOURCE_TYPE, fetch_performance_trend_payload
 
 logger = logging.getLogger(__name__)
 

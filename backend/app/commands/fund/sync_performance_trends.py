@@ -1,8 +1,8 @@
 """基金累计收益率走势同步命令行入口。
 
 示例：
-    python -m app.services.fund.sync_performance_trends --followed
-    python -m app.services.fund.sync_performance_trends --fund-code 007339 --period 1y
+    python -m app.commands.fund.sync_performance_trends --followed
+    python -m app.commands.fund.sync_performance_trends --fund-code 007339 --period 1y
 """
 
 from __future__ import annotations
@@ -14,8 +14,8 @@ import logging
 from app.core.database import async_session_factory, close_db
 from app.core.logging import setup_logging
 from app.core.redis import close_redis
-from app.services.fund.performance_trend_source import PERIOD_TO_SOURCE_TYPE
-from app.services.fund.performance_trend_sync import FundPerformanceTrendSyncService
+from app.services.fund.sources.performance_trend import PERIOD_TO_SOURCE_TYPE
+from app.services.fund.sync.performance_trend import FundPerformanceTrendSyncService
 
 
 def _build_parser() -> argparse.ArgumentParser:

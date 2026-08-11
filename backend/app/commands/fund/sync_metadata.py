@@ -8,7 +8,7 @@ import logging
 
 from app.core.database import async_session_factory, close_db
 from app.core.logging import setup_logging
-from app.services.fund.metadata_sync import FundMetadataSyncService
+from app.services.fund.sync.metadata import FundMetadataSyncService
 
 
 def _build_parser() -> argparse.ArgumentParser:
