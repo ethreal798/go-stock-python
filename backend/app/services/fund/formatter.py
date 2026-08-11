@@ -2,9 +2,12 @@
 
 from __future__ import annotations
 
-from datetime import date, datetime
-from decimal import Decimal
+import hashlib
+import json
+from datetime import date, datetime, timedelta, timezone
+from decimal import Decimal, InvalidOperation
 from typing import Any
+from zoneinfo import ZoneInfo
 
 from app.services.fund.constants import FundHistoryColumns, FundMetadataColumns, FundRankingColumns
 from app.services.fund.utils import (
@@ -244,6 +247,96 @@ def format_exchange_nav_history(
         )
     rows.sort(key=lambda row: row["data_date"])
     return rows
+
+
+# ------------------------------------------------------------------
+# 基金累计收益率走势
+# ------------------------------------------------------------------
+MAX_PERFORMANCE_TREND_POINTS_PER_SERIES = 2000
+SHANGHAI_TZ = ZoneInfo("Asia/Shanghai")
+
+
+def _performance_trend_series_identity(index: int) -> tuple[str, str | None]:
+    if index == 0:
+        return "fund", None
+    if index == 1:
+        return "peer_average", None
+    if index == 2:
+        return "index:000300", "000300"
+    return f"source_series:{index}", None
+
+
+def _normalize_performance_trend_point(raw: Any) -> tuple[str, float]:
+    if not isinstance(raw, (list, tuple)) or len(raw) < 2:
+        raise ValueError(f"无效走势点: {raw!r}")
+    try:
+        timestamp_ms = Decimal(str(raw[0]))
+        value = Decimal(str(raw[1]))
+    except (InvalidOperation, TypeError, ValueError) as exc:
+        raise ValueError(f"无法转换走势点: {raw!r}") from exc
+    if not timestamp_ms.is_finite() or not value.is_finite():
+        raise ValueError(f"走势点包含非有限数值: {raw!r}")
+    point_date = datetime.fromtimestamp(float(timestamp_ms) / 1000, tz=timezone.utc).astimezone(SHANGHAI_TZ).date()
+    return point_date.isoformat(), float(value)
+
+
+def format_performance_trend_snapshot(
+    payload: dict[str, Any],
+    *,
+    fund_code: str,
+    period: str,
+    fetched_at: datetime,
+    fresh_seconds: int,
+) -> dict[str, Any]:
+    """把东方财富响应格式化为可直接供 ECharts 使用的最新快照。"""
+    if fresh_seconds < 1:
+        raise ValueError("fresh_seconds 必须大于 0")
+
+    series: list[dict[str, Any]] = []
+    all_dates: list[str] = []
+    for index, raw_series in enumerate(payload.get("Data") or []):
+        if not isinstance(raw_series, dict):
+            raise ValueError(f"基金 {fund_code} 第 {index} 条曲线格式异常")
+        name = str(raw_series.get("name") or "").strip() or f"曲线{index + 1}"
+        raw_points = raw_series.get("data")
+        if not isinstance(raw_points, list) or not raw_points:
+            raise ValueError(f"基金 {fund_code} 曲线 {name} 没有有效数据")
+        if len(raw_points) > MAX_PERFORMANCE_TREND_POINTS_PER_SERIES:
+            raise ValueError(f"基金 {fund_code} 曲线 {name} 点数超过限制: {len(raw_points)}")
+
+        # 上游偶尔可能重复返回同一天，保留最后一个点并按日期升序。
+        deduplicated = dict(_normalize_performance_trend_point(point) for point in raw_points)
+        points = [[point_date, value] for point_date, value in sorted(deduplicated.items())]
+        if not points:
+            raise ValueError(f"基金 {fund_code} 曲线 {name} 清洗后为空")
+        key, benchmark_code = _performance_trend_series_identity(index)
+        series.append(
+            {
+                "key": key,
+                "name": name,
+                "benchmark_code": benchmark_code,
+                "latest_return_pct": points[-1][1],
+                "points": points,
+            }
+        )
+        all_dates.extend(point[0] for point in points)
+
+    if not series or series[0]["key"] != "fund":
+        raise ValueError(f"基金 {fund_code} 缺少本基金收益率曲线")
+
+    canonical = json.dumps(series, ensure_ascii=False, separators=(",", ":"), sort_keys=True)
+    return {
+        "period": period,
+        "start_date": date.fromisoformat(min(all_dates)),
+        "end_date": date.fromisoformat(max(all_dates)),
+        "series_data": series,
+        "source": "eastmoney",
+        "schema_version": 1,
+        "content_hash": hashlib.sha256(canonical.encode("utf-8")).hexdigest(),
+        "point_count": sum(len(item["points"]) for item in series),
+        "fetched_at": fetched_at,
+        "expires_at": fetched_at + timedelta(seconds=fresh_seconds),
+    }
 
 
 # ------------------------------------------------------------------

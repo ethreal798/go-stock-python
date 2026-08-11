@@ -1,6 +1,14 @@
 """基金数据源字段常量。"""
 
 
+class FundCacheKeys:
+    """基金业务缓存键。"""
+
+    @staticmethod
+    def performance_trend(fund_code: str, period: str) -> str:
+        return f"fund:performance-trend:v1:{fund_code}:{period}"
+
+
 class FundRankingColumns:
     """东方财富三个基金排行接口的必需表头。"""
 
