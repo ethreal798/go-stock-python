@@ -1,7 +1,7 @@
 """基金累计收益率走势同步命令行入口。
 
 示例：
-    python -m app.commands.fund.sync_performance_trends --followed
+    python -m app.commands.fund.sync_performance_trends --watchlist
     python -m app.commands.fund.sync_performance_trends --fund-code 007339 --period 1y
 """
 
@@ -21,7 +21,7 @@ from app.services.fund.sync.performance_trend import FundPerformanceTrendSyncSer
 def _build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(description="同步开放式基金累计收益率走势最新快照")
     target = parser.add_mutually_exclusive_group(required=True)
-    target.add_argument("--followed", action="store_true", help="同步所有被关注的开放式基金")
+    target.add_argument("--watchlist", action="store_true", help="同步所有已加入自选的开放式基金")
     target.add_argument("--fund-code", action="append", dest="fund_codes", help="同步指定基金，可重复传入")
     parser.add_argument(
         "--period",
@@ -53,8 +53,8 @@ async def _run(args: argparse.Namespace) -> None:
     async with async_session_factory() as db:
         service = FundPerformanceTrendSyncService(db)
         try:
-            if args.followed:
-                result = await service.fetch_and_sync_followed(**kwargs)
+            if args.watchlist:
+                result = await service.fetch_and_sync_watchlist(**kwargs)
             else:
                 result = await service.fetch_and_sync_codes(args.fund_codes, **kwargs)
             logging.getLogger(__name__).info("基金累计收益率走势同步结果: %s", result)

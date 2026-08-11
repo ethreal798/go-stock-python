@@ -8,7 +8,7 @@ from sqlalchemy import or_, select
 from sqlalchemy.orm import aliased
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.models.fund import Fund, FundExchangeRankLatest, FundMoneyRankLatest, FundOpenRankLatest, FollowedFund
+from app.models.fund import Fund, FundExchangeRankLatest, FundMoneyRankLatest, FundOpenRankLatest, FundWatchlistItem
 
 
 class FundCatalogQueryService:
@@ -66,14 +66,14 @@ class FundCatalogQueryService:
         )
 
         rows = list((await self.db.execute(statement)).all())
-        followed_codes = await self._followed_codes(user_id)
-        return [self._fund_payload(*row, is_followed=row[0].code in followed_codes) for row in rows]
+        watchlist_codes = await self._watchlist_codes(user_id)
+        return [self._fund_payload(*row, is_in_watchlist=row[0].code in watchlist_codes) for row in rows]
 
-    async def _followed_codes(self, user_id: int | None) -> set[str]:
-        """查询当前用户关注的基金列表"""
+    async def _watchlist_codes(self, user_id: int | None) -> set[str]:
+        """查询当前用户的基金自选代码。"""
         if user_id is None:
             return set()
-        statement = select(FollowedFund.fund_code).where(FollowedFund.user_id == user_id)
+        statement = select(FundWatchlistItem.fund_code).where(FundWatchlistItem.user_id == user_id)
         return set((await self.db.execute(statement)).scalars().all())
 
     @staticmethod
@@ -155,7 +155,7 @@ class FundCatalogQueryService:
         open_rank,
         exchange_rank,
         money_rank,
-        is_followed: bool = False,
+        is_in_watchlist: bool = False,
     ) -> dict[str, Any]:
         """组装响应结果返回"""
         return {
@@ -168,5 +168,5 @@ class FundCatalogQueryService:
             "last_seen_data_date": fund.last_seen_data_date,
             "last_seen_at": fund.last_seen_at,
             "latest": cls._latest_payload(open_rank, exchange_rank, money_rank, fund.category),
-            "is_followed": is_followed,
+            "is_in_watchlist": is_in_watchlist,
         }

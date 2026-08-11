@@ -52,7 +52,7 @@ class FundResponse(FundBase):
     last_seen_data_date: Optional[date] = Field(None, description="最近一次排行数据日期")
     last_seen_at: Optional[datetime] = Field(None, description="最近一次排行抓取时间")
     latest: Optional[FundLatestResponse] = Field(None, description="对应分类的最新排行指标")
-    is_followed: Optional[bool] = Field(False, description="是否已关注")
+    is_in_watchlist: Optional[bool] = Field(False, description="是否已加入自选")
 
     model_config = {"from_attributes": True}
 
@@ -80,19 +80,19 @@ class FundPerformanceTrendResponse(BaseModel):
 
 
 # ============================================================
-# 关注基金
+# 基金自选
 # ============================================================
 
 
-class FollowedFundCreate(BaseModel):
-    """关注基金请求。"""
+class FundWatchlistItemCreate(BaseModel):
+    """加入基金自选请求。"""
 
     fund_code: str = Field(..., description="基金代码")
     remark: Optional[str] = Field(None, description="备注")
 
 
-class FollowedFundResponse(BaseModel):
-    """关注基金响应。"""
+class FundWatchlistItemResponse(BaseModel):
+    """基金自选项响应。"""
 
     id: int
     user_id: int

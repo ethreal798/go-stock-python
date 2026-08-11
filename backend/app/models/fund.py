@@ -32,10 +32,10 @@ class Fund(GormBaseModel):
     last_seen_at = Column(DateTime, comment="最近一次在排行中出现的抓取时间")
 
 
-class FollowedFund(GormBaseModel):
-    """关注基金"""
+class FundWatchlistItem(GormBaseModel):
+    """基金自选项。"""
 
-    __tablename__ = "followed_funds"
+    __tablename__ = "fund_watchlist_items"
 
     user_id = Column(BigInteger, index=True, comment="用户ID")
     fund_code = Column(String(20), index=True, nullable=False, comment="基金代码")

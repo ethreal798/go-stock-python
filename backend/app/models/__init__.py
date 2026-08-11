@@ -50,7 +50,7 @@ from .agent import AgentMessage, AgentRun, AgentThread, PromptTemplate
 from .strategy import CustomStrategy
 from .fund import (
     Fund,
-    FollowedFund,
+    FundWatchlistItem,
     FundOpenRankLatest,
     FundExchangeRankLatest,
     FundMoneyRankLatest,
@@ -64,7 +64,7 @@ __all__ = [
     "GormBaseModel",
     # fund
     "Fund",
-    "FollowedFund",
+    "FundWatchlistItem",
     "FundOpenRankLatest",
     "FundExchangeRankLatest",
     "FundMoneyRankLatest",

@@ -15,7 +15,7 @@ from sqlalchemy.dialects.postgresql import insert as pg_insert
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.config import settings
-from app.models.fund import Fund, FollowedFund, FundPerformanceTrendLatest
+from app.models.fund import Fund, FundPerformanceTrendLatest, FundWatchlistItem
 from app.services.fund.common.constants import FundCacheKeys
 from app.services.fund.common.formatter import format_performance_trend_snapshot
 from app.services.fund.common.utils import delete_cache, normalize_fund_code
@@ -25,12 +25,12 @@ logger = logging.getLogger(__name__)
 
 
 class FundPerformanceTrendSyncService:
-    """同步被关注或明确指定的开放式基金最新绘图快照。"""
+    """同步自选列表中或明确指定的开放式基金最新绘图快照。"""
 
     def __init__(self, db: AsyncSession) -> None:
         self.db = db
 
-    async def fetch_and_sync_followed(
+    async def fetch_and_sync_watchlist(
         self,
         *,
         periods: Sequence[str] | None = None,
@@ -39,10 +39,10 @@ class FundPerformanceTrendSyncService:
         retries: int | None = None,
         timeout: float | None = None,
     ) -> dict[str, int]:
-        """同步所有被至少一个用户关注的开放式基金。"""
+        """同步至少被一个用户加入自选的开放式基金。"""
         statement = (
             select(Fund)
-            .join(FollowedFund, FollowedFund.fund_code == Fund.code)
+            .join(FundWatchlistItem, FundWatchlistItem.fund_code == Fund.code)
             .where(Fund.status == "active", Fund.category == "open")
             .distinct()
             .order_by(Fund.id)

@@ -10,12 +10,12 @@ from app.schemas.fund import (
     FundPerformanceTrendResponse,
     FundResponse,
     FundTrendPeriod,
-    FollowedFundResponse,
-    FollowedFundCreate,
+    FundWatchlistItemCreate,
+    FundWatchlistItemResponse,
 )
-from app.services.fund.command.follow import FundFollowCommandService, FundNotFoundError
+from app.services.fund.command.watchlist import FundNotFoundError, FundWatchlistCommandService
 from app.services.fund.query.catalog import FundCatalogQueryService
-from app.services.fund.query.followed import FundFollowedQueryService
+from app.services.fund.query.watchlist import FundWatchlistQueryService
 from app.services.fund.query.performance_trend import (
     FundPerformanceTrendNotFoundError,
     FundPerformanceTrendQueryService,
@@ -55,12 +55,12 @@ def get_fund_catalog_query_service(db: AsyncSession = Depends(get_db)) -> FundCa
     return FundCatalogQueryService(db)
 
 
-def get_fund_followed_query_service(db: AsyncSession = Depends(get_db)) -> FundFollowedQueryService:
-    return FundFollowedQueryService(db)
+def get_fund_watchlist_query_service(db: AsyncSession = Depends(get_db)) -> FundWatchlistQueryService:
+    return FundWatchlistQueryService(db)
 
 
-def get_fund_follow_command_service(db: AsyncSession = Depends(get_db)) -> FundFollowCommandService:
-    return FundFollowCommandService(db)
+def get_fund_watchlist_command_service(db: AsyncSession = Depends(get_db)) -> FundWatchlistCommandService:
+    return FundWatchlistCommandService(db)
 
 
 def get_fund_performance_trend_service(
@@ -91,24 +91,24 @@ async def search_funds(
 # ============================================================
 
 
-@router.get("/followed/list", response_model=List[FollowedFundResponse], summary="获取自选基金列表")
-async def get_followed_funds(
+@router.get("/watchlist", response_model=List[FundWatchlistItemResponse], summary="获取基金自选列表")
+async def get_fund_watchlist(
     current_user: User = Depends(get_current_user),
-    service: FundFollowedQueryService = Depends(get_fund_followed_query_service),
-) -> List[FollowedFundResponse]:
-    """获取当前用户关注的所有基金及其最新行情。"""
-    return await service.get_followed_funds(current_user.id)
+    service: FundWatchlistQueryService = Depends(get_fund_watchlist_query_service),
+) -> List[FundWatchlistItemResponse]:
+    """获取当前用户的基金自选项及其最新行情。"""
+    return await service.get_watchlist(current_user.id)
 
 
-@router.post("/follow", response_model=FollowedFundResponse, summary="关注基金")
-async def follow_fund(
-    fund_in: FollowedFundCreate,
+@router.post("/watchlist", response_model=FundWatchlistItemResponse, summary="加入基金自选")
+async def add_fund_to_watchlist(
+    fund_in: FundWatchlistItemCreate,
     current_user: User = Depends(get_current_user),
-    service: FundFollowCommandService = Depends(get_fund_follow_command_service),
-) -> FollowedFundResponse:
+    service: FundWatchlistCommandService = Depends(get_fund_watchlist_command_service),
+) -> FundWatchlistItemResponse:
     """将基金加入自选列表。"""
     try:
-        return await service.follow_fund(
+        return await service.add_to_watchlist(
             user_id=current_user.id,
             fund_code=fund_in.fund_code,
             remark=fund_in.remark,
@@ -117,17 +117,21 @@ async def follow_fund(
         raise HTTPException(status_code=404, detail="基金不存在") from exc
 
 
-@router.delete("/unfollow/{code}", summary="取消关注基金")
-async def unfollow_fund(
+@router.delete("/watchlist/{code}", summary="移出基金自选")
+async def remove_fund_from_watchlist(
     code: str,
     current_user: User = Depends(get_current_user),
-    service: FundFollowCommandService = Depends(get_fund_follow_command_service),
+    service: FundWatchlistCommandService = Depends(get_fund_watchlist_command_service),
 ) -> dict:
     """从自选列表中移除基金。"""
-    success = await service.unfollow_fund(current_user.id, code)
+    success = await service.remove_from_watchlist(current_user.id, code)
     if not success:
-        raise HTTPException(status_code=404, detail="关注记录不存在")
+        raise HTTPException(status_code=404, detail="基金自选记录不存在")
     return {"message": "ok"}
+
+# ============================================================
+# 基金详情相关
+# ============================================================
 
 
 @router.get(
