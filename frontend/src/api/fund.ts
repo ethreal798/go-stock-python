@@ -1,6 +1,17 @@
 import request from "./index";
 import type { FollowFund, SearchFund } from "@/types/fund";
 
+export type FundRangeKey =
+  | "day"
+  | "week"
+  | "month"
+  | "three_month"
+  | "six_month"
+  | "year"
+  | "two_year"
+  | "three_year"
+  | "five_year";
+
 // 获取关注的基金列表
 export const getFollowedFunds = () =>
   request.get<FollowFund[]>("/funds/followed/list");
@@ -18,4 +29,6 @@ export const searchFund = (params: {
   keyword: string;
   page?: number;
   limit?: number;
+  range?: FundRangeKey;
+  fund_type?: string;
 }) => request.get<SearchFund[]>("/funds/search", { params });

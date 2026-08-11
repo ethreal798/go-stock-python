@@ -12,9 +12,15 @@ export interface SearchFund {
   three_month_growth?: string | number;
   six_month_growth?: string | number;
   year_growth?: string | number;
+  two_year_growth?: string | number;
+  three_year_growth?: string | number;
+  five_year_growth?: string | number;
   current_year_growth?: string | number;
   manager?: string;
   last_update?: string;
+  latest_nav?: number;
+  sharpe_ratio?: number;
+  max_drawdown?: number;
 }
 
 export interface FollowFundInfo {
