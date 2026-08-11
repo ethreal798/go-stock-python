@@ -1,8 +1,10 @@
 """基金相关 Pydantic Schema。"""
 
 from datetime import date, datetime
-from typing import Optional
+from typing import Literal, Optional
 from pydantic import BaseModel, Field
+
+FundTrendPeriod = Literal["1m", "3m", "6m", "1y", "3y", "5y", "ytd", "since_inception"]
 
 # ============================================================
 # 基金基础信息
@@ -17,6 +19,32 @@ class FundBase(BaseModel):
     type: Optional[str] = Field(None, description="基金类型")
 
 
+class FundLatestResponse(BaseModel):
+    """三个排行表的统一最新指标外壳。不同口径的字段按需返回。"""
+
+    metric_kind: Literal["nav", "money_yield", "exchange_rank"]
+    data_date: Optional[date] = None
+    unit_nav: Optional[float] = None
+    accumulated_nav: Optional[float] = None
+    daily_growth_pct: Optional[float] = None
+    return_1w_pct: Optional[float] = None
+    return_1m_pct: Optional[float] = None
+    return_3m_pct: Optional[float] = None
+    return_6m_pct: Optional[float] = None
+    return_1y_pct: Optional[float] = None
+    return_2y_pct: Optional[float] = None
+    return_3y_pct: Optional[float] = None
+    return_5y_pct: Optional[float] = None
+    return_ytd_pct: Optional[float] = None
+    return_since_inception_pct: Optional[float] = None
+    income_per_10k: Optional[float] = None
+    annualized_7d_pct: Optional[float] = None
+    annualized_14d_pct: Optional[float] = None
+    annualized_28d_pct: Optional[float] = None
+    fund_type: Optional[str] = None
+    inception_date: Optional[date] = None
+
+
 class FundResponse(FundBase):
     """基金详细信息响应。"""
 
@@ -25,9 +53,32 @@ class FundResponse(FundBase):
     status: str = Field("unknown", description="排行可观测状态")
     last_seen_data_date: Optional[date] = Field(None, description="最近一次排行数据日期")
     last_seen_at: Optional[datetime] = Field(None, description="最近一次排行抓取时间")
+    latest: Optional[FundLatestResponse] = Field(None, description="对应分类的最新排行指标")
     is_followed: Optional[bool] = Field(False, description="是否已关注")
 
     model_config = {"from_attributes": True}
+
+
+class FundPerformanceTrendSeriesResponse(BaseModel):
+    """一条累计收益率曲线。"""
+
+    key: str
+    name: str
+    benchmark_code: Optional[str] = None
+    latest_return_pct: Optional[float] = None
+    points: list[tuple[str, Optional[float]]]
+
+
+class FundPerformanceTrendResponse(BaseModel):
+    """指定基金和周期的最新累计收益率绘图快照。"""
+
+    fund_code: str
+    period: FundTrendPeriod
+    start_date: date
+    end_date: date
+    fetched_at: datetime
+    is_stale: bool
+    series: list[FundPerformanceTrendSeriesResponse]
 
 
 # ============================================================
