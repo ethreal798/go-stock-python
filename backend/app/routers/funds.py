@@ -91,7 +91,8 @@ async def search_funds(
 # ============================================================
 
 
-@router.get("/watchlist", response_model=List[FundWatchlistItemResponse], summary="获取基金自选列表")
+@router.get("/watchlist", response_model=List[FundWatchlistItemResponse],
+            summary="获取基金自选列表", response_model_exclude_unset=True)
 async def get_fund_watchlist(
     current_user: User = Depends(get_current_user),
     service: FundWatchlistQueryService = Depends(get_fund_watchlist_query_service),
