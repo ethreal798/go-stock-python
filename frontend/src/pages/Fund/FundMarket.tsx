@@ -12,6 +12,7 @@ import {
   message,
 } from "antd";
 import { ReloadOutlined, PlusOutlined } from "@ant-design/icons";
+import { Link } from "react-router-dom";
 import type { ColumnsType } from "antd/es/table";
 import type { SearchFund } from "@/types/fund";
 import { searchFund, followFund } from "@/api/fund";
@@ -228,8 +229,27 @@ const FundMarket: React.FC<FundMarketProps> = ({ onFollowSuccess }) => {
   };
 
   const columns: ColumnsType<SearchFund> = [
-    { title: "基金代码", dataIndex: "code", width: 90 },
-    { title: "基金名称", dataIndex: "name", width: 180, ellipsis: true },
+    {
+      title: "基金代码",
+      dataIndex: "code",
+      width: 90,
+      render: (v: string, record) => (
+        <Link to={`/fund/detail/${record.code}`} style={{ color: "#1677ff" }}>
+          {v}
+        </Link>
+      ),
+    },
+    {
+      title: "基金名称",
+      dataIndex: "name",
+      width: 180,
+      ellipsis: true,
+      render: (v: string, record) => (
+        <Link to={`/fund/detail/${record.code}`} style={{ color: "#000" }}>
+          {v}
+        </Link>
+      ),
+    },
     {
       title: "类型",
       dataIndex: "type",
