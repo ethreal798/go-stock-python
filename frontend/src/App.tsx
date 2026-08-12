@@ -124,7 +124,9 @@ const AppLayout: React.FC = () => {
   const { token_type, isAuthenticated, logout } = useAuthStore();
 
   const currentTitle =
-    pageTitleMap[location.pathname] ??
+    (location.pathname.startsWith("/fund/detail/")
+      ? "基金详情"
+      : pageTitleMap[location.pathname]) ??
     getTopMenuLabel(menuItems, location.pathname) ??
     "Go-Stock 股票分析平台";
 
@@ -141,7 +143,7 @@ const AppLayout: React.FC = () => {
   ];
 
   return (
-    <Layout style={{ minHeight: "100vh" }}>
+    <Layout style={{ height: "100vh", overflow: "hidden" }}>
       <Sider
         collapsible
         collapsed={collapsed}
@@ -149,6 +151,7 @@ const AppLayout: React.FC = () => {
         theme="light"
         width={150}
         collapsedWidth={50}
+        style={{ overflowY: "auto" }}
       >
         <div
           style={{
@@ -183,7 +186,7 @@ const AppLayout: React.FC = () => {
           onClick={({ key }) => navigate(key)}
         />
       </Sider>
-      <Layout>
+      <Layout style={{ overflow: "hidden" }}>
         <Header
           style={{
             padding: "0 24px",
@@ -194,6 +197,7 @@ const AppLayout: React.FC = () => {
             boxShadow: "0 1px 4px rgba(0,21,41,.08)",
             height: 48,
             lineHeight: "48px",
+            flexShrink: 0,
           }}
         >
           <span style={{ fontSize: 16, fontWeight: 600, color: "#1d2129" }}>
@@ -233,7 +237,7 @@ const AppLayout: React.FC = () => {
           style={{
             margin: 0,
             padding: 16,
-            minHeight: "calc(100vh - 48px)",
+            height: "calc(100vh - 48px)",
             background: "#f0f2f5",
             overflowY: "auto",
           }}
