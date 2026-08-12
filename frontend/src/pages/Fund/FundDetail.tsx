@@ -31,7 +31,6 @@ import { Link, useParams } from "react-router-dom";
 import ReactECharts from "echarts-for-react";
 import type { ColumnsType } from "antd/es/table";
 import dayjs from "dayjs";
-import type { FundRangeKey } from "@/api/fund";
 
 const { Paragraph, Text } = Typography;
 
