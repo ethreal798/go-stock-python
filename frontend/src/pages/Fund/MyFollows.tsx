@@ -1,6 +1,7 @@
 // src/pages/Fund/MyFollows.tsx
 import React, { useState, useEffect, useCallback } from "react";
 import { Card, Table, Tag, Button, message } from "antd";
+import { Link } from "react-router-dom";
 import type { ColumnsType } from "antd/es/table";
 import type { FollowFund } from "@/types/fund";
 import { getFollowedFunds, unfollowFund } from "@/api/fund";
@@ -18,7 +19,8 @@ const renderGrowth = (v: string | number | null | undefined) => {
   if (isNaN(num)) return "-";
   return (
     <span style={{ color: num >= 0 ? "#f5222d" : "#52c41a", fontWeight: 600 }}>
-      {num >= 0 ? "+" : ""}{num.toFixed(2)}%
+      {num >= 0 ? "+" : ""}
+      {num.toFixed(2)}%
     </span>
   );
 };
@@ -63,7 +65,7 @@ const MyFollows: React.FC = () => {
         // ignore
       }
     },
-    [fetchList]
+    [fetchList],
   );
 
   // 页面加载时获取关注列表
@@ -75,22 +77,101 @@ const MyFollows: React.FC = () => {
    * 表格列配置
    */
   const columns: ColumnsType<FollowFund> = [
-    { title: "基金代码", width: 80, render: (_, record) => record.fund_info?.code },
-    { title: "基金名称", width: 150, ellipsis: true, render: (_, record) => record.fund_info?.name },
-    { title: "类型", width: 100, render: (_, record) => record.fund_info?.type ? <Tag>{record.fund_info.type}</Tag> : "-" },
-    { title: "净值", width: 100, render: (_, record) => record.fund_info?.nav != null ? record.fund_info.nav.toFixed(4) : "-" },
-    { title: "累计净值", width: 100, render: (_, record) => record.fund_info?.acc_nav != null ? record.fund_info.acc_nav.toFixed(4) : "-" },
-    { title: "日增长", width: 100, render: (_, record) => renderGrowth(record.fund_info?.day_growth) },
-    { title: "近一周", width: 100, render: (_, record) => renderGrowth(record.fund_info?.week_growth) },
-    { title: "近一月", width: 100, render: (_, record) => renderGrowth(record.fund_info?.month_growth) },
-    { title: "近三月", width: 100, render: (_, record) => renderGrowth(record.fund_info?.three_month_growth) },
-    { title: "近六月", width: 100, render: (_, record) => renderGrowth(record.fund_info?.six_month_growth) },
-    { title: "今年", width: 100, render: (_, record) => renderGrowth(record.fund_info?.current_year_growth) },
+    {
+      title: "基金代码",
+      width: 90,
+      render: (_, record) =>
+        record.fund_info?.code ? (
+          <Link
+            to={`/fund/detail/${record.fund_info.code}`}
+            style={{ color: "#1677ff" }}
+          >
+            {record.fund_info.code}
+          </Link>
+        ) : (
+          "-"
+        ),
+    },
+    {
+      title: "基金名称",
+      width: 170,
+      ellipsis: true,
+      render: (_, record) =>
+        record.fund_info?.name ? (
+          <Link
+            to={`/fund/detail/${record.fund_info.code}`}
+            style={{ color: "#000" }}
+          >
+            {record.fund_info.name}
+          </Link>
+        ) : (
+          "-"
+        ),
+    },
+    {
+      title: "类型",
+      width: 100,
+      render: (_, record) =>
+        record.fund_info?.type ? <Tag>{record.fund_info.type}</Tag> : "-",
+    },
+    {
+      title: "净值",
+      width: 100,
+      render: (_, record) =>
+        record.fund_info?.nav != null ? record.fund_info.nav.toFixed(4) : "-",
+    },
+    {
+      title: "累计净值",
+      width: 100,
+      render: (_, record) =>
+        record.fund_info?.acc_nav != null
+          ? record.fund_info.acc_nav.toFixed(4)
+          : "-",
+    },
+    {
+      title: "日增长",
+      width: 100,
+      render: (_, record) => renderGrowth(record.fund_info?.day_growth),
+    },
+    {
+      title: "近一周",
+      width: 100,
+      render: (_, record) => renderGrowth(record.fund_info?.week_growth),
+    },
+    {
+      title: "近一月",
+      width: 100,
+      render: (_, record) => renderGrowth(record.fund_info?.month_growth),
+    },
+    {
+      title: "近三月",
+      width: 100,
+      render: (_, record) => renderGrowth(record.fund_info?.three_month_growth),
+    },
+    {
+      title: "近六月",
+      width: 100,
+      render: (_, record) => renderGrowth(record.fund_info?.six_month_growth),
+    },
+    {
+      title: "今年",
+      width: 100,
+      render: (_, record) =>
+        renderGrowth(record.fund_info?.current_year_growth),
+    },
     { title: "备注", width: 100, dataIndex: "remark" },
     {
-      title: "操作", key: "action", width: 100, fixed: "right",
+      title: "操作",
+      key: "action",
+      width: 100,
+      fixed: "right",
       render: (_, record) => (
-        <Button type="link" danger size="small" onClick={() => handleUnfollow(record.fund_code)}>
+        <Button
+          type="link"
+          danger
+          size="small"
+          onClick={() => handleUnfollow(record.fund_code)}
+        >
           取消关注
         </Button>
       ),
