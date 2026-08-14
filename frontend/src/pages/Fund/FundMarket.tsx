@@ -21,8 +21,6 @@ import FollowModal from "./components/FollowModal";
 
 const { Search } = Input;
 
-const TABLE_SCROLL_Y = "calc(100vh - 200px)";
-
 const FUND_TYPE_OPTIONS: { label: string; value: string }[] = [
   { label: "股票型", value: "股票型" },
   { label: "混合型", value: "混合型" },
@@ -391,9 +389,27 @@ const FundMarket: React.FC<FundMarketProps> = ({ onFollowSuccess }) => {
             showQuickJumper: true,
             onChange: (page) => handleSearch(searchKeyword, page),
           }}
-          scroll={{ y: TABLE_SCROLL_Y }}
+          scroll={{ y: "72vh" }}
           size="small"
           onChange={handleTableChange}
+          locale={{
+            emptyText: (
+              <div
+                style={{
+                  height: "72vh",
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "center",
+                  color: "#8c8c8c",
+                  fontSize: 14,
+                }}
+              >
+                {searchKeyword.trim()
+                  ? `未找到与「${searchKeyword}」相关的基金`
+                  : "请输入基金代码或名称搜索"}
+              </div>
+            ),
+          }}
         />
       </Card>
 

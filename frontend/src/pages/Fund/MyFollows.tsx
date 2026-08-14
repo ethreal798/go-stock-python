@@ -7,8 +7,6 @@ import type { FollowFund } from "@/types/fund";
 import { getFollowedFunds, unfollowFund } from "@/api/fund";
 import dayjs from "dayjs";
 
-const TABLE_SCROLL_Y = "calc(100vh - 200px)";
-
 const toNumber = (v: unknown): number | null => {
   if (v == null || v === "") return null;
   const n = typeof v === "string" ? parseFloat(v) : (v as number);
@@ -224,8 +222,24 @@ const MyFollows: React.FC = () => {
         dataSource={list}
         loading={loading}
         pagination={{ pageSize: 20 }}
-        scroll={{ x: 1800, y: TABLE_SCROLL_Y }}
+        scroll={{ x: 1800, y: "72vh" }}
         size="small"
+        locale={{
+          emptyText: (
+            <div
+              style={{
+                height: "72vh",
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "center",
+                color: "#8c8c8c",
+                fontSize: 14,
+              }}
+            >
+              暂无关注的基金
+            </div>
+          ),
+        }}
       />
     </Card>
   );
