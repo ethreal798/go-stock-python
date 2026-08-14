@@ -23,22 +23,34 @@ export interface SearchFund {
   max_drawdown?: number;
 }
 
+export interface FundLatestMetrics {
+  metric_kind: string;
+  data_date: string;
+  unit_nav: number;
+  accumulated_nav: number;
+  daily_growth_pct: number;
+  return_1w_pct: number;
+  return_1m_pct: number;
+  return_3m_pct: number;
+  return_6m_pct: number;
+  return_1y_pct: number;
+  return_2y_pct: number;
+  return_3y_pct: number;
+  return_ytd_pct: number;
+  return_since_inception_pct: number;
+}
+
 export interface FollowFundInfo {
   id: number;
-  nav: number | null;
   code: string;
   name: string;
   type: string;
-  acc_nav: number | null;
-  day_growth?: number | null;
-  week_growth?: number | null;
-  month_growth?: number | null;
-  three_month_growth?: number | null;
-  six_month_growth?: number | null;
-  year_growth?: number | null;
-  current_year_growth?: number | null;
-  manager?: string;
-  last_update?: string;
+  category?: string;
+  status?: string;
+  last_seen_data_date?: string;
+  last_seen_at?: string;
+  latest?: FundLatestMetrics;
+  is_in_watchlist?: boolean;
 }
 
 export interface FollowFund {
