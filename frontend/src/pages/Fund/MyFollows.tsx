@@ -1,43 +1,34 @@
 // src/pages/Fund/MyFollows.tsx
 import React, { useState, useEffect, useCallback } from "react";
-import { Card, Table, Tag, Button, message } from "antd";
-import { Link } from "react-router-dom";
+import { Card, Table, Tag, Button, message, Tooltip } from "antd";
 import type { ColumnsType } from "antd/es/table";
+import { Link } from "react-router-dom";
 import type { FollowFund } from "@/types/fund";
 import { getFollowedFunds, unfollowFund } from "@/api/fund";
+import dayjs from "dayjs";
 
-const TABLE_SCROLL_Y = "calc(100vh - 200px)";
+const toNumber = (v: unknown): number | null => {
+  if (v == null || v === "") return null;
+  const n = typeof v === "string" ? parseFloat(v) : (v as number);
+  return Number.isFinite(n) ? n : null;
+};
 
-/**
- * 格式化增长率显示
- * @param v 增长率值
- * @returns 格式化后的显示文本
- */
-const renderGrowth = (v: string | number | null | undefined) => {
-  if (v == null || v === "") return "-";
-  const num = typeof v === "string" ? parseFloat(v) : v;
-  if (isNaN(num)) return "-";
+const renderGrowth = (v: unknown, digits = 2) => {
+  const num = toNumber(v);
+  if (num == null) return "-";
+  const color = num > 0 ? "#f5222d" : num < 0 ? "#52c41a" : "inherit";
   return (
-    <span style={{ color: num >= 0 ? "#f5222d" : "#52c41a", fontWeight: 600 }}>
-      {num >= 0 ? "+" : ""}
-      {num.toFixed(2)}%
+    <span style={{ color, fontWeight: 600 }}>
+      {num > 0 ? "+" : ""}
+      {num.toFixed(digits)}%
     </span>
   );
 };
 
-/**
- * 我的关注页面
- * 展示用户已关注的基金列表，支持取消关注
- */
 const MyFollows: React.FC = () => {
-  // 关注列表数据
   const [list, setList] = useState<FollowFund[]>([]);
-  // 加载状态
   const [loading, setLoading] = useState(false);
 
-  /**
-   * 获取关注列表
-   */
   const fetchList = useCallback(async () => {
     setLoading(true);
     try {
@@ -50,16 +41,11 @@ const MyFollows: React.FC = () => {
     }
   }, []);
 
-  /**
-   * 取消关注
-   * @param fundCode 基金代码
-   */
   const handleUnfollow = useCallback(
     async (fundCode: string) => {
       try {
         await unfollowFund(fundCode);
         message.success("已取消关注");
-        // 重新获取列表
         fetchList();
       } catch {
         // ignore
@@ -68,102 +54,152 @@ const MyFollows: React.FC = () => {
     [fetchList],
   );
 
-  // 页面加载时获取关注列表
   useEffect(() => {
     fetchList();
   }, [fetchList]);
 
-  /**
-   * 表格列配置
-   */
   const columns: ColumnsType<FollowFund> = [
     {
-      title: "基金代码",
-      width: 90,
-      render: (_, record) =>
-        record.fund_info?.code ? (
-          <Link
-            to={`/fund/detail/${record.fund_info.code}`}
-            style={{ color: "#1677ff" }}
-          >
-            {record.fund_info.code}
-          </Link>
-        ) : (
-          "-"
-        ),
-    },
-    {
       title: "基金名称",
-      width: 170,
-      ellipsis: true,
-      render: (_, record) =>
-        record.fund_info?.name ? (
+      width: 290,
+      fixed: "left",
+      render: (_, record) => {
+        const info = record.fund_info;
+        if (!info) return "-";
+        const latestDate = info.latest?.data_date ?? info.last_seen_data_date;
+        return (
           <Link
-            to={`/fund/detail/${record.fund_info.code}`}
-            style={{ color: "#000" }}
+            to={`/fund/detail/${info.code ?? ""}`}
+            style={{
+              display: "block",
+              color: "inherit",
+              textDecoration: "none",
+            }}
           >
-            {record.fund_info.name}
+            <div
+              style={{
+                fontSize: 15,
+                fontWeight: 600,
+                color: "#000",
+                lineHeight: 1.4,
+                marginBottom: 4,
+                overflow: "hidden",
+                textOverflow: "ellipsis",
+                whiteSpace: "nowrap",
+              }}
+            >
+              {info.name ?? "-"}
+            </div>
+            <div
+              style={{
+                display: "flex",
+                alignItems: "center",
+                gap: 8,
+                fontSize: 12,
+                flexWrap: "wrap",
+              }}
+            >
+              {info.code ? (
+                <span style={{ color: "#1677ff" }}>{info.code}</span>
+              ) : null}
+              {info.type ? (
+                <Tag style={{ margin: 0, fontSize: 12, padding: "0 6px" }}>
+                  {info.type}
+                </Tag>
+              ) : null}
+              {latestDate ? (
+                <span style={{ color: "#8c8c8c" }}>
+                  {dayjs(latestDate).format("MM-DD")}
+                </span>
+              ) : null}
+            </div>
           </Link>
+        );
+      },
+    },
+    {
+      title: "单位净值",
+      width: 130,
+      render: (_, record) => {
+        const v = record.fund_info?.latest?.unit_nav;
+        return v != null ? (
+          <Tooltip
+            title={
+              record.fund_info?.latest?.data_date
+                ? `净值日期：${record.fund_info.latest.data_date}`
+                : undefined
+            }
+          >
+            <span style={{ fontWeight: 600, color: "#000" }}>
+              {v.toFixed(4)}
+            </span>
+          </Tooltip>
         ) : (
           "-"
-        ),
-    },
-    {
-      title: "类型",
-      width: 100,
-      render: (_, record) =>
-        record.fund_info?.type ? <Tag>{record.fund_info.type}</Tag> : "-",
-    },
-    {
-      title: "净值",
-      width: 100,
-      render: (_, record) =>
-        record.fund_info?.nav != null ? record.fund_info.nav.toFixed(4) : "-",
+        );
+      },
     },
     {
       title: "累计净值",
-      width: 100,
-      render: (_, record) =>
-        record.fund_info?.acc_nav != null
-          ? record.fund_info.acc_nav.toFixed(4)
-          : "-",
+      width: 130,
+      render: (_, record) => {
+        const v = record.fund_info?.latest?.accumulated_nav;
+        return v != null ? v.toFixed(4) : "-";
+      },
     },
     {
       title: "日增长",
-      width: 100,
-      render: (_, record) => renderGrowth(record.fund_info?.day_growth),
+      width: 120,
+      render: (_, record) =>
+        renderGrowth(record.fund_info?.latest?.daily_growth_pct),
     },
     {
       title: "近一周",
-      width: 100,
-      render: (_, record) => renderGrowth(record.fund_info?.week_growth),
+      width: 120,
+      render: (_, record) =>
+        renderGrowth(record.fund_info?.latest?.return_1w_pct),
     },
     {
       title: "近一月",
-      width: 100,
-      render: (_, record) => renderGrowth(record.fund_info?.month_growth),
+      width: 120,
+      render: (_, record) =>
+        renderGrowth(record.fund_info?.latest?.return_1m_pct),
     },
     {
       title: "近三月",
-      width: 100,
-      render: (_, record) => renderGrowth(record.fund_info?.three_month_growth),
+      width: 120,
+      render: (_, record) =>
+        renderGrowth(record.fund_info?.latest?.return_3m_pct),
     },
     {
       title: "近六月",
-      width: 100,
-      render: (_, record) => renderGrowth(record.fund_info?.six_month_growth),
+      width: 120,
+      render: (_, record) =>
+        renderGrowth(record.fund_info?.latest?.return_6m_pct),
     },
     {
-      title: "今年",
-      width: 100,
+      title: "近一年",
+      width: 120,
       render: (_, record) =>
-        renderGrowth(record.fund_info?.current_year_growth),
+        renderGrowth(record.fund_info?.latest?.return_1y_pct),
     },
-    { title: "备注", width: 100, dataIndex: "remark" },
+    {
+      title: "今年以来",
+      width: 120,
+      render: (_, record) =>
+        renderGrowth(record.fund_info?.latest?.return_ytd_pct),
+    },
+    {
+      title: "成立来",
+      width: 120,
+      render: (_, record) =>
+        renderGrowth(record.fund_info?.latest?.return_since_inception_pct),
+    },
+    { title: "备注", width: 140, dataIndex: "remark" },
     {
       title: "操作",
       key: "action",
-      width: 100,
+      width: 110,
       fixed: "right",
       render: (_, record) => (
         <Button
@@ -186,8 +222,24 @@ const MyFollows: React.FC = () => {
         dataSource={list}
         loading={loading}
         pagination={{ pageSize: 20 }}
-        scroll={{ x: 1600, y: TABLE_SCROLL_Y }}
+        scroll={{ x: 1800, y: "72vh" }}
         size="small"
+        locale={{
+          emptyText: (
+            <div
+              style={{
+                height: "72vh",
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "center",
+                color: "#8c8c8c",
+                fontSize: 14,
+              }}
+            >
+              暂无关注的基金
+            </div>
+          ),
+        }}
       />
     </Card>
   );

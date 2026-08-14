@@ -12,9 +12,9 @@ export type FundRangeKey =
   | "three_year"
   | "five_year";
 
-// 获取关注的基金列表
+// 获取关注的基金列表（watchlist）
 export const getFollowedFunds = () =>
-  request.get<FollowFund[]>("/funds/followed/list");
+  request.get<FollowFund[]>("/funds/watchlist");
 
 // 添加关注基金
 export const followFund = (data: { fund_code: string; remark?: string }) =>

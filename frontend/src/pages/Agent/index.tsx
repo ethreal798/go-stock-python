@@ -442,6 +442,7 @@ const AgentPage: React.FC = () => {
             subscribeRun(runId, afterEventId);
           }
         } catch {
+          // ignore
         }
       } catch {
         message.error("获取聊天记录失败");
