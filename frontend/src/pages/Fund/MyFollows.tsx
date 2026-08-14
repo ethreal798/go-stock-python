@@ -78,41 +78,54 @@ const MyFollows: React.FC = () => {
    */
   const columns: ColumnsType<FollowFund> = [
     {
-      title: "基金代码",
-      width: 90,
-      render: (_, record) =>
-        record.fund_info?.code ? (
-          <Link
-            to={`/fund/detail/${record.fund_info.code}`}
-            style={{ color: "#1677ff" }}
-          >
-            {record.fund_info.code}
-          </Link>
-        ) : (
-          "-"
-        ),
-    },
-    {
       title: "基金名称",
-      width: 170,
-      ellipsis: true,
-      render: (_, record) =>
-        record.fund_info?.name ? (
+      width: 260,
+      render: (_, record) => {
+        const info = record.fund_info;
+        if (!info) return "-";
+        return (
           <Link
-            to={`/fund/detail/${record.fund_info.code}`}
-            style={{ color: "#000" }}
+            to={`/fund/detail/${info.code ?? ""}`}
+            style={{
+              display: "block",
+              color: "inherit",
+              textDecoration: "none",
+            }}
           >
-            {record.fund_info.name}
+            <div
+              style={{
+                fontSize: 15,
+                fontWeight: 600,
+                color: "#000",
+                lineHeight: 1.4,
+                marginBottom: 4,
+                overflow: "hidden",
+                textOverflow: "ellipsis",
+                whiteSpace: "nowrap",
+              }}
+            >
+              {info.name ?? "-"}
+            </div>
+            <div
+              style={{
+                display: "flex",
+                alignItems: "center",
+                gap: 8,
+                fontSize: 12,
+              }}
+            >
+              {info.code ? (
+                <span style={{ color: "#1677ff" }}>{info.code}</span>
+              ) : null}
+              {info.type ? (
+                <Tag style={{ margin: 0, fontSize: 12, padding: "0 6px" }}>
+                  {info.type}
+                </Tag>
+              ) : null}
+            </div>
           </Link>
-        ) : (
-          "-"
-        ),
-    },
-    {
-      title: "类型",
-      width: 100,
-      render: (_, record) =>
-        record.fund_info?.type ? <Tag>{record.fund_info.type}</Tag> : "-",
+        );
+      },
     },
     {
       title: "净值",
@@ -186,7 +199,7 @@ const MyFollows: React.FC = () => {
         dataSource={list}
         loading={loading}
         pagination={{ pageSize: 20 }}
-        scroll={{ x: 1600, y: TABLE_SCROLL_Y }}
+        scroll={{ x: 1380, y: TABLE_SCROLL_Y }}
         size="small"
       />
     </Card>

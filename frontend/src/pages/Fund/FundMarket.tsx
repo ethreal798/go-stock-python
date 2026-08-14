@@ -230,48 +230,63 @@ const FundMarket: React.FC<FundMarketProps> = ({ onFollowSuccess }) => {
 
   const columns: ColumnsType<SearchFund> = [
     {
-      title: "基金代码",
-      dataIndex: "code",
-      width: 90,
-      render: (v: string, record) => (
-        <Link to={`/fund/detail/${record.code}`} style={{ color: "#1677ff" }}>
-          {v}
-        </Link>
-      ),
-    },
-    {
       title: "基金名称",
-      dataIndex: "name",
-      width: 180,
-      ellipsis: true,
-      render: (v: string, record) => (
-        <Link to={`/fund/detail/${record.code}`} style={{ color: "#000" }}>
-          {v}
+      width: 290,
+      render: (_, record) => (
+        <Link
+          to={`/fund/detail/${record.code ?? ""}`}
+          style={{ display: "block", color: "inherit", textDecoration: "none" }}
+        >
+          <div
+            style={{
+              fontSize: 15,
+              fontWeight: 600,
+              color: "#000",
+              lineHeight: 1.4,
+              marginBottom: 4,
+              overflow: "hidden",
+              textOverflow: "ellipsis",
+              whiteSpace: "nowrap",
+            }}
+          >
+            {record.name ?? "-"}
+          </div>
+          <div
+            style={{
+              display: "flex",
+              alignItems: "center",
+              gap: 8,
+              fontSize: 12,
+            }}
+          >
+            {record.code ? (
+              <span style={{ color: "#1677ff" }}>{record.code}</span>
+            ) : null}
+            {record.type ? (
+              <Tag style={{ margin: 0, fontSize: 12, padding: "0 6px" }}>
+                {record.type}
+              </Tag>
+            ) : null}
+          </div>
         </Link>
       ),
-    },
-    {
-      title: "类型",
-      dataIndex: "type",
-      width: 100,
-      render: (v) => (v ? <Tag>{v}</Tag> : "-"),
     },
     {
       title: "净值",
       dataIndex: "nav",
-      width: 100,
+      width: 130,
       render: (v) => (v != null ? v.toFixed(4) : "-"),
     },
     {
       title: "累计净值",
       dataIndex: "acc_nav",
-      width: 110,
+      width: 130,
       render: (v) => (v != null ? v.toFixed(4) : "-"),
     },
     {
       title: "涨跌幅",
       dataIndex: growthField,
-      width: 110,
+      width: 130,
       sorter: true,
       sortOrder: sortField === growthField ? sortOrder : null,
       render: renderGrowth,
@@ -279,7 +294,7 @@ const FundMarket: React.FC<FundMarketProps> = ({ onFollowSuccess }) => {
     {
       title: "夏普比率",
       dataIndex: "sharpe_ratio",
-      width: 110,
+      width: 130,
       sorter: true,
       sortOrder: sortField === "sharpe_ratio" ? sortOrder : null,
       render: (v) => {
@@ -290,7 +305,7 @@ const FundMarket: React.FC<FundMarketProps> = ({ onFollowSuccess }) => {
     {
       title: "最大回撤",
       dataIndex: "max_drawdown",
-      width: 110,
+      width: 130,
       sorter: true,
       sortOrder: sortField === "max_drawdown" ? sortOrder : null,
       render: (v) => {
@@ -301,7 +316,7 @@ const FundMarket: React.FC<FundMarketProps> = ({ onFollowSuccess }) => {
     {
       title: "最新净值",
       dataIndex: "latest_nav",
-      width: 110,
+      width: 130,
       sorter: true,
       sortOrder: sortField === "latest_nav" ? sortOrder : null,
       render: (v) => (v != null ? v.toFixed(4) : "-"),
@@ -309,7 +324,7 @@ const FundMarket: React.FC<FundMarketProps> = ({ onFollowSuccess }) => {
     {
       title: "操作",
       key: "action",
-      width: 100,
+      width: 130,
       render: (_, record) => {
         const isFollowed = record.is_followed === true;
         return (
@@ -376,7 +391,7 @@ const FundMarket: React.FC<FundMarketProps> = ({ onFollowSuccess }) => {
             showQuickJumper: true,
             onChange: (page) => handleSearch(searchKeyword, page),
           }}
-          scroll={{ x: 1200, y: TABLE_SCROLL_Y }}
+          scroll={{ y: TABLE_SCROLL_Y }}
           size="small"
           onChange={handleTableChange}
         />
