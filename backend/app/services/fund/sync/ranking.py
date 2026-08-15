@@ -11,10 +11,11 @@ from sqlalchemy.dialects.postgresql import insert as pg_insert
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.fund import Fund, FundExchangeRankLatest, FundMoneyRankLatest, FundOpenRankLatest
-from app.services.fund.common.formatter import format_exchange_rank, format_money_rank, format_open_rank
-from app.services.fund.common.utils import iter_batches
+from app.services.fund.common.utils import (
+    iter_batches,
+    normalize_date,
+)
 from app.services.fund.sources.ranking import fetch_rank_frames
-from app.services.fund.sync.history import FundHistorySyncService
 
 logger = logging.getLogger(__name__)
 
@@ -58,13 +59,28 @@ class FundRankingSyncService:
         """同步入口"""
         # 1.抓取东财基金排行数据
         open_frame, exchange_frame, money_frame = await fetch_rank_frames()
-        # 2.格式化数据
+        # 2.归一化为可入库记录
         fetched_at = datetime.now()
-        open_rows = format_open_rank(open_frame, fetched_at, minimum_rows=1000)
-        exchange_rows = format_exchange_rank(exchange_frame, fetched_at, minimum_rows=100)
-        money_rows = format_money_rank(money_frame, fetched_at, minimum_rows=100)
+        open_rows = self._to_latest_rows(open_frame, fetched_at=fetched_at)
+        exchange_rows = self._to_latest_rows(exchange_frame, fetched_at=fetched_at)
+        money_rows = self._to_latest_rows(money_frame, fetched_at=fetched_at)
         # 3.存储入库
         return await self.save(open_rows, exchange_rows, money_rows)
+
+    @staticmethod
+    def _to_latest_rows(
+        rows: list[dict[str, Any]],
+        *,
+        fetched_at: datetime,
+    ) -> list[dict[str, Any]]:
+        return [
+            {
+                **raw,
+                "data_date": normalize_date(raw.get("data_date")),
+                "fetched_at": fetched_at,
+            }
+            for raw in rows
+        ]
 
     async def save(
         self,
@@ -88,9 +104,6 @@ class FundRankingSyncService:
         await self._replace_latest(FundOpenRankLatest, open_rows, fund_ids)
         await self._replace_latest(FundExchangeRankLatest, exchange_rows, fund_ids)
         await self._replace_latest(FundMoneyRankLatest, money_rows, fund_ids)
-        history_counts = await FundHistorySyncService(self.db).append_rank_snapshots(
-            open_rows, exchange_rows, money_rows, fund_ids
-        )
         # 4. 将本次未更新的基金状态设置为 stale
         await self.db.execute(update(Fund).where(Fund.code.not_in(all_codes)).values(status="stale"))
 
@@ -100,9 +113,6 @@ class FundRankingSyncService:
             "open": len(open_rows),
             "exchange": len(exchange_rows),
             "money": len(money_rows),
-            "history_open_rows": history_counts["open_rows"],
-            "history_exchange_rows": history_counts["exchange_rows"],
-            "history_money_rows": history_counts["money_rows"],
         }
         logger.info("基金排行同步完成: %s", counts)
         return counts

@@ -83,25 +83,20 @@ def dataframe_records(
     source: str,
     minimum_rows: int = 1,
 ) -> list[dict[str, Any]]:
-    """校验 DataFrame 列和最小行数，然后输出 records。"""
-    columns = set(getattr(frame, "columns", []))
+    """校验来源记录字段和最小行数，兼容列表记录与 DataFrame。"""
+    if isinstance(frame, list):
+        rows = frame
+        if not all(isinstance(row, dict) for row in rows):
+            raise ValueError(f"{source} 返回记录类型异常")
+        columns = set().union(*(row.keys() for row in rows)) if rows else set()
+    else:
+        columns = set(getattr(frame, "columns", []))
+        rows = frame.to_dict(orient="records") if frame is not None else []
     missing = required_columns - columns
     if missing:
         raise ValueError(f"{source} 缺少字段: {sorted(missing)}")
-    rows = frame.to_dict(orient="records")
     if len(rows) < minimum_rows:
         raise ValueError(f"{source} 返回行数异常: {len(rows)} < {minimum_rows}")
-    return rows
-
-
-def ensure_unique_fund_codes(rows: list[dict[str, Any]], source: str) -> list[dict[str, Any]]:
-    """确保一个来源快照中每个基金代码只出现一次。"""
-    seen: set[str] = set()
-    for row in rows:
-        code = row["fund_code"]
-        if code in seen:
-            raise ValueError(f"{source} 返回重复基金代码: {code}")
-        seen.add(code)
     return rows
 
 
@@ -143,3 +138,4 @@ async def delete_cache(cache_key: str) -> None:
     """按完整缓存键删除缓存。"""
     redis = await get_redis()
     await redis.delete(cache_key)
+
