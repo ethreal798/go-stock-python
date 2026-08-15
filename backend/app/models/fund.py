@@ -61,6 +61,7 @@ class FundOpenRankLatest(GormBaseModel):
     return_1y_pct = Column(Numeric(12, 6), comment="近1年收益率(%)")
     return_2y_pct = Column(Numeric(12, 6), comment="近2年收益率(%)")
     return_3y_pct = Column(Numeric(12, 6), comment="近3年收益率(%)")
+    return_5y_pct = Column(Numeric(12, 6), comment="近5年收益率(%)")
     return_ytd_pct = Column(Numeric(12, 6), comment="今年以来收益率(%)")
     return_since_inception_pct = Column(Numeric(12, 6), comment="成立以来收益率(%)")
     fetched_at = Column(DateTime, nullable=False, comment="抓取时间")
@@ -87,7 +88,7 @@ class FundExchangeRankLatest(GormBaseModel):
     return_3y_pct = Column(Numeric(12, 6), comment="近3年收益率(%)")
     return_ytd_pct = Column(Numeric(12, 6), comment="今年以来收益率(%)")
     return_since_inception_pct = Column(Numeric(12, 6), comment="成立以来收益率(%)")
-    inception_date = Column(Date, comment="成立日期")
+    # inception_date = Column(Date, comment="成立日期")
     fetched_at = Column(DateTime, nullable=False, comment="抓取时间")
 
 
