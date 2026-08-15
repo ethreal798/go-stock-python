@@ -116,11 +116,11 @@ class FundMoneyRankLatest(GormBaseModel):
     fetched_at = Column(DateTime, nullable=False, comment="抓取时间")
 
 
-class FundOpenNavHistory(GormBaseModel):
-    """开放式基金（含按开放式口径处理的 LOF）净值历史。"""
+class FundOpenExchangeNavHistory(GormBaseModel):
+    """开放式基金（含按开放式口径处理的 LOF）及场内 ETF 历史净值。"""
 
-    __tablename__ = "fund_open_nav_history"
-    __table_args__ = (UniqueConstraint("fund_id", "data_date", name="uq_fund_open_nav_history_fund_date"),)
+    __tablename__ = "fund_open_exchange_nav_history"
+    __table_args__ = (UniqueConstraint("fund_id", "data_date", name="uq_fund_open_exchange_nav_history_fund_date"),)
 
     fund_id = Column(BigInteger, ForeignKey("funds.id"), nullable=False)
     fund_code = Column(String(20), nullable=False, comment="基金代码")
@@ -142,25 +142,6 @@ class FundMoneyYieldHistory(GormBaseModel):
     data_date = Column(Date, nullable=False, index=True, comment="收益日期")
     income_per_10k = Column(Numeric(18, 8), comment="每万份收益（元）")
     annualized_7d_pct = Column(Numeric(12, 6), comment="七日年化收益率(%)")
-    purchase_status = Column(String(50), comment="申购状态")
-    redemption_status = Column(String(50), comment="赎回状态")
-    fetched_at = Column(DateTime, nullable=False, comment="抓取时间")
-
-
-class FundExchangeNavHistory(GormBaseModel):
-    """场内 ETF 净值历史；LOF 仍按开放式基金口径处理。"""
-
-    __tablename__ = "fund_exchange_nav_history"
-    __table_args__ = (UniqueConstraint("fund_id", "data_date", name="uq_fund_exchange_nav_history_fund_date"),)
-
-    fund_id = Column(BigInteger, ForeignKey("funds.id"), nullable=False)
-    fund_code = Column(String(20), nullable=False, comment="基金代码")
-    data_date = Column(Date, nullable=False, index=True, comment="净值日期")
-    unit_nav = Column(Numeric(18, 8), comment="单位净值")
-    accumulated_nav = Column(Numeric(18, 8), comment="累计净值")
-    daily_growth_pct = Column(Numeric(12, 6), comment="日增长率(%)")
-    purchase_status = Column(String(50), comment="申购状态")
-    redemption_status = Column(String(50), comment="赎回状态")
     fetched_at = Column(DateTime, nullable=False, comment="抓取时间")
 
 
