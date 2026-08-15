@@ -1,8 +1,8 @@
 """基金历史数据外部来源适配。
 
-开放式基金沿用 AKShare 的 ``fund_open_fund_info_em``；货币基金使用其
-``fund_money_fund_info_em`` 的同一东方财富接口和字段语义，但在本地按字段名
-解析，以兼容东方财富新增字段导致的 AKShare 固定列数解析问题。
+开放式基金、场内基金和货币基金统一使用东方财富 ``lsjz`` 接口。
+开放式/场内基金仅抓取近 1 年，货币基金抓取近 3 年，再由 formatter
+按调用侧传入的日期范围继续截取。
 """
 
 from __future__ import annotations
@@ -17,41 +17,30 @@ class FundHistorySourceError(RuntimeError):
     """基金历史接口返回异常。"""
 
 
-def fetch_open_nav_frames(symbol: str) -> tuple[Any, Any]:
-    """获取开放式基金单位净值和累计净值走势。
-
-    ``fund_open_fund_info_em`` 的净值走势接口会返回成立以来的完整序列，
-    日期截取交给 formatter 处理。
-    """
-    try:
-        import akshare as ak
-    except ImportError as exc:  # pragma: no cover - 运行环境依赖检查
-        raise FundHistorySourceError("缺少 akshare，请先安装后端 requirements.txt") from exc
-
-    return (
-        ak.fund_open_fund_info_em(symbol=symbol, indicator="单位净值走势", period="3年"),
-        ak.fund_open_fund_info_em(symbol=symbol, indicator="累计净值走势", period="3年"),
-    )
+def _validate_payload(payload: dict[str, Any]) -> list[dict[str, Any]]:
+    if payload.get("ErrCode") != 0:
+        raise FundHistorySourceError(
+            f"东方财富接口错误: ErrCode={payload.get('ErrCode')}, "
+            f"ErrMsg={payload.get('ErrMsg')!r}"
+        )
+    data = payload.get("Data")
+    if not isinstance(data, dict) or not isinstance(data.get("LSJZList"), list):
+        raise FundHistorySourceError(f"接口响应结构异常: {payload!r}")
+    return data["LSJZList"]
 
 
 def _fetch_lsjz_rows(
     symbol: str,
     *,
-    start_date: date | None = None,
-    end_date: date | None = None,
-) -> tuple[Any, list[dict[str, Any]]]:
-    """分页读取东财 lsjz，并返回 pandas 模块与原始记录。
-
-    该实现对应 AKShare ``fund_money_fund_info_em`` 的东方财富接口，保留
-    每万份收益、7 日年化收益率、申购状态和赎回状态。AKShare 1.18.82
-    对当前 14 列原始响应按 13 列重命名，会触发 ``Length mismatch``，因此
-    这里按稳定的原始字段名映射，避免整批同步因版本差异失败。
-    """
+    start_date: date,
+    end_date: date,
+    timeout: tuple[float, float] = (5.0, 15.0),
+) -> list[dict[str, Any]]:
+    """分页读取东财 lsjz，并仅保留入库所需原始字段。"""
     try:
-        import pandas as pd
         import requests
     except ImportError as exc:  # pragma: no cover - 运行环境依赖检查
-        raise FundHistorySourceError("缺少历史数据源依赖 requests/pandas") from exc
+        raise FundHistorySourceError("缺少历史数据源依赖 requests") from exc
 
     url = "https://api.fund.eastmoney.com/f10/lsjz"
     headers = {
@@ -63,86 +52,100 @@ def _fetch_lsjz_rows(
         "Referer": f"https://fundf10.eastmoney.com/jjjz_{symbol}.html",
         "Host": "api.fund.eastmoney.com",
     }
-    start = start_date.isoformat() if start_date else ""
-    end = end_date.isoformat() if end_date else ""
-    page_size = 20  # 东方财富接口实际按 20 条分页，传更大值会被忽略或返回异常
     params = {
         "fundCode": symbol,
         "pageIndex": 1,
-        "pageSize": page_size,
-        "startDate": start,
-        "endDate": end,
+        "pageSize": 20,
+        "startDate": start_date.isoformat(),
+        "endDate": end_date.isoformat(),
         "_": round(time.time() * 1000),
     }
 
-    def request_page(page_index: int) -> dict[str, Any]:
-        params["pageIndex"] = page_index
+    all_rows: list[dict[str, Any]] = []
+    with requests.Session() as session:
+        session.headers.update(headers)
+        total_pages: int | None = None
+        page = 1
+        while total_pages is None or page <= total_pages:
+            params["pageIndex"] = page
+            try:
+                response = session.get(url, params=params, timeout=timeout)
+                response.raise_for_status()
+                payload = response.json()
+            except (requests.RequestException, ValueError) as exc:
+                raise FundHistorySourceError(f"基金 {symbol} 历史接口请求失败") from exc
+
+            rows = _validate_payload(payload)
+            if total_pages is None:
+                total_count = int(payload.get("TotalCount") or 0)
+                server_page_size = int(payload.get("PageSize") or 0)
+                if server_page_size <= 0:
+                    raise FundHistorySourceError(f"接口返回非法 PageSize: {server_page_size}")
+                total_pages = math.ceil(total_count / server_page_size)
+
+            all_rows.extend(
+                {
+                    "FSRQ": raw.get("FSRQ"),
+                    "DWJZ": raw.get("DWJZ"),
+                    "LJJZ": raw.get("LJJZ"),
+                    "JZZZL": raw.get("JZZZL"),
+                }
+                for raw in rows
+            )
+            page += 1
+
+    return all_rows
+
+
+def _resolve_window(
+    *,
+    years: int,
+) -> tuple[date, date]:
+    """根据基金类型收敛抓取窗口。"""
+    def _subtract_years(value: date, year: int) -> date:
+        """返回按自然年回退后的日期，兼容 2 月 29 日。"""
         try:
-            response = requests.get(url, params=params, headers=headers, timeout=(10, 30))
-            response.raise_for_status()
-            payload = response.json()
-        except (requests.RequestException, ValueError) as exc:
-            raise FundHistorySourceError(f"基金 {symbol} 历史接口请求失败") from exc
-        if not isinstance(payload, dict) or not isinstance(payload.get("Data"), dict):
-            raise FundHistorySourceError(f"基金 {symbol} 历史接口返回格式异常")
-        return payload
+            return value.replace(year=value.year - year)
+        except ValueError:
+            return value.replace(year=value.year - year, month=2, day=28)
+    # 1. 如果未传入结束日期则默认为当天日期
+    resolved_end = date.today()
+    # 2. 根据当天日期反推指定起始日期
+    resolved_start = _subtract_years(resolved_end, years)
 
-    first_payload = request_page(1)
-    first_data = first_payload["Data"]
-    total_count = int(first_payload.get("TotalCount") or 0)
-    total_pages = math.ceil(total_count / page_size) if total_count else 0
-    raw_rows: list[dict[str, Any]] = list(first_data.get("LSJZList") or [])
-    for page_index in range(2, total_pages + 1):
-        raw_rows.extend(request_page(page_index)["Data"].get("LSJZList") or [])
+    return resolved_start, resolved_end
 
-    return pd, raw_rows
+
+def fetch_open_or_exchange_nav_frames(
+    symbol: str,
+) -> list[dict[str, Any]]:
+    """获取开放式/场内基金近 1 年单位净值和累计净值走势。"""
+    resolved_start, resolved_end = _resolve_window(years=1,)
+    raw_rows = _fetch_lsjz_rows(symbol, start_date=resolved_start, end_date=resolved_end)
+
+    return [
+        {
+            "data_date": raw.get("FSRQ"),
+            "unit_nav": raw.get("DWJZ"),
+            "accumulated_nav": raw.get("LJJZ"),
+            "daily_growth_pct": raw.get("JZZZL"),
+        }
+        for raw in raw_rows
+    ]
 
 
 def fetch_money_yield_frame(
     symbol: str,
-    *,
-    start_date: date | None = None,
-    end_date: date | None = None,
-) -> Any:
-    """获取货币基金收益历史，按稳定的东财原始字段名映射。"""
-    pd, raw_rows = _fetch_lsjz_rows(symbol, start_date=start_date, end_date=end_date)
+) -> list[dict[str, Any]]:
+    """获取货币基金近 3 年收益历史。"""
+    resolved_start, resolved_end = _resolve_window(years=3,)
+    raw_rows = _fetch_lsjz_rows(symbol, start_date=resolved_start, end_date=resolved_end)
 
-    normalized_rows = [
+    return [
         {
-            "净值日期": raw.get("FSRQ"),
-            "每万份收益": raw.get("DWJZ"),
-            "7日年化收益率": raw.get("LJJZ"),
-            "申购状态": raw.get("SGZT"),
-            "赎回状态": raw.get("SHZT"),
+            "data_date": raw.get("FSRQ"),
+            "income_per_10k": raw.get("DWJZ"),
+            "annualized_7d_pct": raw.get("LJJZ"),
         }
         for raw in raw_rows
     ]
-    return pd.DataFrame(
-        normalized_rows,
-        columns=["净值日期", "每万份收益", "7日年化收益率", "申购状态", "赎回状态"],
-    )
-
-
-def fetch_exchange_nav_frame(
-    symbol: str,
-    *,
-    start_date: date | None = None,
-    end_date: date | None = None,
-) -> Any:
-    """获取场内 ETF 历史净值，并按东财原始字段名映射。"""
-    pd, raw_rows = _fetch_lsjz_rows(symbol, start_date=start_date, end_date=end_date)
-    normalized_rows = [
-        {
-            "净值日期": raw.get("FSRQ"),
-            "单位净值": raw.get("DWJZ"),
-            "累计净值": raw.get("LJJZ"),
-            "日增长率": raw.get("JZZZL"),
-            "申购状态": raw.get("SGZT"),
-            "赎回状态": raw.get("SHZT"),
-        }
-        for raw in raw_rows
-    ]
-    return pd.DataFrame(
-        normalized_rows,
-        columns=["净值日期", "单位净值", "累计净值", "日增长率", "申购状态", "赎回状态"],
-    )
