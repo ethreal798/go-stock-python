@@ -1,0 +1,25 @@
+"""命令行同步入口：python -m app.commands.fund.sync_catalog。"""
+
+import asyncio
+import logging
+
+from app.core.database import async_session_factory, close_db
+from app.core.logging import setup_logging
+from app.services.fund.sync.catalog import FundCatalogSyncService
+
+
+async def main() -> None:
+    setup_logging()
+    async with async_session_factory() as db:
+        try:
+            await FundCatalogSyncService(db).fetch_and_sync()
+            await db.commit()
+        except Exception:
+            await db.rollback()
+            logging.getLogger(__name__).exception("基金目录同步失败")
+            raise
+    await close_db()
+
+
+if __name__ == "__main__":
+    asyncio.run(main())
