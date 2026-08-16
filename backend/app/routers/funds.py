@@ -91,8 +91,12 @@ async def search_funds(
 # ============================================================
 
 
-@router.get("/watchlist", response_model=List[FundWatchlistItemResponse],
-            summary="获取基金自选列表", response_model_exclude_unset=True)
+@router.get(
+    "/watchlist",
+    response_model=List[FundWatchlistItemResponse],
+    summary="获取基金自选列表",
+    response_model_exclude_unset=True,
+)
 async def get_fund_watchlist(
     current_user: User = Depends(get_current_user),
     service: FundWatchlistQueryService = Depends(get_fund_watchlist_query_service),
@@ -129,6 +133,7 @@ async def remove_fund_from_watchlist(
     if not success:
         raise HTTPException(status_code=404, detail="基金自选记录不存在")
     return {"message": "ok"}
+
 
 # ============================================================
 # 基金详情相关

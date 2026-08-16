@@ -90,7 +90,9 @@ class FundHistorySyncService:
             await self.db.commit()
 
         elapsed_seconds = perf_counter() - sync_started_at
-        logger.info(f"全量同步完成：处理 {result['funds']} 只，写入 {result['rows']} 行，失败 {result['failed']} 只，耗时 {elapsed_seconds:.2f} 秒")
+        logger.info(
+            f"全量同步完成：处理 {result['funds']} 只，写入 {result['rows']} 行，失败 {result['failed']} 只，耗时 {elapsed_seconds:.2f} 秒"
+        )
         return result
 
     async def sync_by_fund_codes(
@@ -166,7 +168,9 @@ class FundHistorySyncService:
                 last_error = exc
                 if attempt < retries:
                     retry_delay = min(2**attempt, 8)
-                    logger.warning(f"基金 {fund.code}（{fund.category}）第 {attempt + 1}/{retries + 1} 次重试，{retry_delay} 秒后重试：{exc}")
+                    logger.warning(
+                        f"基金 {fund.code}（{fund.category}）第 {attempt + 1}/{retries + 1} 次重试，{retry_delay} 秒后重试：{exc}"
+                    )
                     await asyncio.sleep(retry_delay)
         assert last_error is not None
         raise last_error

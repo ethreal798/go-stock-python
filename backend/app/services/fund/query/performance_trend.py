@@ -151,8 +151,7 @@ class FundPerformanceTrendQueryService:
     @staticmethod
     async def _release_lock(redis, lock_key: str, lock_token: str) -> None:
         await redis.eval(
-            "if redis.call('get', KEYS[1]) == ARGV[1] then "
-            "return redis.call('del', KEYS[1]) else return 0 end",
+            "if redis.call('get', KEYS[1]) == ARGV[1] then " "return redis.call('del', KEYS[1]) else return 0 end",
             1,
             lock_key,
             lock_token,

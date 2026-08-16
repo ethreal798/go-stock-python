@@ -13,11 +13,11 @@ from sqlalchemy.dialects.postgresql import insert as pg_insert
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.config import settings
-from app.models.fund import Fund, FundPerformanceTrendLatest, FundWatchlistItem
+from app.models.fund import Fund, FundPerformanceTrendLatest
 from app.services.fund.common.constants import FundCacheKeys
 from app.services.fund.common.formatter import format_performance_trend_snapshot
 from app.services.fund.common.utils import delete_cache, normalize_fund_code
-from app.services.fund.sources.performance_trend import PERIOD_TO_SOURCE_TYPE, fetch_performance_trend_payload
+from app.services.fund.sources.performance_trend import fetch_performance_trend_payload
 
 logger = logging.getLogger(__name__)
 
@@ -116,12 +116,9 @@ class FundPerformanceTrendSyncService:
         async with httpx.AsyncClient(timeout=timeout) as client:
             tasks = [(fund, period) for fund in funds for period in selected_periods]
             for offset in range(0, len(tasks), batch_size):
-                batch = tasks[offset: offset + batch_size]
+                batch = tasks[offset : offset + batch_size]
                 responses = await asyncio.gather(
-                    *[
-                        self._fetch_with_semaphore(fund, period, client, retries, semaphore)
-                        for fund, period in batch
-                    ],
+                    *[self._fetch_with_semaphore(fund, period, client, retries, semaphore) for fund, period in batch],
                     return_exceptions=True,
                 )
                 invalidated: list[tuple[str, str]] = []

@@ -20,8 +20,7 @@ class FundHistorySourceError(RuntimeError):
 def _validate_payload(payload: dict[str, Any]) -> list[dict[str, Any]]:
     if payload.get("ErrCode") != 0:
         raise FundHistorySourceError(
-            f"东方财富接口错误: ErrCode={payload.get('ErrCode')}, "
-            f"ErrMsg={payload.get('ErrMsg')!r}"
+            f"东方财富接口错误: ErrCode={payload.get('ErrCode')}, " f"ErrMsg={payload.get('ErrMsg')!r}"
         )
     data = payload.get("Data")
     if not isinstance(data, dict) or not isinstance(data.get("LSJZList"), list):
@@ -102,12 +101,14 @@ def _resolve_window(
     years: int,
 ) -> tuple[date, date]:
     """根据基金类型收敛抓取窗口。"""
+
     def _subtract_years(value: date, year: int) -> date:
         """返回按自然年回退后的日期，兼容 2 月 29 日。"""
         try:
             return value.replace(year=value.year - year)
         except ValueError:
             return value.replace(year=value.year - year, month=2, day=28)
+
     # 1. 如果未传入结束日期则默认为当天日期
     resolved_end = date.today()
     # 2. 根据当天日期反推指定起始日期
@@ -120,7 +121,9 @@ def fetch_open_or_exchange_nav_frames(
     symbol: str,
 ) -> list[dict[str, Any]]:
     """获取开放式/场内基金近 1 年单位净值和累计净值走势。"""
-    resolved_start, resolved_end = _resolve_window(years=1,)
+    resolved_start, resolved_end = _resolve_window(
+        years=1,
+    )
     raw_rows = _fetch_lsjz_rows(symbol, start_date=resolved_start, end_date=resolved_end)
 
     return [
@@ -138,7 +141,9 @@ def fetch_money_yield_frame(
     symbol: str,
 ) -> list[dict[str, Any]]:
     """获取货币基金近 3 年收益历史。"""
-    resolved_start, resolved_end = _resolve_window(years=3,)
+    resolved_start, resolved_end = _resolve_window(
+        years=3,
+    )
     raw_rows = _fetch_lsjz_rows(symbol, start_date=resolved_start, end_date=resolved_end)
 
     return [

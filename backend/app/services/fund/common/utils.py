@@ -138,4 +138,3 @@ async def delete_cache(cache_key: str) -> None:
     """按完整缓存键删除缓存。"""
     redis = await get_redis()
     await redis.delete(cache_key)
-

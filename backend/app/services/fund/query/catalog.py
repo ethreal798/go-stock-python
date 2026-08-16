@@ -57,12 +57,10 @@ class FundCatalogQueryService:
         page_fund = aliased(Fund, fund_page)
 
         # 第二步：只为这一页基金关联 latest_rank
-        statement = (
-            self._fund_with_latest_query(page_fund).order_by(
-                page_fund.code.ilike(prefix_pattern).desc(),
-                page_fund.name.ilike(prefix_pattern).desc(),
-                page_fund.code,
-            )
+        statement = self._fund_with_latest_query(page_fund).order_by(
+            page_fund.code.ilike(prefix_pattern).desc(),
+            page_fund.name.ilike(prefix_pattern).desc(),
+            page_fund.code,
         )
 
         rows = list((await self.db.execute(statement)).all())
