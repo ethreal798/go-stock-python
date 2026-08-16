@@ -258,8 +258,8 @@ const FundTable: React.FC<FundTableProps> = ({
   const defaultScrollX = showRemark ? 1520 : showAction ? 1380 : 1260;
   const finalScrollX = scrollX ?? defaultScrollX;
 
-  // 有数据时才设置纵向滚动，避免空数据时出现空白滚动条
-  const finalScrollY = data.length > 0 ? scrollY : undefined;
+  // 始终设置纵向滚动，保持表格高度一致；无数据时不会出现滚动条
+  const finalScrollY = scrollY;
 
   return (
     <Table<FundTableRow>

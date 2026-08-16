@@ -117,7 +117,6 @@ const FundMarket: React.FC<FundMarketProps> = ({ onFollowSuccess }) => {
 
   const [list, setList] = useState<FundTableRow[]>([]);
   const [loading, setLoading] = useState(false);
-  const [searchKeyword, setSearchKeyword] = useState("");
   const [currentPage, setCurrentPage] = useState(1);
   const [range, setRange] = useState<FundRangeKey>("day");
   const [fundType, setFundType] = useState<string | undefined>(undefined);
@@ -133,19 +132,14 @@ const FundMarket: React.FC<FundMarketProps> = ({ onFollowSuccess }) => {
 
   const handleSearch = useCallback(
     async (
-      keyword: string,
       page: number = 1,
       currentRange?: FundRangeKey,
       currentFundType?: string | undefined,
     ) => {
-      if (!keyword.trim()) {
-        setList([]);
-        return;
-      }
       setLoading(true);
       try {
         const res = await searchFund({
-          keyword,
+          keyword: "",
           page,
           limit: 20,
           range: currentRange ?? range,
@@ -170,17 +164,17 @@ const FundMarket: React.FC<FundMarketProps> = ({ onFollowSuccess }) => {
   const handleRangeChange = useCallback(
     (next: FundRangeKey) => {
       setRange(next);
-      void handleSearch(searchKeyword, 1, next, fundType);
+      void handleSearch(1, next, fundType);
     },
-    [handleSearch, searchKeyword, fundType],
+    [handleSearch, fundType],
   );
 
   const handleFundTypeChange = useCallback(
     (next: string | undefined) => {
       setFundType(next);
-      void handleSearch(searchKeyword, 1, range, next);
+      void handleSearch(1, range, next);
     },
-    [handleSearch, searchKeyword, range],
+    [handleSearch, range],
   );
 
   /**
@@ -394,11 +388,7 @@ const FundMarket: React.FC<FundMarketProps> = ({ onFollowSuccess }) => {
             >
               搜索
             </Button>
-            <Button
-              icon={<ReloadOutlined />}
-              onClick={() => handleSearch(searchKeyword, 1)}
-              disabled={!searchKeyword.trim()}
-            >
+            <Button icon={<ReloadOutlined />} onClick={() => handleSearch(1)}>
               刷新
             </Button>
           </Space>
@@ -413,9 +403,9 @@ const FundMarket: React.FC<FundMarketProps> = ({ onFollowSuccess }) => {
             pageSize: 20,
             current: currentPage,
             showQuickJumper: true,
-            onChange: (page) => handleSearch(searchKeyword, page),
+            onChange: (page) => handleSearch(page),
           }}
-          scroll={{ y: sortedList.length > 0 ? "72vh" : undefined }}
+          scroll={{ y: "72vh" }}
           size="small"
           onChange={handleTableChange}
           locale={{
@@ -430,7 +420,7 @@ const FundMarket: React.FC<FundMarketProps> = ({ onFollowSuccess }) => {
                   fontSize: 14,
                 }}
               >
-                点击右上角搜索图标开始查找基金
+                暂无数据
               </div>
             ),
           }}
