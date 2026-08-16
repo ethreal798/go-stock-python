@@ -22,7 +22,7 @@ export const followFund = (data: { fund_code: string; remark?: string }) =>
 
 // 取消关注基金（可选，您没提但一般会有，先加上）
 export const unfollowFund = (fund_code: string) =>
-  request.delete(`/funds/unfollow/${fund_code}`);
+  request.delete(`/funds/watchlist/${fund_code}`);
 
 // 搜索基金 - 返回基金信息列表（含净值、增长率等详细数据）
 export const searchFund = (params: {
