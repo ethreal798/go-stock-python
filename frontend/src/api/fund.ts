@@ -1,5 +1,5 @@
 import request from "./index";
-import type { FollowFund, SearchFund } from "@/types/fund";
+import type { FollowFund, FollowFundInfo } from "@/types/fund";
 
 export type FundRangeKey =
   | "day"
@@ -24,11 +24,11 @@ export const followFund = (data: { fund_code: string; remark?: string }) =>
 export const unfollowFund = (fund_code: string) =>
   request.delete(`/funds/unfollow/${fund_code}`);
 
-// 搜索基金
+// 搜索基金 - 返回基金信息列表（含净值、增长率等详细数据）
 export const searchFund = (params: {
   keyword: string;
   page?: number;
   limit?: number;
   range?: FundRangeKey;
   fund_type?: string;
-}) => request.get<SearchFund[]>("/funds/search", { params });
+}) => request.get<FollowFundInfo[]>("/funds/search", { params });

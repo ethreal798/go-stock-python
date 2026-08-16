@@ -39,6 +39,7 @@ const AppRouter: React.FC = () => {
           <Route path="/news/flash" element={<News />} />
           <Route path="/fund" element={<Fund />} />
           <Route path="/fund/market" element={<Fund />} />
+          <Route path="/fund/search" element={<Fund />} />
           <Route path="/fund/detail/:code" element={<Fund />} />
           <Route path="/cron-tasks" element={<CronTasks />} />
           <Route path="/settings" element={<Settings />} />
