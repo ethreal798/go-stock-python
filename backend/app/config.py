@@ -72,6 +72,10 @@ class Settings(BaseSettings):
     REDIS_URL: str = "redis://localhost:6379/0"
     REDIS_PASSWORD: Optional[str] = None
 
+    # ---- 基金累计收益率走势快照 ----
+    FUND_TREND_CACHE_TTL_SECONDS: int = 86400
+    FUND_TREND_FRESH_SECONDS: int = 86400
+
     # ---- AI 模型配置 ----
     AI_API_KEY: str = ""
     AI_BASE_URL: str = "https://api.openai.com/v1"

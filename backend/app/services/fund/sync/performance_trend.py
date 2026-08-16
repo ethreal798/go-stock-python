@@ -5,9 +5,7 @@ from __future__ import annotations
 import asyncio
 import logging
 from datetime import datetime
-from time import perf_counter
 from typing import Any, Sequence
-from uuid import uuid4
 
 import httpx
 from sqlalchemy import func, select
@@ -30,42 +28,42 @@ class FundPerformanceTrendSyncService:
     def __init__(self, db: AsyncSession) -> None:
         self.db = db
 
-    async def fetch_and_sync_watchlist(
-        self,
-        *,
-        periods: Sequence[str] | None = None,
-        concurrency: int | None = None,
-        batch_size: int | None = None,
-        retries: int | None = None,
-        timeout: float | None = None,
-    ) -> dict[str, int]:
-        """同步至少被一个用户加入自选的开放式基金。"""
-        statement = (
-            select(Fund)
-            .join(FundWatchlistItem, FundWatchlistItem.fund_code == Fund.code)
-            .where(Fund.status == "active", Fund.category == "open")
-            .distinct()
-            .order_by(Fund.id)
-        )
-        funds = list((await self.db.execute(statement)).scalars().all())
-        return await self._sync_funds(
-            funds,
-            periods=periods,
-            concurrency=concurrency,
-            batch_size=batch_size,
-            retries=retries,
-            timeout=timeout,
-        )
+    # async def fetch_and_sync_watchlist(
+    #     self,
+    #     *,
+    #     periods: Sequence[str] | None = None,
+    #     concurrency: int | None = None,
+    #     batch_size: int | None = None,
+    #     retries: int | None = None,
+    #     timeout: float | None = None,
+    # ) -> dict[str, int]:
+    #     """同步至少被一个用户加入自选的开放式基金。"""
+    #     statement = (
+    #         select(Fund)
+    #         .join(FundWatchlistItem, FundWatchlistItem.fund_code == Fund.code)
+    #         .where(Fund.status == "active", Fund.category == "open")
+    #         .distinct()
+    #         .order_by(Fund.id)
+    #     )
+    #     funds = list((await self.db.execute(statement)).scalars().all())
+    #     return await self._sync_funds(
+    #         funds,
+    #         periods=periods,
+    #         concurrency=concurrency,
+    #         batch_size=batch_size,
+    #         retries=retries,
+    #         timeout=timeout,
+    #     )
 
     async def fetch_and_sync_codes(
         self,
         fund_codes: Sequence[str],
         *,
         periods: Sequence[str],
-        concurrency: int | None = None,
-        batch_size: int | None = None,
-        retries: int | None = None,
-        timeout: float | None = None,
+        concurrency: int = 4,
+        batch_size: int = 20,
+        retries: int = 2,
+        timeout: float = 10.0,
     ) -> dict[str, int]:
         """命令行或管理员操作按代码同步开放式基金。"""
         codes = list(dict.fromkeys(normalize_fund_code(code) for code in fund_codes))
@@ -87,17 +85,14 @@ class FundPerformanceTrendSyncService:
         fund: Fund,
         period: str,
         *,
-        retries: int | None = None,
-        timeout: float | None = None,
+        retries: int = 2,
+        timeout: float = 10.0,
     ) -> FundPerformanceTrendLatest:
         """按需抓取并原子覆盖一只基金的一个周期。"""
-        self._validate_periods((period,))
-        retry_count = settings.FUND_TREND_FETCH_RETRIES if retries is None else retries
-        request_timeout = settings.FUND_TREND_FETCH_TIMEOUT_SECONDS if timeout is None else timeout
-        if retry_count < 0 or request_timeout <= 0:
+        if retries < 0 or timeout <= 0:
             raise ValueError("retries 不能小于0，timeout 必须大于0")
-        async with httpx.AsyncClient(timeout=request_timeout) as client:
-            snapshot = await self._fetch_snapshot(fund.code, period, client, retry_count)
+        async with httpx.AsyncClient(timeout=timeout) as client:
+            snapshot = await self._fetch_snapshot(fund.code, period, client, retries)
         await self._upsert_snapshot(fund.id, snapshot)
         await self.db.commit()
         await self._invalidate_cache_safely(fund.code, period)
@@ -113,30 +108,15 @@ class FundPerformanceTrendSyncService:
         retries: int | None,
         timeout: float | None,
     ) -> dict[str, int]:
-        selected_periods = tuple(dict.fromkeys(periods or settings.FUND_TREND_SYNC_PERIODS))
-        self._validate_periods(selected_periods)
-        concurrency = settings.FUND_TREND_SYNC_CONCURRENCY if concurrency is None else concurrency
-        batch_size = settings.FUND_TREND_SYNC_BATCH_SIZE if batch_size is None else batch_size
-        retries = settings.FUND_TREND_FETCH_RETRIES if retries is None else retries
-        timeout = settings.FUND_TREND_FETCH_TIMEOUT_SECONDS if timeout is None else timeout
-        if concurrency < 1 or batch_size < 1 or retries < 0 or timeout <= 0:
-            raise ValueError("concurrency、batch_size、timeout 必须大于0，retries 不能小于0")
+        selected_periods = tuple(dict.fromkeys(periods))
 
         result = {"funds": len(funds), "snapshots": 0, "failed": 0}
-        sync_id = uuid4().hex[:8]
-        started_at = perf_counter()
         semaphore = asyncio.Semaphore(concurrency)
-        logger.info(
-            "event=fund_trend_sync.started sync_id=%s funds=%s periods=%s concurrency=%s",
-            sync_id,
-            len(funds),
-            selected_periods,
-            concurrency,
-        )
+        logger.info(f"开始同步基金走势：共 {len(funds)} 只基金，周期 {selected_periods}，并发 {concurrency}")
         async with httpx.AsyncClient(timeout=timeout) as client:
             tasks = [(fund, period) for fund in funds for period in selected_periods]
             for offset in range(0, len(tasks), batch_size):
-                batch = tasks[offset : offset + batch_size]
+                batch = tasks[offset: offset + batch_size]
                 responses = await asyncio.gather(
                     *[
                         self._fetch_with_semaphore(fund, period, client, retries, semaphore)
@@ -148,14 +128,7 @@ class FundPerformanceTrendSyncService:
                 for (fund, period), response in zip(batch, responses):
                     if isinstance(response, BaseException):
                         result["failed"] += 1
-                        logger.warning(
-                            "event=fund_trend_sync.snapshot_failed sync_id=%s fund=%s period=%s error_type=%s error=%s",
-                            sync_id,
-                            fund.code,
-                            period,
-                            type(response).__name__,
-                            response,
-                        )
+                        logger.warning(f"基金 {fund.code} 周期 {period} 同步失败：{response}")
                         continue
                     await self._upsert_snapshot(fund.id, response)
                     invalidated.append((fund.code, period))
@@ -164,12 +137,7 @@ class FundPerformanceTrendSyncService:
                 for fund_code, period in invalidated:
                     await self._invalidate_cache_safely(fund_code, period)
 
-        logger.info(
-            "event=fund_trend_sync.completed sync_id=%s result=%s elapsed_seconds=%.2f",
-            sync_id,
-            result,
-            perf_counter() - started_at,
-        )
+        logger.info(f"基金走势同步完成：{result}")
         return result
 
     async def _fetch_with_semaphore(
@@ -224,6 +192,7 @@ class FundPerformanceTrendSyncService:
         )
 
     async def _get_snapshot(self, fund_id: int, period: str) -> FundPerformanceTrendLatest:
+        """获取基金的最新快照数据"""
         statement = select(FundPerformanceTrendLatest).where(
             FundPerformanceTrendLatest.fund_id == fund_id,
             FundPerformanceTrendLatest.period == period,
@@ -232,21 +201,8 @@ class FundPerformanceTrendSyncService:
         return snapshot
 
     @staticmethod
-    def _validate_periods(periods: Sequence[str]) -> None:
-        if not periods:
-            raise ValueError("至少指定一个基金走势周期")
-        unsupported = set(periods) - set(PERIOD_TO_SOURCE_TYPE)
-        if unsupported:
-            raise ValueError(f"不支持的基金走势周期: {sorted(unsupported)}")
-
-    @staticmethod
     async def _invalidate_cache_safely(fund_code: str, period: str) -> None:
         try:
             await delete_cache(FundCacheKeys.performance_trend(fund_code, period))
         except Exception:
-            logger.warning(
-                "event=fund_trend.cache_invalidate_failed fund=%s period=%s",
-                fund_code,
-                period,
-                exc_info=True,
-            )
+            logger.warning(f"基金 {fund_code} 周期 {period} 缓存清理失败", exc_info=True)

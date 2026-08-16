@@ -21,7 +21,6 @@ from app.services.fund.sync.performance_trend import FundPerformanceTrendSyncSer
 def _build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(description="同步开放式基金累计收益率走势最新快照")
     target = parser.add_mutually_exclusive_group(required=True)
-    target.add_argument("--watchlist", action="store_true", help="同步所有已加入自选的开放式基金")
     target.add_argument("--fund-code", action="append", dest="fund_codes", help="同步指定基金，可重复传入")
     parser.add_argument(
         "--period",
@@ -30,10 +29,6 @@ def _build_parser() -> argparse.ArgumentParser:
         dest="periods",
         help="同步周期，可重复传入；默认1y",
     )
-    parser.add_argument("--concurrency", type=int, help="数据源并发数")
-    parser.add_argument("--batch-size", type=int, help="每批快照任务数")
-    parser.add_argument("--retries", type=int, help="失败重试次数")
-    parser.add_argument("--timeout", type=float, help="单次请求超时秒数")
     return parser
 
 
@@ -43,20 +38,13 @@ async def _run(args: argparse.Namespace) -> None:
         key: value
         for key, value in {
             "periods": periods,
-            "concurrency": args.concurrency,
-            "batch_size": args.batch_size,
-            "retries": args.retries,
-            "timeout": args.timeout,
         }.items()
         if value is not None
     }
     async with async_session_factory() as db:
         service = FundPerformanceTrendSyncService(db)
         try:
-            if args.watchlist:
-                result = await service.fetch_and_sync_watchlist(**kwargs)
-            else:
-                result = await service.fetch_and_sync_codes(args.fund_codes, **kwargs)
+            result = await service.fetch_and_sync_codes(args.fund_codes, **kwargs)
             logging.getLogger(__name__).info("基金累计收益率走势同步结果: %s", result)
         except Exception:
             await db.rollback()
