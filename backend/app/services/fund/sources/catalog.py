@@ -11,6 +11,7 @@ from bs4 import BeautifulSoup
     推导出 可用基金 对应 基金类型 is_hb is_exchange
 """
 
+
 class FundCatalogSourceError(RuntimeError):
     pass
 

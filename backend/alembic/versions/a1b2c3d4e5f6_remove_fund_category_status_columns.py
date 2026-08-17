@@ -25,10 +25,20 @@ def upgrade() -> None:
 
 
 def downgrade() -> None:
-    op.add_column("funds", sa.Column("last_seen_at", sa.DateTime(), nullable=True, comment="最近一次在排行中出现的抓取时间"))
-    op.add_column("funds", sa.Column("last_seen_data_date", sa.Date(), nullable=True, comment="最近一次在排行中出现的数据日期"))
-    op.add_column("funds", sa.Column("status", sa.String(length=20), nullable=False, server_default="unknown", comment="排行可观测状态"))
-    op.add_column("funds", sa.Column("category", sa.String(length=20), nullable=False, server_default="unknown", comment="数据路由分类"))
+    op.add_column(
+        "funds", sa.Column("last_seen_at", sa.DateTime(), nullable=True, comment="最近一次在排行中出现的抓取时间")
+    )
+    op.add_column(
+        "funds", sa.Column("last_seen_data_date", sa.Date(), nullable=True, comment="最近一次在排行中出现的数据日期")
+    )
+    op.add_column(
+        "funds",
+        sa.Column("status", sa.String(length=20), nullable=False, server_default="unknown", comment="排行可观测状态"),
+    )
+    op.add_column(
+        "funds",
+        sa.Column("category", sa.String(length=20), nullable=False, server_default="unknown", comment="数据路由分类"),
+    )
     op.create_index(op.f("ix_funds_last_seen_data_date"), "funds", ["last_seen_data_date"], unique=False)
     op.create_index(op.f("ix_funds_status"), "funds", ["status"], unique=False)
     op.create_index(op.f("ix_funds_category"), "funds", ["category"], unique=False)
