@@ -60,11 +60,13 @@ class FundRankingSyncService:
         money_rows: list[dict[str, Any]],
     ) -> dict[str, int]:
         # 1. 收集所有基金代码，查询 Fund 表获取 fund_id 映射
-        all_codes = sorted(set(
-            [r["fund_code"] for r in open_rows] +
-            [r["fund_code"] for r in exchange_rows] +
-            [r["fund_code"] for r in money_rows]
-        ))
+        all_codes = sorted(
+            set(
+                [r["fund_code"] for r in open_rows]
+                + [r["fund_code"] for r in exchange_rows]
+                + [r["fund_code"] for r in money_rows]
+            )
+        )
         result = await self.db.execute(select(Fund.id, Fund.code).where(Fund.code.in_(all_codes)))
         fund_ids = {code: fund_id for fund_id, code in result.all()}
         if len(fund_ids) != len(all_codes):
