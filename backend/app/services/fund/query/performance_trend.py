@@ -53,9 +53,10 @@ class FundPerformanceTrendQueryService:
         fund = await self._get_fund(code)
         if fund is None:
             raise FundPerformanceTrendNotFoundError(code)
-        # 调整 根据基金类型访问不同的净值
-        if fund.category != "open":
-            raise FundPerformanceTrendUnsupportedError(f"基金 {code} 不是开放式基金")
+        if fund.is_hb:
+            raise FundPerformanceTrendUnsupportedError(f"基金 {code} 是货币基金，不支持走势查询")
+        if fund.is_exchange:
+            raise FundPerformanceTrendUnsupportedError(f"基金 {code} 是场内基金，请查看K线")
 
         snapshot = await self._get_snapshot(fund.id, period)
         if snapshot is not None and snapshot.expires_at > datetime.now():

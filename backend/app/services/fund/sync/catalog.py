@@ -54,13 +54,15 @@ class FundCatalogSyncService:
             is_hb = code in money_codes
             is_exchange = code in exchange_codes
 
-            rows.append({
-                "code": code,
-                "name": info.get("name", ""),
-                "type": info.get("type", ""),
-                "is_hb": is_hb,
-                "is_exchange": is_exchange,
-            })
+            rows.append(
+                {
+                    "code": code,
+                    "name": info.get("name", ""),
+                    "type": info.get("type", ""),
+                    "is_hb": is_hb,
+                    "is_exchange": is_exchange,
+                }
+            )
 
         await self._upsert_funds(rows)
 

@@ -28,33 +28,6 @@ class FundPerformanceTrendSyncService:
     def __init__(self, db: AsyncSession) -> None:
         self.db = db
 
-    # async def fetch_and_sync_watchlist(
-    #     self,
-    #     *,
-    #     periods: Sequence[str] | None = None,
-    #     concurrency: int | None = None,
-    #     batch_size: int | None = None,
-    #     retries: int | None = None,
-    #     timeout: float | None = None,
-    # ) -> dict[str, int]:
-    #     """同步至少被一个用户加入自选的开放式基金。"""
-    #     statement = (
-    #         select(Fund)
-    #         .join(FundWatchlistItem, FundWatchlistItem.fund_code == Fund.code)
-    #         .where(Fund.status == "active", Fund.category == "open")
-    #         .distinct()
-    #         .order_by(Fund.id)
-    #     )
-    #     funds = list((await self.db.execute(statement)).scalars().all())
-    #     return await self._sync_funds(
-    #         funds,
-    #         periods=periods,
-    #         concurrency=concurrency,
-    #         batch_size=batch_size,
-    #         retries=retries,
-    #         timeout=timeout,
-    #     )
-
     async def fetch_and_sync_codes(
         self,
         fund_codes: Sequence[str],
@@ -65,11 +38,11 @@ class FundPerformanceTrendSyncService:
         retries: int = 2,
         timeout: float = 10.0,
     ) -> dict[str, int]:
-        """命令行或管理员操作按代码同步开放式基金。"""
+        """命令行或管理员操作按代码同步基金。"""
         codes = list(dict.fromkeys(normalize_fund_code(code) for code in fund_codes))
         if not codes:
             return {"funds": 0, "snapshots": 0, "failed": 0}
-        statement = select(Fund).where(Fund.code.in_(codes), Fund.status == "active", Fund.category == "open")
+        statement = select(Fund).where(Fund.code.in_(codes), Fund.is_hb == False, Fund.is_exchange == False)
         funds = list((await self.db.execute(statement)).scalars().all())
         return await self._sync_funds(
             funds,

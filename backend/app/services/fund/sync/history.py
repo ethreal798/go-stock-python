@@ -20,7 +20,6 @@ from app.services.fund.sources.history import fetch_money_yield_frame, fetch_ope
 logger = logging.getLogger(__name__)
 
 HISTORY_UPSERT_BATCH_SIZE = 500
-_SUPPORTED_CATEGORIES = frozenset({"open", "money", "exchange"})
 HistoryModel = type[FundOpenExchangeNavHistory] | type[FundMoneyYieldHistory]
 
 
@@ -37,13 +36,11 @@ class FundHistorySyncService:
         batch_size: int = 20,
         retries: int = 2,
     ) -> dict[str, int]:
-        """游标分页同步全部 active 基金历史，适合定时任务。"""
+        """游标分页同步全部基金历史"""
         if concurrency < 1 or batch_size < 1 or retries < 0:
             raise ValueError("concurrency、batch_size 必须大于 0，retries 不能小于 0")
 
-        sync_started_at = perf_counter()
-        conditions = [Fund.status == "active", Fund.category.in_(_SUPPORTED_CATEGORIES)]
-        total = int((await self.db.execute(select(func.count(Fund.id)).where(*conditions))).scalar_one())
+        total = int((await self.db.execute(select(func.count(Fund.id)))).scalar_one())
         result = {"funds": 0, "rows": 0, "failed": 0}
         if total == 0:
             logger.info("没有需要同步的基金")
@@ -59,7 +56,7 @@ class FundHistorySyncService:
             batch_index += 1
             statement = (
                 select(Fund)
-                .where(*conditions, Fund.id > last_id)
+                .where(Fund.id > last_id)
                 .order_by(Fund.id)
                 .limit(min(batch_size, total - result["funds"]))
             )
@@ -78,7 +75,7 @@ class FundHistorySyncService:
                 result["funds"] += 1
                 if isinstance(response, Exception):
                     result["failed"] += 1
-                    logger.warning(f"基金 {fund.code}（{fund.category}）同步失败：{response}")
+                    logger.warning(f"基金 {fund.code} {fund.name} 同步失败：{response}")
                     continue
                 model, values = response
                 values_by_model.setdefault(model, []).extend(values)
@@ -89,10 +86,7 @@ class FundHistorySyncService:
                     result["rows"] += len(values)
             await self.db.commit()
 
-        elapsed_seconds = perf_counter() - sync_started_at
-        logger.info(
-            f"全量同步完成：处理 {result['funds']} 只，写入 {result['rows']} 行，失败 {result['failed']} 只，耗时 {elapsed_seconds:.2f} 秒"
-        )
+        logger.info(f"全量同步完成：处理 {result['funds']} 只，写入 {result['rows']} 行，失败 {result['failed']} 只")
         return result
 
     async def sync_by_fund_codes(
@@ -108,7 +102,7 @@ class FundHistorySyncService:
         if not normalized_codes:
             return {"funds": 0, "rows": 0, "failed": 0}
 
-        statement = select(Fund).where(Fund.code.in_(normalized_codes), Fund.category.in_(_SUPPORTED_CATEGORIES))
+        statement = select(Fund).where(Fund.code.in_(normalized_codes))
         funds = list((await self.db.execute(statement)).scalars().all())
         funds_by_code = {fund.code: fund for fund in funds}
 
@@ -117,11 +111,16 @@ class FundHistorySyncService:
         for code in normalized_codes:
             fund = funds_by_code.get(code)
             result["funds"] += 1
+            if fund is None:
+                result["failed"] += 1
+                logger.warning(f"基金 {code} 不存在，跳过同步")
+                continue
             try:
                 model, values = await self._sync_one(fund, retries=retries)
             except Exception as exc:
                 result["failed"] += 1
-                logger.warning(f"基金 {fund.code}（{fund.category}）同步失败：{exc}")
+                fund_type = "货币基金" if fund.is_hb else "其他基金"
+                logger.warning(f"基金 {fund.code}（{fund_type}）同步失败：{exc}")
                 continue
             values_by_model.setdefault(model, []).extend(values)
 
@@ -155,21 +154,20 @@ class FundHistorySyncService:
         for attempt in range(retries + 1):
             try:
                 fetched_at = datetime.now()
-                if fund.category == "money":
+                if fund.is_hb:
                     raw_rows = await asyncio.to_thread(fetch_money_yield_frame, fund.code)
                     model: HistoryModel = FundMoneyYieldHistory
-                elif fund.category in {"open", "exchange"}:
+                else:
                     raw_rows = await asyncio.to_thread(fetch_open_or_exchange_nav_frames, fund.code)
                     model = FundOpenExchangeNavHistory
-                else:
-                    raise ValueError(f"不支持的基金分类: {fund.category}")
                 return model, self._normalize_rows(fund, raw_rows, fetched_at=fetched_at)
             except Exception as exc:
                 last_error = exc
                 if attempt < retries:
                     retry_delay = min(2**attempt, 8)
+                    fund_type = "货币基金" if fund.is_hb else "其他基金"
                     logger.warning(
-                        f"基金 {fund.code}（{fund.category}）第 {attempt + 1}/{retries + 1} 次重试，{retry_delay} 秒后重试：{exc}"
+                        f"基金 {fund.code}（{fund_type}）第 {attempt + 1}/{retries + 1} 次重试，{retry_delay} 秒后重试：{exc}"
                     )
                     await asyncio.sleep(retry_delay)
         assert last_error is not None
@@ -192,7 +190,7 @@ class FundHistorySyncService:
                 "data_date": data_date,
                 "fetched_at": fetched_at,
             }
-            if fund.category == "money":
+            if fund.is_hb:
                 income_per_10k = normalize_decimal(raw.get("income_per_10k"))
                 annualized_7d_pct = normalize_decimal(raw.get("annualized_7d_pct"))
                 if income_per_10k is None and annualized_7d_pct is None:
@@ -238,55 +236,3 @@ class FundHistorySyncService:
                     set_=update_values,
                 )
             )
-
-    # async def append_rank_snapshots(
-    #     self,
-    #     open_rows: list[dict[str, Any]],
-    #     exchange_rows: list[dict[str, Any]],
-    #     money_rows: list[dict[str, Any]],
-    #     fund_ids: dict[str, int],
-    # ) -> dict[str, int]:
-    #     """把排行同步取得的最新值追加到对应历史表。"""
-    #     money_codes = {row["fund_code"] for row in money_rows}
-    #     open_codes = {row["fund_code"] for row in open_rows} - money_codes
-    #     exchange_codes = {row["fund_code"] for row in exchange_rows} - open_codes - money_codes
-    #     nav_values = [
-    #         {
-    #             "fund_id": fund_ids[row["fund_code"]],
-    #             "fund_code": row["fund_code"],
-    #             "data_date": row["data_date"],
-    #             "unit_nav": row.get("unit_nav"),
-    #             "accumulated_nav": row.get("accumulated_nav"),
-    #             **(
-    #                 {"daily_growth_pct": row.get("daily_growth_pct")}
-    #                 if row["fund_code"] in open_codes
-    #                 else {}
-    #             ),
-    #             "fetched_at": row["fetched_at"],
-    #         }
-    #         for row in [*open_rows, *exchange_rows]
-    #         if row.get("data_date") is not None
-    #         and row["fund_code"] in fund_ids
-    #         and (row["fund_code"] in open_codes or row["fund_code"] in exchange_codes)
-    #     ]
-    #     money_values = [
-    #         {
-    #             "fund_id": fund_ids[row["fund_code"]],
-    #             "fund_code": row["fund_code"],
-    #             "data_date": row["data_date"],
-    #             "income_per_10k": row.get("income_per_10k"),
-    #             "annualized_7d_pct": row.get("annualized_7d_pct"),
-    #             "fetched_at": row["fetched_at"],
-    #         }
-    #         for row in money_rows
-    #         if row.get("data_date") is not None and row["fund_code"] in fund_ids and row["fund_code"] in money_codes
-    #     ]
-    #     if nav_values:
-    #         await self._upsert_history(FundOpenExchangeNavHistory, nav_values)
-    #     if money_values:
-    #         await self._upsert_history(FundMoneyYieldHistory, money_values)
-    #     return {
-    #         "open_rows": sum(row["fund_code"] in open_codes for row in nav_values),
-    #         "money_rows": len(money_values),
-    #         "exchange_rows": sum(row["fund_code"] in exchange_codes for row in nav_values),
-    #     }
