@@ -46,25 +46,30 @@ class FundPerformanceTrendQueryService:
             raise ValueError(f"不支持的基金走势周期: {period}")
         code = normalize_fund_code(fund_code)
 
+        # 1. redis中如果有记录 则直接返回
         cached = await self._read_cache_safely(code, period)
         if cached is not None:
             return cached
 
+        # 2. 校验传入的基金代码是否有效
         fund = await self._get_fund(code)
         if fund is None:
             raise FundPerformanceTrendNotFoundError(code)
-        if fund.is_hb:
-            raise FundPerformanceTrendUnsupportedError(f"基金 {code} 是货币基金，不支持走势查询")
         if fund.is_exchange:
             raise FundPerformanceTrendUnsupportedError(f"基金 {code} 是场内基金，请查看K线")
 
+        # 3. 根据基金类型调用对应的同步方法
+        sync_service = FundPerformanceTrendSyncService(self.db)
+        refresh_fn = sync_service.fetch_and_sync_money if fund.is_hb else sync_service.fetch_and_sync_one
+        unavailable_msg = f"货币基金 {code} 的 {period} 走势暂时无法获取" if fund.is_hb else f"基金 {code} 的 {period} 走势暂时无法获取"
+
+        # 4. 获取最新快照 当快照存在且数据未过期 直接返回
         snapshot = await self._get_snapshot(fund.id, period)
         if snapshot is not None and snapshot.expires_at > datetime.now():
             response = self._response(fund.code, snapshot, is_stale=False)
             await self._write_cache_safely(fund.code, period, response, stale=False)
             return response
 
-        # rollback 会使 ORM 对象过期，因此刷新前先保存旧响应和基础标识。
         fund_code_value = fund.code
         stale_response = self._response(fund_code_value, snapshot, is_stale=True) if snapshot is not None else None
         lock_key = f"fund:performance-trend:lock:{fund_code_value}:{period}"
@@ -74,7 +79,6 @@ class FundPerformanceTrendQueryService:
             redis = await get_redis()
             acquired = await redis.set(lock_key, lock_token, nx=True, ex=self.LOCK_SECONDS)
         except Exception:
-            # Redis 是优化层；不可用时允许当前请求直接刷新，数据库仍是事实来源。
             acquired = True
             logger.warning(
                 "event=fund_trend.lock_unavailable fund=%s period=%s",
@@ -85,16 +89,14 @@ class FundPerformanceTrendQueryService:
         if acquired:
             try:
                 try:
-                    snapshot = await FundPerformanceTrendSyncService(self.db).fetch_and_sync_one(fund, period)
+                    snapshot = await refresh_fn(fund, period)
                     response = self._response(fund_code_value, snapshot, is_stale=False)
                     await self._write_cache_safely(fund_code_value, period, response, stale=False)
                     return response
                 except Exception as exc:
                     await self.db.rollback()
                     if stale_response is None:
-                        raise FundPerformanceTrendUnavailableError(
-                            f"基金 {fund_code_value} 的 {period} 走势暂时无法获取"
-                        ) from exc
+                        raise FundPerformanceTrendUnavailableError(unavailable_msg) from exc
                     logger.warning(
                         "event=fund_trend.on_demand_refresh_failed fund=%s period=%s error_type=%s error=%s",
                         fund_code_value,
@@ -116,7 +118,6 @@ class FundPerformanceTrendQueryService:
                             exc_info=True,
                         )
 
-        # 另一个请求正在刷新：有旧快照立即返回，没有则短暂等待其写入缓存。
         if stale_response is not None:
             await self._write_cache_safely(fund_code_value, period, stale_response, stale=True)
             return stale_response

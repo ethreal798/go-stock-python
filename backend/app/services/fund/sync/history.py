@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import asyncio
 import logging
-from datetime import datetime
+from datetime import date, datetime, timedelta
 from math import ceil
 from time import perf_counter
 from typing import Any, Sequence
@@ -15,7 +15,12 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.fund import Fund, FundMoneyYieldHistory, FundOpenExchangeNavHistory
 from app.services.fund.common.utils import iter_batches, normalize_date, normalize_decimal, normalize_fund_code
-from app.services.fund.sources.history import fetch_money_yield_frame, fetch_open_or_exchange_nav_frames
+from app.services.fund.sources.history import (
+    _resolve_window,
+    fetch_money_yield_frame,
+    fetch_money_yield_frame_by_range,
+    fetch_open_or_exchange_nav_frames,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -130,6 +135,36 @@ class FundHistorySyncService:
                 result["rows"] += len(values)
         await self.db.commit()
         return result
+
+    async def sync_money_incremental(
+        self,
+        fund: Fund,
+    ) -> dict[str, int]:
+        """货币基金增量同步：仅拉取已有最新日期之后的新数据。"""
+        max_date_stmt = select(func.max(FundMoneyYieldHistory.data_date)).where(
+            FundMoneyYieldHistory.fund_id == fund.id,
+        )
+        max_date = (await self.db.execute(max_date_stmt)).scalar_one_or_none()
+
+        today = date.today()
+        if max_date is None:
+            start_date, end_date = _resolve_window(years=3)
+        else:
+            start_date = max_date + timedelta(days=1)
+            if start_date > today:
+                return {"funds": 1, "rows": 0, "failed": 0}
+            end_date = today
+
+        raw_rows = await asyncio.to_thread(
+            fetch_money_yield_frame_by_range, fund.code, start_date, end_date
+        )
+        values = self._normalize_rows(fund, raw_rows, fetched_at=datetime.now())
+
+        if values:
+            await self._upsert_history(FundMoneyYieldHistory, values)
+            await self.db.commit()
+
+        return {"funds": 1, "rows": len(values), "failed": 0}
 
     async def _sync_one(
         self,

@@ -109,6 +109,71 @@ def format_performance_trend_snapshot(
 
 
 # ------------------------------------------------------------------
+# 货币基金收益走势
+# ------------------------------------------------------------------
+def format_money_trend_snapshot(
+    rows: list[dict[str, Any]],
+    *,
+    fund_code: str,
+    period: str,
+    fetched_at: datetime,
+    fresh_seconds: int,
+) -> dict[str, Any]:
+    """将货币基金历史收益数据格式化为快照。"""
+    annualized_points: list[list[str, float]] = []
+    income_points: list[list[str, float]] = []
+    all_dates: list[str] = []
+
+    for row in rows:
+        d = row["data_date"]
+        date_str = d.isoformat() if hasattr(d, "isoformat") else str(d)
+        all_dates.append(date_str)
+        if row.get("annualized_7d_pct") is not None:
+            annualized_points.append([date_str, float(row["annualized_7d_pct"])])
+        if row.get("income_per_10k") is not None:
+            income_points.append([date_str, float(row["income_per_10k"])])
+
+    if not annualized_points and not income_points:
+        raise ValueError(f"货币基金 {fund_code} 周期 {period} 无有效数据")
+
+    series: list[dict[str, Any]] = []
+    if annualized_points:
+        series.append(
+            {
+                "key": "annualized_7d_pct",
+                "name": "七日年化收益率(%)",
+                "benchmark_code": None,
+                "latest_return_pct": annualized_points[-1][1],
+                "points": annualized_points,
+            }
+        )
+    if income_points:
+        series.append(
+            {
+                "key": "income_per_10k",
+                "name": "万份收益(元)",
+                "benchmark_code": None,
+                "latest_return_pct": income_points[-1][1],
+                "points": income_points,
+            }
+        )
+
+    canonical = json.dumps(series, ensure_ascii=False, separators=(",", ":"), sort_keys=True)
+    return {
+        "period": period,
+        "start_date": date.fromisoformat(min(all_dates)),
+        "end_date": date.fromisoformat(max(all_dates)),
+        "series_data": series,
+        "source": "eastmoney_history",
+        "schema_version": 1,
+        "content_hash": hashlib.sha256(canonical.encode("utf-8")).hexdigest(),
+        "point_count": sum(len(item["points"]) for item in series),
+        "fetched_at": fetched_at,
+        "expires_at": fetched_at + timedelta(seconds=fresh_seconds),
+    }
+
+
+# ------------------------------------------------------------------
 # 基金档案与风险指标
 # ------------------------------------------------------------------
 def _normalize_scale_cny(value: Any) -> Decimal | None:
