@@ -62,7 +62,6 @@ class FundPerformanceTrendSeriesResponse(BaseModel):
 
     key: str
     name: str
-    benchmark_code: Optional[str] = None
     latest_return_pct: Optional[float] = None
     points: list[tuple[str, Optional[float]]]
 
@@ -106,3 +105,14 @@ class FundWatchlistItemResponse(BaseModel):
     updated_at: datetime
 
     model_config = {"from_attributes": True}
+
+
+class FundWatchlistRequest(BaseModel):
+    """入参"""
+
+    category: str  # 货币  开放  场内
+    fund_type: str  # 基金类型 比如 指数型股票
+
+
+class FundRankListResponse(BaseModel):
+    pass

@@ -64,15 +64,8 @@ def format_performance_trend_snapshot(
     series: list[dict[str, Any]] = []
     all_dates: list[str] = []
     for index, raw_series in enumerate(payload.get("Data") or []):
-        if not isinstance(raw_series, dict):
-            raise ValueError(f"基金 {fund_code} 第 {index} 条曲线格式异常")
         name = str(raw_series.get("name") or "").strip() or f"曲线{index + 1}"
         raw_points = raw_series.get("data")
-        if not isinstance(raw_points, list) or not raw_points:
-            raise ValueError(f"基金 {fund_code} 曲线 {name} 没有有效数据")
-        if len(raw_points) > MAX_PERFORMANCE_TREND_POINTS_PER_SERIES:
-            raise ValueError(f"基金 {fund_code} 曲线 {name} 点数超过限制: {len(raw_points)}")
-
         # 上游偶尔可能重复返回同一天，保留最后一个点并按日期升序。
         deduplicated = dict(_normalize_performance_trend_point(point) for point in raw_points)
         points = [[point_date, value] for point_date, value in sorted(deduplicated.items())]
@@ -83,7 +76,6 @@ def format_performance_trend_snapshot(
             {
                 "key": key,
                 "name": name,
-                "benchmark_code": benchmark_code,
                 "latest_return_pct": points[-1][1],
                 "points": points,
             }

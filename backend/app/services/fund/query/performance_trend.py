@@ -41,7 +41,7 @@ class FundPerformanceTrendQueryService:
     def __init__(self, db: AsyncSession) -> None:
         self.db = db
 
-    async def get(self, fund_code: str, period: str) -> dict:
+    async def get_trend(self, fund_code: str, period: str) -> dict:
         if period not in PERIOD_TO_SOURCE_TYPE:
             raise ValueError(f"不支持的基金走势周期: {period}")
         code = normalize_fund_code(fund_code)
@@ -67,60 +67,59 @@ class FundPerformanceTrendQueryService:
         snapshot = await self._get_snapshot(fund.id, period)
         if snapshot is not None and snapshot.expires_at > datetime.now():
             response = self._response(fund.code, snapshot, is_stale=False)
+            # 将快照数据写入redis
             await self._write_cache_safely(fund.code, period, response, stale=False)
             return response
 
         fund_code_value = fund.code
+        # 6. 保存旧快照数据，准备进行原子刷新
         stale_response = self._response(fund_code_value, snapshot, is_stale=True) if snapshot is not None else None
         lock_key = f"fund:performance-trend:lock:{fund_code_value}:{period}"
         lock_token = uuid4().hex
         redis = None
         try:
+            # 获取redis客户端
             redis = await get_redis()
+            # 获取原子锁
             acquired = await redis.set(lock_key, lock_token, nx=True, ex=self.LOCK_SECONDS)
         except Exception:
             acquired = True
-            logger.warning(
-                "event=fund_trend.lock_unavailable fund=%s period=%s",
-                fund.code,
-                period,
-                exc_info=True,
-            )
+            logger.warning("获取锁失败，直接执行刷新：基金 %s，周期 %s", fund.code, period)
+        # 7. 只要拿到原子锁的哪个线程才能执行刷新操作
         if acquired:
             try:
                 try:
+                    # 执行刷新获取指定周期的最新快照
                     snapshot = await refresh_fn(fund, period)
                     response = self._response(fund_code_value, snapshot, is_stale=False)
                     await self._write_cache_safely(fund_code_value, period, response, stale=False)
                     return response
                 except Exception as exc:
+                    # 刷新过程中 出现异常 存在旧数据则使用旧数据兜底返回，否则抛出异常
                     await self.db.rollback()
                     if stale_response is None:
                         raise FundPerformanceTrendUnavailableError(unavailable_msg) from exc
                     logger.warning(
-                        "event=fund_trend.on_demand_refresh_failed fund=%s period=%s error_type=%s error=%s",
+                        "刷新失败，返回旧快照：基金 %s，周期 %s，错误 %s",
                         fund_code_value,
                         period,
-                        type(exc).__name__,
                         exc,
                     )
                     await self._write_cache_safely(fund_code_value, period, stale_response, stale=True)
                     return stale_response
             finally:
+                # 不论什么情况最终都需要释放redis连接
                 if redis is not None:
                     try:
                         await self._release_lock(redis, lock_key, lock_token)
                     except Exception:
-                        logger.warning(
-                            "event=fund_trend.lock_release_failed fund=%s period=%s",
-                            fund_code_value,
-                            period,
-                            exc_info=True,
-                        )
+                        logger.warning("释放锁失败：基金 %s，周期 %s", fund_code_value, period)
 
+        # 8. 其他线程获取不到锁时则会进入这里，如果存在旧数据则先返回
         if stale_response is not None:
             await self._write_cache_safely(fund_code_value, period, stale_response, stale=True)
             return stale_response
+        # 没有旧快照数据 进行2s等待 每0.2s向redis中读缓存
         for _ in range(10):
             await asyncio.sleep(0.2)
             cached = await self._read_cache_safely(fund_code_value, period)
@@ -129,9 +128,11 @@ class FundPerformanceTrendQueryService:
         raise FundPerformanceTrendUnavailableError(f"基金 {fund_code_value} 的 {period} 走势正在生成")
 
     async def _get_fund(self, fund_code: str) -> Fund | None:
+        """从基金主表获取基金信息"""
         return (await self.db.execute(select(Fund).where(Fund.code == fund_code))).scalar_one_or_none()
 
     async def _get_snapshot(self, fund_id: int, period: str) -> FundPerformanceTrendLatest | None:
+        """从历史收益率表读取基金对应周期的快照数据"""
         statement = select(FundPerformanceTrendLatest).where(
             FundPerformanceTrendLatest.fund_id == fund_id,
             FundPerformanceTrendLatest.period == period,
@@ -140,6 +141,7 @@ class FundPerformanceTrendQueryService:
 
     @staticmethod
     def _response(fund_code: str, snapshot: FundPerformanceTrendLatest, *, is_stale: bool) -> dict:
+        """组装schema中要求的数据结构"""
         return {
             "fund_code": fund_code,
             "period": snapshot.period,
@@ -152,6 +154,7 @@ class FundPerformanceTrendQueryService:
 
     @staticmethod
     async def _release_lock(redis, lock_key: str, lock_token: str) -> None:
+        """释放原子锁"""
         await redis.eval(
             "if redis.call('get', KEYS[1]) == ARGV[1] then " "return redis.call('del', KEYS[1]) else return 0 end",
             1,
@@ -161,6 +164,7 @@ class FundPerformanceTrendQueryService:
 
     @staticmethod
     async def _read_cache_safely(fund_code: str, period: str) -> dict | None:
+        """读取redis对应基金的缓存数据"""
         try:
             cache_key = FundCacheKeys.performance_trend(fund_code, period)
             payload = await read_json_cache(cache_key)
@@ -169,16 +173,12 @@ class FundPerformanceTrendQueryService:
                 return None
             return payload
         except Exception:
-            logger.warning(
-                "event=fund_trend.cache_read_failed fund=%s period=%s",
-                fund_code,
-                period,
-                exc_info=True,
-            )
+            logger.warning("读取缓存失败：基金 %s，周期 %s", fund_code, period)
             return None
 
     @staticmethod
     async def _write_cache_safely(fund_code: str, period: str, payload: dict, *, stale: bool) -> None:
+        """向redis中写入缓存数据"""
         try:
             await write_json_cache(
                 FundCacheKeys.performance_trend(fund_code, period),
@@ -187,9 +187,4 @@ class FundPerformanceTrendQueryService:
                 jitter_seconds=0 if stale else 3600,
             )
         except Exception:
-            logger.warning(
-                "event=fund_trend.cache_write_failed fund=%s period=%s",
-                fund_code,
-                period,
-                exc_info=True,
-            )
+            logger.warning("写入缓存失败：基金 %s，周期 %s", fund_code, period)
