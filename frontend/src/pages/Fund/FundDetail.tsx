@@ -17,6 +17,7 @@ import {
   Typography,
   Segmented,
   Divider,
+  message,
 } from "antd";
 import {
   ArrowLeftOutlined,
@@ -31,6 +32,7 @@ import { Link, useParams } from "react-router-dom";
 import ReactECharts from "echarts-for-react";
 import type { ColumnsType } from "antd/es/table";
 import dayjs from "dayjs";
+import { followFund, unfollowFund } from "@/api/fund";
 
 const { Paragraph, Text } = Typography;
 
@@ -216,6 +218,28 @@ const FundDetail: React.FC = () => {
   const { code } = useParams<{ code: string }>();
   const [range, setRange] = useState<RangeKey>("year");
   const [isFollowed, setIsFollowed] = useState(false);
+  const [followLoading, setFollowLoading] = useState(false);
+
+  const fundCode = code || "005827";
+
+  const handleToggleFollow = async () => {
+    setFollowLoading(true);
+    try {
+      if (isFollowed) {
+        await unfollowFund(fundCode);
+        setIsFollowed(false);
+        message.success("已取消关注");
+      } else {
+        await followFund({ fund_code: fundCode });
+        setIsFollowed(true);
+        message.success("关注成功");
+      }
+    } catch {
+      // 网络错误统一由 api/index.ts 处理
+    } finally {
+      setFollowLoading(false);
+    }
+  };
 
   const trendData = useMemo(() => genTrendData(range), [range]);
 
@@ -385,7 +409,8 @@ const FundDetail: React.FC = () => {
             <Button
               type={isFollowed ? "default" : "primary"}
               icon={<PlusOutlined />}
-              onClick={() => setIsFollowed((v) => !v)}
+              loading={followLoading}
+              onClick={handleToggleFollow}
             >
               {isFollowed ? "已关注" : "加自选"}
             </Button>

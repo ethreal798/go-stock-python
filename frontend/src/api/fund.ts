@@ -18,7 +18,7 @@ export const getFollowedFunds = () =>
 
 // 添加关注基金
 export const followFund = (data: { fund_code: string; remark?: string }) =>
-  request.post("/funds/follow", data);
+  request.post("/funds/watchlist", data);
 
 // 取消关注基金（可选，您没提但一般会有，先加上）
 export const unfollowFund = (fund_code: string) =>
