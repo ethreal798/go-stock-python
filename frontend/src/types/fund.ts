@@ -23,6 +23,21 @@ export interface SearchFund {
   max_drawdown?: number;
 }
 
+/**
+ * 基金表格行数据 - 用于 FundTable 组件
+ * 统一了搜索结果和关注列表的数据结构
+ */
+export interface FundTableRow {
+  id: number;
+  code: string;
+  name: string;
+  type: string;
+  remark?: string;
+  is_followed: boolean;
+  latest?: FundLatestMetrics;
+  last_seen_data_date?: string;
+}
+
 export interface FundLatestMetrics {
   metric_kind: string;
   data_date: string;

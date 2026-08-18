@@ -1,9 +1,16 @@
 // src/pages/Fund/components/FollowModal.tsx
 import React from "react";
 import { Modal, Form, Input, Typography } from "antd";
-import type { SearchFund } from "@/types/fund";
 
 const { Text } = Typography;
+
+/**
+ * 基金基础信息接口 - 兼容 SearchFund 和 FundTableRow
+ */
+export interface FundBasicInfo {
+  code: string;
+  name: string;
+}
 
 /**
  * 关注弹窗组件属性
@@ -12,7 +19,7 @@ interface FollowModalProps {
   /** 弹窗是否可见 */
   visible: boolean;
   /** 要关注的基金信息 */
-  fund: SearchFund | null;
+  fund: FundBasicInfo | null;
   /** 确认关注回调，传入备注 */
   onOk: (remark: string) => void;
   /** 取消回调 */
@@ -76,10 +83,21 @@ const FollowModal: React.FC<FollowModalProps> = ({
       <Form form={form} layout="vertical">
         {/* 展示基金基础信息 */}
         {fund && (
-          <div style={{ marginBottom: 16, padding: 12, background: "#f5f5f5", borderRadius: 4 }}>
+          <div
+            style={{
+              marginBottom: 16,
+              padding: 12,
+              background: "#f5f5f5",
+              borderRadius: 4,
+            }}
+          >
             <Text type="secondary">
-              <div>基金代码：<Text strong>{fund.code}</Text></div>
-              <div>基金名称：<Text strong>{fund.name}</Text></div>
+              <div>
+                基金代码：<Text strong>{fund.code}</Text>
+              </div>
+              <div>
+                基金名称：<Text strong>{fund.name}</Text>
+              </div>
             </Text>
           </div>
         )}
