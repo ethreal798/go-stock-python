@@ -154,3 +154,21 @@ def fetch_money_yield_frame(
         }
         for raw in raw_rows
     ]
+
+
+def fetch_money_yield_frame_by_range(
+    symbol: str,
+    start_date: date,
+    end_date: date,
+) -> list[dict[str, Any]]:
+    """获取货币基金指定日期范围的收益历史。"""
+    raw_rows = _fetch_lsjz_rows(symbol, start_date=start_date, end_date=end_date)
+
+    return [
+        {
+            "data_date": raw.get("FSRQ"),
+            "income_per_10k": raw.get("DWJZ"),
+            "annualized_7d_pct": raw.get("LJJZ"),
+        }
+        for raw in raw_rows
+    ]

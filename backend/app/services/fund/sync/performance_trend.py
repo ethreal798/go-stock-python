@@ -13,11 +13,15 @@ from sqlalchemy.dialects.postgresql import insert as pg_insert
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.config import settings
-from app.models.fund import Fund, FundPerformanceTrendLatest
+from app.models.fund import Fund, FundMoneyYieldHistory, FundPerformanceTrendLatest
 from app.services.fund.common.constants import FundCacheKeys
-from app.services.fund.common.formatter import format_performance_trend_snapshot
+from app.services.fund.common.formatter import format_money_trend_snapshot, format_performance_trend_snapshot
 from app.services.fund.common.utils import delete_cache, normalize_fund_code
-from app.services.fund.sources.performance_trend import fetch_performance_trend_payload
+from app.services.fund.sources.performance_trend import (
+    FundPerformanceTrendSourceError,
+    fetch_performance_trend_payload,
+    resolve_date_range,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -27,33 +31,6 @@ class FundPerformanceTrendSyncService:
 
     def __init__(self, db: AsyncSession) -> None:
         self.db = db
-
-    # async def fetch_and_sync_watchlist(
-    #     self,
-    #     *,
-    #     periods: Sequence[str] | None = None,
-    #     concurrency: int | None = None,
-    #     batch_size: int | None = None,
-    #     retries: int | None = None,
-    #     timeout: float | None = None,
-    # ) -> dict[str, int]:
-    #     """同步至少被一个用户加入自选的开放式基金。"""
-    #     statement = (
-    #         select(Fund)
-    #         .join(FundWatchlistItem, FundWatchlistItem.fund_code == Fund.code)
-    #         .where(Fund.status == "active", Fund.category == "open")
-    #         .distinct()
-    #         .order_by(Fund.id)
-    #     )
-    #     funds = list((await self.db.execute(statement)).scalars().all())
-    #     return await self._sync_funds(
-    #         funds,
-    #         periods=periods,
-    #         concurrency=concurrency,
-    #         batch_size=batch_size,
-    #         retries=retries,
-    #         timeout=timeout,
-    #     )
 
     async def fetch_and_sync_codes(
         self,
@@ -65,11 +42,11 @@ class FundPerformanceTrendSyncService:
         retries: int = 2,
         timeout: float = 10.0,
     ) -> dict[str, int]:
-        """命令行或管理员操作按代码同步开放式基金。"""
+        """命令行或管理员操作按代码同步基金。"""
         codes = list(dict.fromkeys(normalize_fund_code(code) for code in fund_codes))
         if not codes:
             return {"funds": 0, "snapshots": 0, "failed": 0}
-        statement = select(Fund).where(Fund.code.in_(codes), Fund.status == "active", Fund.category == "open")
+        statement = select(Fund).where(Fund.code.in_(codes), Fund.is_hb is False, Fund.is_exchange is False)
         funds = list((await self.db.execute(statement)).scalars().all())
         return await self._sync_funds(
             funds,
@@ -93,6 +70,58 @@ class FundPerformanceTrendSyncService:
             raise ValueError("retries 不能小于0，timeout 必须大于0")
         async with httpx.AsyncClient(timeout=timeout) as client:
             snapshot = await self._fetch_snapshot(fund.code, period, client, retries)
+        await self._upsert_snapshot(fund.id, snapshot)
+        await self.db.commit()
+        await self._invalidate_cache_safely(fund.code, period)
+        return await self._get_snapshot(fund.id, period)
+
+    async def fetch_and_sync_money(
+        self,
+        fund: Fund,
+        period: str,
+    ) -> FundPerformanceTrendLatest:
+        """货币基金走势：增量同步历史数据，再查询生成快照。"""
+        from app.services.fund.sync.history import FundHistorySyncService
+
+        history_service = FundHistorySyncService(self.db)
+        sync_result = await history_service.sync_money_incremental(fund)
+        if sync_result.get("funds", 0) == 0:
+            raise FundPerformanceTrendSourceError(f"货币基金 {fund.code} 历史数据同步失败")
+
+        start_date, end_date = resolve_date_range(period)
+
+        statement = select(FundMoneyYieldHistory).where(
+            FundMoneyYieldHistory.fund_id == fund.id,
+        )
+        if start_date is not None:
+            statement = statement.where(FundMoneyYieldHistory.data_date >= start_date)
+        statement = statement.where(FundMoneyYieldHistory.data_date <= end_date)
+        statement = statement.order_by(FundMoneyYieldHistory.data_date)
+
+        rows = list((await self.db.execute(statement)).scalars().all())
+        if not rows:
+            raise FundPerformanceTrendSourceError(
+                f"货币基金 {fund.code} 周期 {period} 无历史数据（同步 {sync_result}）"
+            )
+
+        fetched_at = datetime.now()
+        row_dicts = [
+            {
+                "data_date": row.data_date,
+                "annualized_7d_pct": row.annualized_7d_pct,
+                "income_per_10k": row.income_per_10k,
+            }
+            for row in rows
+        ]
+
+        snapshot = format_money_trend_snapshot(
+            row_dicts,
+            fund_code=fund.code,
+            period=period,
+            fetched_at=fetched_at,
+            fresh_seconds=settings.FUND_TREND_FRESH_SECONDS,
+        )
+
         await self._upsert_snapshot(fund.id, snapshot)
         await self.db.commit()
         await self._invalidate_cache_safely(fund.code, period)

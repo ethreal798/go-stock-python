@@ -152,7 +152,7 @@ async def get_fund_performance_trend(
 ) -> FundPerformanceTrendResponse:
     """返回一只开放式基金指定周期的最新绘图快照。"""
     try:
-        return await service.get(code, period)
+        return await service.get_trend(code, period)
     except FundPerformanceTrendNotFoundError as exc:
         raise HTTPException(status_code=404, detail="Fund not found") from exc
     except FundPerformanceTrendUnsupportedError as exc:
@@ -181,3 +181,9 @@ async def sync_funds(
     """手动触发开放式、场内交易和货币型基金排行同步。"""
     counts = await service.fetch_and_sync()
     return {"message": "基金排行同步完成", "counts": counts}
+
+
+@router.get("/", summary="获取基金最新排行数据")
+async def get_funds():
+    """根据前端不同条件  返回三类基金的数据"""
+    pass

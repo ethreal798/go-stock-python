@@ -38,7 +38,6 @@ class FundCatalogQueryService:
         fund_page = (
             select(Fund)
             .where(
-                Fund.status == "active",
                 or_(
                     Fund.code.ilike(contains_pattern),
                     Fund.name.ilike(contains_pattern),
@@ -156,15 +155,19 @@ class FundCatalogQueryService:
         is_in_watchlist: bool = False,
     ) -> dict[str, Any]:
         """组装响应结果返回"""
+        if fund.is_hb:
+            category = "money"
+        elif fund.is_exchange:
+            category = "exchange"
+        else:
+            category = "open"
         return {
             "id": fund.id,
             "code": fund.code,
             "name": fund.name,
             "type": fund.type,
-            "category": fund.category,
-            "status": fund.status,
-            "last_seen_data_date": fund.last_seen_data_date,
-            "last_seen_at": fund.last_seen_at,
-            "latest": cls._latest_payload(open_rank, exchange_rank, money_rank, fund.category),
+            "is_hb": fund.is_hb,
+            "is_exchange": fund.is_exchange,
+            "latest": cls._latest_payload(open_rank, exchange_rank, money_rank, category),
             "is_in_watchlist": is_in_watchlist,
         }

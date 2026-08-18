@@ -64,15 +64,8 @@ def format_performance_trend_snapshot(
     series: list[dict[str, Any]] = []
     all_dates: list[str] = []
     for index, raw_series in enumerate(payload.get("Data") or []):
-        if not isinstance(raw_series, dict):
-            raise ValueError(f"基金 {fund_code} 第 {index} 条曲线格式异常")
         name = str(raw_series.get("name") or "").strip() or f"曲线{index + 1}"
         raw_points = raw_series.get("data")
-        if not isinstance(raw_points, list) or not raw_points:
-            raise ValueError(f"基金 {fund_code} 曲线 {name} 没有有效数据")
-        if len(raw_points) > MAX_PERFORMANCE_TREND_POINTS_PER_SERIES:
-            raise ValueError(f"基金 {fund_code} 曲线 {name} 点数超过限制: {len(raw_points)}")
-
         # 上游偶尔可能重复返回同一天，保留最后一个点并按日期升序。
         deduplicated = dict(_normalize_performance_trend_point(point) for point in raw_points)
         points = [[point_date, value] for point_date, value in sorted(deduplicated.items())]
@@ -83,7 +76,6 @@ def format_performance_trend_snapshot(
             {
                 "key": key,
                 "name": name,
-                "benchmark_code": benchmark_code,
                 "latest_return_pct": points[-1][1],
                 "points": points,
             }
@@ -100,6 +92,71 @@ def format_performance_trend_snapshot(
         "end_date": date.fromisoformat(max(all_dates)),
         "series_data": series,
         "source": "eastmoney",
+        "schema_version": 1,
+        "content_hash": hashlib.sha256(canonical.encode("utf-8")).hexdigest(),
+        "point_count": sum(len(item["points"]) for item in series),
+        "fetched_at": fetched_at,
+        "expires_at": fetched_at + timedelta(seconds=fresh_seconds),
+    }
+
+
+# ------------------------------------------------------------------
+# 货币基金收益走势
+# ------------------------------------------------------------------
+def format_money_trend_snapshot(
+    rows: list[dict[str, Any]],
+    *,
+    fund_code: str,
+    period: str,
+    fetched_at: datetime,
+    fresh_seconds: int,
+) -> dict[str, Any]:
+    """将货币基金历史收益数据格式化为快照。"""
+    annualized_points: list[list[str, float]] = []
+    income_points: list[list[str, float]] = []
+    all_dates: list[str] = []
+
+    for row in rows:
+        d = row["data_date"]
+        date_str = d.isoformat() if hasattr(d, "isoformat") else str(d)
+        all_dates.append(date_str)
+        if row.get("annualized_7d_pct") is not None:
+            annualized_points.append([date_str, float(row["annualized_7d_pct"])])
+        if row.get("income_per_10k") is not None:
+            income_points.append([date_str, float(row["income_per_10k"])])
+
+    if not annualized_points and not income_points:
+        raise ValueError(f"货币基金 {fund_code} 周期 {period} 无有效数据")
+
+    series: list[dict[str, Any]] = []
+    if annualized_points:
+        series.append(
+            {
+                "key": "annualized_7d_pct",
+                "name": "七日年化收益率(%)",
+                "benchmark_code": None,
+                "latest_return_pct": annualized_points[-1][1],
+                "points": annualized_points,
+            }
+        )
+    if income_points:
+        series.append(
+            {
+                "key": "income_per_10k",
+                "name": "万份收益(元)",
+                "benchmark_code": None,
+                "latest_return_pct": income_points[-1][1],
+                "points": income_points,
+            }
+        )
+
+    canonical = json.dumps(series, ensure_ascii=False, separators=(",", ":"), sort_keys=True)
+    return {
+        "period": period,
+        "start_date": date.fromisoformat(min(all_dates)),
+        "end_date": date.fromisoformat(max(all_dates)),
+        "series_data": series,
+        "source": "eastmoney_history",
         "schema_version": 1,
         "content_hash": hashlib.sha256(canonical.encode("utf-8")).hexdigest(),
         "point_count": sum(len(item["points"]) for item in series),

@@ -2,6 +2,7 @@
 
 from sqlalchemy import (
     BigInteger,
+    Boolean,
     CheckConstraint,
     Column,
     Date,
@@ -26,10 +27,8 @@ class Fund(GormBaseModel):
     code = Column(String(20), unique=True, index=True, nullable=False, comment="基金代码")
     name = Column(String(200), index=True, nullable=False, comment="基金名称")
     type = Column(String(50), index=True, comment="基金类型")
-    category = Column(String(20), index=True, nullable=False, default="unknown", comment="数据路由分类")
-    status = Column(String(20), index=True, nullable=False, default="unknown", comment="排行可观测状态")
-    last_seen_data_date = Column(Date, index=True, comment="最近一次在排行中出现的数据日期")
-    last_seen_at = Column(DateTime, comment="最近一次在排行中出现的抓取时间")
+    is_hb = Column(Boolean, default=False, index=True, comment="是否货币基金")
+    is_exchange = Column(Boolean, default=False, index=True, comment="是否场内基金")
 
 
 class FundWatchlistItem(GormBaseModel):

@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from datetime import date, timedelta
 from typing import Any
 
 import httpx
@@ -18,6 +19,28 @@ PERIOD_TO_SOURCE_TYPE = {
 }
 
 EASTMONEY_TREND_URL = "https://api.fund.eastmoney.com/pinzhong/LJSYLZS"
+
+PERIOD_TO_DATE_RANGE = {
+    "1m": 30,
+    "3m": 90,
+    "6m": 180,
+    "1y": 365,
+    "3y": 3 * 365,
+    "5y": 5 * 365,
+}
+
+
+def resolve_date_range(period: str) -> tuple[date | None, date]:
+    """将周期解析为 (start_date, end_date)。start_date 为 None 表示不限。"""
+    end_date = date.today()
+    if period == "ytd":
+        return date(end_date.year, 1, 1), end_date
+    if period == "since_inception":
+        return None, end_date
+    days = PERIOD_TO_DATE_RANGE.get(period)
+    if days is None:
+        raise ValueError(f"不支持的周期: {period}")
+    return end_date - timedelta(days=days), end_date
 
 
 class FundPerformanceTrendSourceError(RuntimeError):

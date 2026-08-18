@@ -1,8 +1,8 @@
 """命令行基金历史同步入口。
 
 示例：
-    python -m app.commands.fund.sync_history --all
-    python -m app.commands.fund.sync_history --codes 007339
+    python -m app.commands.fund.sync_history all
+    python -m app.commands.fund.sync_history codes 007339 000211
 
 """
 
