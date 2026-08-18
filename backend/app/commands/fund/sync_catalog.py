@@ -1,4 +1,18 @@
-"""命令行同步入口：python -m app.commands.fund.sync_catalog。"""
+"""基金目录（catalog）同步命令行入口。
+
+同步全量基金代码、名称、类型，以及 is_hb / is_exchange 标记。
+
+开发环境运行：
+    cd backend
+    python -m app.commands.fund.sync_catalog
+
+Docker 容器中运行：
+    # 开发模式（容器已启动，挂载了本地代码）
+    docker compose exec backend python -m app.commands.fund.sync_catalog
+
+    # 生产模式（临时启动一个容器执行后退出）
+    docker compose run --rm backend python -m app.commands.fund.sync_catalog
+"""
 
 import asyncio
 import logging

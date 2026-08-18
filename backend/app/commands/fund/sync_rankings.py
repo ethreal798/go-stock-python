@@ -1,4 +1,18 @@
-"""命令行同步入口：python -m app.commands.fund.sync_rankings。"""
+"""基金排行（ranking）同步命令行入口。
+
+同步开放式基金排行、货币基金排行、场内基金排行等最新排名数据。
+
+开发环境运行：
+    cd backend
+    python -m app.commands.fund.sync_rankings
+
+Docker 容器中运行：
+    # 开发模式（容器已启动，挂载了本地代码）
+    docker compose exec backend python -m app.commands.fund.sync_rankings
+
+    # 生产模式（临时启动一个容器执行后退出）
+    docker compose run --rm backend python -m app.commands.fund.sync_rankings
+"""
 
 import asyncio
 import logging

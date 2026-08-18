@@ -1,9 +1,22 @@
-"""命令行基金历史同步入口。
+"""基金历史净值/收益同步命令行入口。
 
-示例：
+同步开放式/场内基金的历史净值，以及货币基金的每日收益历史。
+支持全量同步和指定基金代码同步。
+
+开发环境运行：
+    cd backend
+    # 同步全部基金历史
     python -m app.commands.fund.sync_history all
+    # 同步指定基金代码
     python -m app.commands.fund.sync_history codes 007339 000211
 
+Docker 容器中运行：
+    # 开发模式（容器已启动，挂载了本地代码）
+    docker compose exec backend python -m app.commands.fund.sync_history all
+    docker compose exec backend python -m app.commands.fund.sync_history codes 007339
+
+    # 生产模式（临时启动一个容器执行后退出）
+    docker compose run --rm backend python -m app.commands.fund.sync_history all
 """
 
 from __future__ import annotations
