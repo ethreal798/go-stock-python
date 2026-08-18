@@ -378,10 +378,6 @@ const FundDetail: React.FC = () => {
             </span>
             <Tag color="geekblue">{code || "005827"}</Tag>
             <Tag>混合型</Tag>
-            <Tag color="orange">中高风险</Tag>
-            <Text type="secondary" style={{ fontSize: 13 }}>
-              基金代码：{code || "005827.OF"}
-            </Text>
           </Space>
         }
         extra={
@@ -391,7 +387,7 @@ const FundDetail: React.FC = () => {
               icon={<PlusOutlined />}
               onClick={() => setIsFollowed((v) => !v)}
             >
-              {isFollowed ? "已关注" : "+ 加自选"}
+              {isFollowed ? "已关注" : "加自选"}
             </Button>
             <Button icon={<BellOutlined />}>提醒</Button>
             <Button icon={<ShareAltOutlined />}>分享</Button>
