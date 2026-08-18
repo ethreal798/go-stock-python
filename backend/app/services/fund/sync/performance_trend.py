@@ -46,7 +46,7 @@ class FundPerformanceTrendSyncService:
         codes = list(dict.fromkeys(normalize_fund_code(code) for code in fund_codes))
         if not codes:
             return {"funds": 0, "snapshots": 0, "failed": 0}
-        statement = select(Fund).where(Fund.code.in_(codes), Fund.is_hb == False, Fund.is_exchange == False)
+        statement = select(Fund).where(Fund.code.in_(codes), Fund.is_hb is False, Fund.is_exchange is False)
         funds = list((await self.db.execute(statement)).scalars().all())
         return await self._sync_funds(
             funds,
@@ -86,9 +86,7 @@ class FundPerformanceTrendSyncService:
         history_service = FundHistorySyncService(self.db)
         sync_result = await history_service.sync_money_incremental(fund)
         if sync_result.get("funds", 0) == 0:
-            raise FundPerformanceTrendSourceError(
-                f"货币基金 {fund.code} 历史数据同步失败"
-            )
+            raise FundPerformanceTrendSourceError(f"货币基金 {fund.code} 历史数据同步失败")
 
         start_date, end_date = resolve_date_range(period)
 

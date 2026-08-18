@@ -6,7 +6,6 @@ import asyncio
 import logging
 from datetime import date, datetime, timedelta
 from math import ceil
-from time import perf_counter
 from typing import Any, Sequence
 
 from sqlalchemy import func, select
@@ -60,10 +59,7 @@ class FundHistorySyncService:
         while result["funds"] < total:
             batch_index += 1
             statement = (
-                select(Fund)
-                .where(Fund.id > last_id)
-                .order_by(Fund.id)
-                .limit(min(batch_size, total - result["funds"]))
+                select(Fund).where(Fund.id > last_id).order_by(Fund.id).limit(min(batch_size, total - result["funds"]))
             )
             fund_batch = list((await self.db.execute(statement)).scalars().all())
             if not fund_batch:
@@ -155,9 +151,7 @@ class FundHistorySyncService:
                 return {"funds": 1, "rows": 0, "failed": 0}
             end_date = today
 
-        raw_rows = await asyncio.to_thread(
-            fetch_money_yield_frame_by_range, fund.code, start_date, end_date
-        )
+        raw_rows = await asyncio.to_thread(fetch_money_yield_frame_by_range, fund.code, start_date, end_date)
         values = self._normalize_rows(fund, raw_rows, fetched_at=datetime.now())
 
         if values:

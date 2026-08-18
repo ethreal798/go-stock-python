@@ -6,9 +6,8 @@ import requests
 
 from bs4 import BeautifulSoup
 
-"""
-    根据akshare 基金净值下的 三个基金类型净值接口 获取可用基金代码 结合基金基本信息接口 
-    推导出 可用基金 对应 基金类型 is_hb is_exchange
+"""根据akshare 基金净值下的 三个基金类型净值接口 获取可用基金代码 结合基金基本信息接口
+推导出 可用基金 对应 基金类型 is_hb is_exchange
 """
 
 

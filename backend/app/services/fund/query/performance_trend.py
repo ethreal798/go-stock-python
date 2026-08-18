@@ -61,7 +61,11 @@ class FundPerformanceTrendQueryService:
         # 3. 根据基金类型调用对应的同步方法
         sync_service = FundPerformanceTrendSyncService(self.db)
         refresh_fn = sync_service.fetch_and_sync_money if fund.is_hb else sync_service.fetch_and_sync_one
-        unavailable_msg = f"货币基金 {code} 的 {period} 走势暂时无法获取" if fund.is_hb else f"基金 {code} 的 {period} 走势暂时无法获取"
+        unavailable_msg = (
+            f"货币基金 {code} 的 {period} 走势暂时无法获取"
+            if fund.is_hb
+            else f"基金 {code} 的 {period} 走势暂时无法获取"
+        )
 
         # 4. 获取最新快照 当快照存在且数据未过期 直接返回
         snapshot = await self._get_snapshot(fund.id, period)
@@ -73,7 +77,9 @@ class FundPerformanceTrendQueryService:
 
         fund_code_value = fund.code
         # 6. 保存旧快照数据，准备进行原子刷新
-        stale_response = self._response(fund_code_value, fund.is_hb, snapshot, is_stale=True) if snapshot is not None else None
+        stale_response = (
+            self._response(fund_code_value, fund.is_hb, snapshot, is_stale=True) if snapshot is not None else None
+        )
         lock_key = f"fund:performance-trend:lock:{fund_code_value}:{period}"
         lock_token = uuid4().hex
         redis = None
