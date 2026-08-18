@@ -1,5 +1,9 @@
 import request from "./index";
-import type { FollowFund, FollowFundInfo } from "@/types/fund";
+import type {
+  FollowFund,
+  FollowFundInfo,
+  PerformanceTrendResponse,
+} from "@/types/fund";
 
 export type FundRangeKey =
   | "day"
@@ -32,3 +36,7 @@ export const searchFund = (params: {
   range?: FundRangeKey;
   fund_type?: string;
 }) => request.get<FollowFundInfo[]>("/funds/search", { params });
+
+// 获取基金业绩走势
+export const getFundPerformanceTrend = (code: string, period: string) =>
+  request.get<PerformanceTrendResponse>(`/funds/${code}/performance-trend`, { params: { period } });
