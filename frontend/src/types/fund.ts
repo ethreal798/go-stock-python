@@ -77,3 +77,27 @@ export interface FollowFund {
   created_at: string;
   updated_at: string;
 }
+
+// ============================================================
+// 基金业绩走势
+// ============================================================
+
+export type PerformancePoint = [string, number];
+
+export interface PerformanceSeries {
+  key: string;
+  name: string;
+  latest_return_pct: number;
+  points: PerformancePoint[];
+}
+
+export interface PerformanceTrendResponse {
+  fund_code: string;
+  period: string;
+  start_date: string;
+  end_date: string;
+  is_hb: boolean;
+  fetched_at: string;
+  is_stale: boolean;
+  series: PerformanceSeries[];
+}
