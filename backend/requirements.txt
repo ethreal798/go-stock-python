@@ -23,3 +23,6 @@ cryptography==48.0.0
 passlib[bcrypt]==1.7.4
 bcrypt==4.2.0
 email-validator==2.2.0
+akshare==1.18.82
+py_mini_racer==0.6.0
+beautifulsoup4==4.12.3
