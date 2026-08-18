@@ -1,5 +1,9 @@
 import request from "./index";
-import type { FollowFund, FollowFundInfo } from "@/types/fund";
+import type {
+  FollowFund,
+  FollowFundInfo,
+  PerformanceTrendResponse,
+} from "@/types/fund";
 
 export type FundRangeKey =
   | "day"
@@ -18,7 +22,7 @@ export const getFollowedFunds = () =>
 
 // 添加关注基金
 export const followFund = (data: { fund_code: string; remark?: string }) =>
-  request.post("/funds/follow", data);
+  request.post("/funds/watchlist", data);
 
 // 取消关注基金（可选，您没提但一般会有，先加上）
 export const unfollowFund = (fund_code: string) =>
@@ -32,3 +36,7 @@ export const searchFund = (params: {
   range?: FundRangeKey;
   fund_type?: string;
 }) => request.get<FollowFundInfo[]>("/funds/search", { params });
+
+// 获取基金业绩走势
+export const getFundPerformanceTrend = (code: string, period: string) =>
+  request.get<PerformanceTrendResponse>(`/funds/${code}/performance-trend`, { params: { period } });

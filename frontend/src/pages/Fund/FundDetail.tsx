@@ -17,6 +17,8 @@ import {
   Typography,
   Segmented,
   Divider,
+  message,
+  Spin,
 } from "antd";
 import {
   ArrowLeftOutlined,
@@ -31,6 +33,9 @@ import { Link, useParams } from "react-router-dom";
 import ReactECharts from "echarts-for-react";
 import type { ColumnsType } from "antd/es/table";
 import dayjs from "dayjs";
+import { followFund, unfollowFund } from "@/api/fund";
+import { useFundPerformance } from "@/hooks/useFundPerformance";
+import type { PerformanceSeries } from "@/types/fund";
 
 const { Paragraph, Text } = Typography;
 
@@ -52,6 +57,16 @@ const RANGE_OPTIONS: { label: string; value: RangeKey }[] = [
   { label: "近三年", value: "three_year" },
   { label: "成立来", value: "all" },
 ];
+
+const PERIOD_MAP: Record<RangeKey, string> = {
+  week: "1w",
+  month: "1m",
+  three_month: "3m",
+  six_month: "6m",
+  year: "1y",
+  three_year: "3y",
+  all: "since_inception",
+};
 
 const toNumber = (v: unknown): number => {
   if (v == null || v === "") return 0;
@@ -185,58 +200,122 @@ const MOCK_ANNOUNCEMENTS = [
   { title: "2025年年度报告摘要", date: "2026-03-30", type: "年度报告" },
 ];
 
-const genTrendData = (range: RangeKey) => {
-  const counts: Record<RangeKey, number> = {
-    week: 7,
-    month: 22,
-    three_month: 66,
-    six_month: 132,
-    year: 250,
-    three_year: 750,
-    all: 1200,
-  };
-  const n = counts[range];
-  const dates: string[] = [];
-  const nav: number[] = [];
-  const benchmark: number[] = [];
-  let base = 1.0;
-  let base2 = 1.0;
-  const today = dayjs();
-  for (let i = n - 1; i >= 0; i--) {
-    dates.push(today.subtract(i, "day").format("YYYY-MM-DD"));
-    base *= 1 + (Math.sin(i / 10) * 0.002 + (Math.random() - 0.48) * 0.008);
-    base2 *= 1 + (Math.cos(i / 14) * 0.001 + (Math.random() - 0.49) * 0.006);
-    nav.push(+base.toFixed(4));
-    benchmark.push(+base2.toFixed(4));
-  }
-  return { dates, nav, benchmark };
-};
-
 const FundDetail: React.FC = () => {
   const { code } = useParams<{ code: string }>();
   const [range, setRange] = useState<RangeKey>("year");
   const [isFollowed, setIsFollowed] = useState(false);
+  const [followLoading, setFollowLoading] = useState(false);
 
-  const trendData = useMemo(() => genTrendData(range), [range]);
+  const fundCode = code || "005827";
+
+  const handleToggleFollow = async () => {
+    setFollowLoading(true);
+    try {
+      if (isFollowed) {
+        await unfollowFund(fundCode);
+        setIsFollowed(false);
+        message.success("已取消关注");
+      } else {
+        await followFund({ fund_code: fundCode });
+        setIsFollowed(true);
+        message.success("关注成功");
+      }
+    } catch {
+      // 网络错误统一由 api/index.ts 处理
+    } finally {
+      setFollowLoading(false);
+    }
+  };
+
+  const apiPeriod = PERIOD_MAP[range];
+  const { data: perfData, loading: perfLoading } = useFundPerformance(
+    fundCode,
+    apiPeriod,
+  );
+
+  const SERIES_COLORS = ["#1677ff", "#8c8c8c", "#faad14", "#73d13d", "#eb2f96"];
 
   const chartOption = useMemo(() => {
-    const start = trendData.nav[0] ?? 1;
-    const latest = trendData.nav[trendData.nav.length - 1] ?? 1;
-    const navYield = ((latest - start) / start) * 100;
-    const bStart = trendData.benchmark[0] ?? 1;
-    const bLatest = trendData.benchmark[trendData.benchmark.length - 1] ?? 1;
-    const benchYield = ((bLatest - bStart) / bStart) * 100;
+    if (!perfData) {
+      return {
+        tooltip: {},
+        legend: {},
+        grid: {},
+        xAxis: {},
+        yAxis: {},
+        series: [],
+      };
+    }
+
+    const seriesList = perfData.series;
+    const categories = seriesList[0]?.points.map((p) => p[0]) ?? [];
+
+    const isHb = perfData.is_hb;
+
+    const echartsSeries = seriesList.map(
+      (s: PerformanceSeries, idx: number) => {
+        const color = SERIES_COLORS[idx % SERIES_COLORS.length];
+        const values = s.points.map((p) => p[1]);
+
+        if (isHb) {
+          return {
+            name: s.name,
+            type: "line",
+            showSymbol: false,
+            smooth: true,
+            lineStyle: { width: 2, color },
+            itemStyle: { color },
+            data: values,
+          };
+        }
+
+        return {
+          name: s.name,
+          type: "line",
+          showSymbol: false,
+          smooth: true,
+          lineStyle: {
+            width: s.key === "fund" ? 2 : 1.5,
+            color,
+            type: s.key === "fund" ? "solid" : "dashed",
+          },
+          itemStyle: { color },
+          areaStyle:
+            s.key === "fund"
+              ? {
+                  color: {
+                    type: "linear",
+                    x: 0,
+                    y: 0,
+                    x2: 0,
+                    y2: 1,
+                    colorStops: [
+                      { offset: 0, color: "rgba(22,119,255,0.25)" },
+                      { offset: 1, color: "rgba(22,119,255,0.02)" },
+                    ],
+                  },
+                }
+              : undefined,
+          data: values,
+        };
+      },
+    );
+
     return {
-      tooltip: { trigger: "axis", axisPointer: { type: "cross" } },
+      tooltip: {
+        trigger: "axis",
+        axisPointer: { type: "cross" },
+        valueFormatter: (val: number) => `${val.toFixed(2)}%`,
+      },
       legend: {
-        data: ["本基金净值", "业绩比较基准"],
+        data: seriesList.map((s) => s.name),
         top: 0,
         right: 10,
       },
-      grid: { left: 50, right: 30, top: 40, bottom: 50 },
+      grid: { left: 60, right: 30, top: 40, bottom: 50 },
       xAxis: {
         type: "category",
-        data: trendData.dates,
+        data: categories,
         boundaryGap: false,
         axisLine: { lineStyle: { color: "#ddd" } },
         axisLabel: { color: "#666", fontSize: 11 },
@@ -245,69 +324,19 @@ const FundDetail: React.FC = () => {
         type: "value",
         scale: true,
         splitLine: { lineStyle: { color: "#f2f2f2" } },
-        axisLabel: { color: "#666", fontSize: 11 },
+        axisLabel: {
+          color: "#666",
+          fontSize: 11,
+          formatter: (val: number) => `${val.toFixed(2)}%`,
+        },
       },
       dataZoom: [
         { type: "inside", start: 0, end: 100 },
         { type: "slider", height: 20, bottom: 10, start: 0, end: 100 },
       ],
-      series: [
-        {
-          name: "本基金净值",
-          type: "line",
-          showSymbol: false,
-          smooth: true,
-          lineStyle: { width: 2, color: "#1677ff" },
-          itemStyle: { color: "#1677ff" },
-          areaStyle: {
-            color: {
-              type: "linear",
-              x: 0,
-              y: 0,
-              x2: 0,
-              y2: 1,
-              colorStops: [
-                { offset: 0, color: "rgba(22,119,255,0.25)" },
-                { offset: 1, color: "rgba(22,119,255,0.02)" },
-              ],
-            },
-          },
-          data: trendData.nav,
-          markLine: {
-            silent: true,
-            symbol: "none",
-            lineStyle: { color: "#f5222d", type: "dashed" },
-            label: {
-              formatter: `区间收益 ${navYield >= 0 ? "+" : ""}${navYield.toFixed(2)}%`,
-              position: "insideEndTop",
-              color: "#f5222d",
-            },
-            data: [{ type: "average" }],
-          },
-        },
-        {
-          name: "业绩比较基准",
-          type: "line",
-          showSymbol: false,
-          smooth: true,
-          lineStyle: { width: 1.5, color: "#8c8c8c", type: "dashed" },
-          itemStyle: { color: "#8c8c8c" },
-          data: trendData.benchmark,
-          markLine: {
-            silent: true,
-            symbol: "none",
-            lineStyle: { color: "#8c8c8c", type: "dashed" },
-            label: {
-              formatter: `基准 ${benchYield >= 0 ? "+" : ""}${benchYield.toFixed(2)}%`,
-              position: "insideEndBottom",
-              color: "#8c8c8c",
-            },
-            data: [{ type: "average" }],
-          },
-        },
-      ],
+      series: echartsSeries,
     };
-  }, [trendData]);
+  }, [perfData]);
 
   const holdingColumns: ColumnsType<HoldingRow> = [
     { title: "序号", dataIndex: "key", width: 60, align: "center" },
@@ -378,10 +407,6 @@ const FundDetail: React.FC = () => {
             </span>
             <Tag color="geekblue">{code || "005827"}</Tag>
             <Tag>混合型</Tag>
-            <Tag color="orange">中高风险</Tag>
-            <Text type="secondary" style={{ fontSize: 13 }}>
-              基金代码：{code || "005827.OF"}
-            </Text>
           </Space>
         }
         extra={
@@ -389,9 +414,10 @@ const FundDetail: React.FC = () => {
             <Button
               type={isFollowed ? "default" : "primary"}
               icon={<PlusOutlined />}
-              onClick={() => setIsFollowed((v) => !v)}
+              loading={followLoading}
+              onClick={handleToggleFollow}
             >
-              {isFollowed ? "已关注" : "+ 加自选"}
+              {isFollowed ? "已关注" : "加自选"}
             </Button>
             <Button icon={<BellOutlined />}>提醒</Button>
             <Button icon={<ShareAltOutlined />}>分享</Button>
@@ -507,12 +533,14 @@ const FundDetail: React.FC = () => {
           />
         }
       >
-        <ReactECharts
-          option={chartOption}
-          style={{ height: 420, width: "100%" }}
-          notMerge
-          lazyUpdate
-        />
+        <Spin spinning={perfLoading} tip="加载中...">
+          <ReactECharts
+            option={chartOption}
+            style={{ height: 420, width: "100%" }}
+            notMerge
+            lazyUpdate
+          />
+        </Spin>
       </Card>
 
       <Card style={{ marginTop: 16 }} bodyStyle={{ padding: 0 }}>
