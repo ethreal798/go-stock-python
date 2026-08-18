@@ -66,14 +66,14 @@ class FundPerformanceTrendQueryService:
         # 4. 获取最新快照 当快照存在且数据未过期 直接返回
         snapshot = await self._get_snapshot(fund.id, period)
         if snapshot is not None and snapshot.expires_at > datetime.now():
-            response = self._response(fund.code, snapshot, is_stale=False)
+            response = self._response(fund.code, fund.is_hb, snapshot, is_stale=False)
             # 将快照数据写入redis
             await self._write_cache_safely(fund.code, period, response, stale=False)
             return response
 
         fund_code_value = fund.code
         # 6. 保存旧快照数据，准备进行原子刷新
-        stale_response = self._response(fund_code_value, snapshot, is_stale=True) if snapshot is not None else None
+        stale_response = self._response(fund_code_value, fund.is_hb, snapshot, is_stale=True) if snapshot is not None else None
         lock_key = f"fund:performance-trend:lock:{fund_code_value}:{period}"
         lock_token = uuid4().hex
         redis = None
@@ -91,7 +91,7 @@ class FundPerformanceTrendQueryService:
                 try:
                     # 执行刷新获取指定周期的最新快照
                     snapshot = await refresh_fn(fund, period)
-                    response = self._response(fund_code_value, snapshot, is_stale=False)
+                    response = self._response(fund_code_value, fund.is_hb, snapshot, is_stale=False)
                     await self._write_cache_safely(fund_code_value, period, response, stale=False)
                     return response
                 except Exception as exc:
@@ -140,10 +140,11 @@ class FundPerformanceTrendQueryService:
         return (await self.db.execute(statement)).scalar_one_or_none()
 
     @staticmethod
-    def _response(fund_code: str, snapshot: FundPerformanceTrendLatest, *, is_stale: bool) -> dict:
+    def _response(fund_code: str, is_hb: bool, snapshot: FundPerformanceTrendLatest, *, is_stale: bool) -> dict:
         """组装schema中要求的数据结构"""
         return {
             "fund_code": fund_code,
+            "is_hb": is_hb,
             "period": snapshot.period,
             "start_date": snapshot.start_date.isoformat(),
             "end_date": snapshot.end_date.isoformat(),

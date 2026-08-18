@@ -70,6 +70,7 @@ class FundPerformanceTrendResponse(BaseModel):
     """指定基金和周期的最新累计收益率绘图快照。"""
 
     fund_code: str
+    is_hb: bool
     period: FundTrendPeriod
     start_date: date
     end_date: date
