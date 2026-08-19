@@ -1,17 +1,16 @@
-# py-stock
+# stockmate
 
 ## 技术栈
 
 ### 后端
 | 技术 | 版本 | 说明 |
-|------|------|------|
+|------|------|----|
 | Python | 3.12+ | 运行环境 |
 | FastAPI | 0.115 | 高性能异步 Web 框架 |
 | SQLAlchemy | 2.0 | 异步 ORM |
 | Alembic | 1.13 | 数据库迁移 |
 | Redis | 5.1 | 缓存 / 消息队列 |
 | APScheduler | 3.10 | 定时任务调度 |
-| LiteLLM | 1.48 | 多模型 AI 统一接口 |
 | SSE-Starlette | 2.1 | Server-Sent Events 流式推送 |
 
 ### 前端
@@ -79,7 +78,7 @@ docker-compose down -v
 **前置条件：** Python 3.12+、Redis（本地运行或 Docker）
 
 ```bash
-cd go-stock-python/backend
+cd stockmate/backend
 
 # 创建虚拟环境
 python -m venv .venv
@@ -109,7 +108,7 @@ uvicorn app.main:app --reload --host 0.0.0.0 --port 8000
 **前置条件：** Node.js 18+
 
 ```bash
-cd go-stock-python/frontend
+cd stockmate/frontend
 
 # 安装依赖
 npm install
@@ -125,7 +124,7 @@ npm run dev
 ## 项目结构
 
 ```
-go-stock-python/
+stockmate/
 ├── backend/                    # FastAPI 后端
 │   ├── app/
 │   │   ├── main.py             # 应用入口，挂载路由和中间件
@@ -196,19 +195,19 @@ go-stock-python/
 
 主要接口分组：
 
-| 路由前缀 | 说明 |
-|----------|------|
-| `/api/stocks` | 股票行情查询、批量获取 |
-| `/api/funds` | 基金数据查询、自选基金管理 |
-| `/api/market` | 市场行情接口 |
-| `/api/agent` | Agent 对话、流式推理（SSE） |
-| `/api/ai_rag` | RAG 检索增强生成 |
-| `/api/news` | 新闻资讯查询 |
-| `/api/kline` | K 线数据接口 |
-| `/api/auth` | 用户认证（登录/注册） |
-| `/api/cron_tasks` | 定时任务管理 |
-| `/api/settings` | 系统配置管理 |
-| `/ws/{channel}` | WebSocket 实时推送（支持 stocks/news 等频道） |
+| 路由前缀 | 说明                                      |
+|----------|-----------------------------------------|
+| `/api/stocks` | 股票行情查询、批量获取(待实现)                        |
+| `/api/funds` | 基金数据查询、自选基金管理                           |
+| `/api/market` | 市场行情接口（待实现）                             |
+| `/api/agent` | Agent 对话、流式推理（SSE）                      |
+| `/api/ai_rag` | RAG 检索增强生成                              |
+| `/api/news` | 新闻资讯查询                                  |
+| `/api/kline` | K 线数据接口（待实现）                            |
+| `/api/auth` | 用户认证（登录/注册）                             |
+| `/api/cron_tasks` | 定时任务管理（待实现）                             |
+| `/api/settings` | 系统配置管理                                  |
+| `/ws/{channel}` | WebSocket 实时推送（支持 stocks/news 等频道）（待实现） |
 
 ---
 
