@@ -4,6 +4,7 @@ import { UserOutlined, LockOutlined, MailOutlined } from "@ant-design/icons";
 import { useNavigate } from "react-router-dom";
 import { useAuthStore } from "@/stores/authStore";
 import { login, register } from "@/api/auth";
+import LiveKLineChart from "@/components/LiveKLineChart";
 
 const { Title, Text } = Typography;
 
@@ -18,18 +19,15 @@ const Login: React.FC = () => {
     setLoading(true);
     try {
       if (isRegister) {
-        // 注册逻辑
         const res = await register({
           email: values.email,
           username: values.username,
           password: values.password,
         });
-        // TODO: 处理注册成功后的逻辑
         const { access_token, token_type } = res.data;
         loginStore(access_token, token_type);
         message.success("注册并登录成功");
       } else {
-        // 登录逻辑
         const formData = new FormData();
         formData.append("username", values.email);
         formData.append("password", values.password);
@@ -53,50 +51,72 @@ const Login: React.FC = () => {
   };
 
   return (
-    <div style={{ height: "100vh", display: "flex", overflow: "hidden" }}>
-      {/* 左侧 70% 宽度的大图片区域 */}
+    <div
+      style={{
+        height: "100vh",
+        display: "flex",
+        overflow: "hidden",
+        background:
+          "radial-gradient(ellipse 60% 80% at 12% 50%, rgba(22,119,255,0.07) 0%, rgba(22,119,255,0.025) 45%, transparent 70%), linear-gradient(90deg, rgba(22,119,255,0.04) 0%, rgba(22,119,255,0.015) 30%, rgba(255,255,255,0) 60%), #ffffff",
+      }}
+    >
       <Col
         span={17}
         style={{
-          background: "#001529",
           display: "flex",
           alignItems: "center",
           justifyContent: "center",
-          color: "#fff",
+          color: "#1a1a1a",
+          position: "relative",
+          overflow: "hidden",
         }}
       >
-        <div style={{ textAlign: "center" }}>
-          <Title style={{ color: "#fff", fontSize: "48px" }}>Go-Stock</Title>
-          <Text style={{ color: "rgba(255,255,255,0.65)", fontSize: "18px" }}>
-            专业的股票分析与量化交易平台
-          </Text>
-          {/* 这里留出图片位置，目前用渐变色代替背景 */}
+        <div
+          style={{
+            width: "100%",
+            maxWidth: 960,
+            textAlign: "center",
+            position: "relative",
+            zIndex: 1,
+          }}
+        >
+          <Title
+            style={{
+              color: "#1a1a1a",
+              fontSize: "48px",
+              marginBottom: 8,
+              letterSpacing: "-0.5px",
+            }}
+          >
+            StockMate
+          </Title>
+          {/* <Text
+            style={{
+              color: "rgba(0,0,0,0.45)",
+              fontSize: "17px",
+              letterSpacing: "0.5px",
+            }}
+          >
+            基金分析与量化交易小助手
+          </Text> */}
+
           <div
             style={{
               marginTop: "40px",
-              width: "80%",
-              height: "400px",
-              background: "linear-gradient(135deg, #1677ff 0%, #001529 100%)",
-              borderRadius: "12px",
-              boxShadow: "0 20px 50px rgba(0,0,0,0.3)",
-              display: "flex",
-              alignItems: "center",
-              justifyContent: "center",
-              fontSize: "24px",
-              fontStyle: "italic",
-              opacity: 0.8,
+              width: "100%",
+              height: "460px",
+              overflow: "hidden",
+              position: "relative",
             }}
           >
-            大屏行情展示图占位
+            <LiveKLineChart speed={1.8} candleCount={55} />
           </div>
         </div>
       </Col>
 
-      {/* 右侧 30% 登录注册表单 */}
       <Col
         span={7}
         style={{
-          background: "#fff",
           padding: "0 40px",
           display: "flex",
           flexDirection: "column",
