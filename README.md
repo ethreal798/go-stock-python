@@ -1,6 +1,4 @@
-# go-stock Python 版
-
-go-stock 的 Python + React 全栈重构版本，提供股票行情监控、AI 智能分析、价格预警等核心功能，支持 Docker 一键部署。
+# py-stock
 
 ## 技术栈
 
@@ -15,7 +13,6 @@ go-stock 的 Python + React 全栈重构版本，提供股票行情监控、AI �
 | APScheduler | 3.10 | 定时任务调度 |
 | LiteLLM | 1.48 | 多模型 AI 统一接口 |
 | SSE-Starlette | 2.1 | Server-Sent Events 流式推送 |
-| Playwright | 1.47 | 浏览器自动化（K 线截图等） |
 
 ### 前端
 | 技术 | 版本 | 说明 |
@@ -94,9 +91,6 @@ source .venv/bin/activate
 # 安装依赖
 pip install -r requirements.txt
 
-# 安装 Playwright 浏览器（首次）
-playwright install chromium
-
 # 复制环境变量
 cp ../.env.example ../.env
 # 编辑 .env，将 REDIS_URL 改为 redis://localhost:6379/0
@@ -138,16 +132,37 @@ go-stock-python/
 │   │   ├── config.py           # 配置管理（从环境变量加载）
 │   │   ├── core/               # 核心模块
 │   │   │   ├── database.py     # 数据库连接与会话
-│   │   │   ├── redis_client.py # Redis 客户端
-│   │   │   └── scheduler.py    # 定时任务调度器
+│   │   │   ├── redis.py        # Redis 客户端
+│   │   │   ├── logging.py      # 日志配置
+│   │   │   ├── sse.py          # SSE 工具
+│   │   │   ├── websocket.py    # WebSocket 管理
+│   │   │   ├── security.py     # 安全工具
+│   │   │   ├── crypto.py       # 加密工具
+│   │   │   └── url_safety.py   # URL 安全校验
 │   │   ├── models/             # SQLAlchemy 数据模型
 │   │   ├── schemas/            # Pydantic 请求/响应模型
 │   │   ├── routers/            # API 路由（按业务拆分）
 │   │   │   ├── stocks.py       # 股票行情接口
-│   │   │   ├── ai_chat.py      # AI 对话接口（SSE 流式）
-│   │   │   ├── alerts.py       # 价格预警接口
+│   │   │   ├── funds.py        # 基金接口
+│   │   │   ├── market.py       # 市场行情接口
+│   │   │   ├── agent.py        # Agent 对话接口（SSE 流式）
+│   │   │   ├── ai_rag.py       # RAG 检索增强生成接口
+│   │   │   ├── news.py         # 新闻资讯接口
+│   │   │   ├── kline.py        # K 线数据接口
+│   │   │   ├── auth.py         # 认证接口
+│   │   │   ├── cron_tasks.py   # 定时任务管理接口
 │   │   │   └── settings.py     # 系统设置接口
-│   │   └── services/           # 业务逻辑层
+│   │   ├── services/           # 业务逻辑层
+│   │   │   ├── agent/          # Agent 相关服务
+│   │   │   ├── fund/           # 基金相关服务
+│   │   │   ├── news/           # 新闻解析服务
+│   │   │   ├── rag/            # RAG 检索服务
+│   │   │   └── ...             # 其他业务服务
+│   │   ├── workers/            # 后台 Worker
+│   │   │   ├── agent_run_worker.py
+│   │   │   └── scheduler_worker.py
+│   │   └── commands/           # 管理命令
+│   │       └── fund/           # 基金同步命令
 │   ├── alembic/                # 数据库迁移脚本
 │   ├── Dockerfile
 │   └── requirements.txt
@@ -163,7 +178,8 @@ go-stock-python/
 │   ├── vite.config.ts
 │   └── package.json
 │
-├── docker-compose.yml          # Docker Compose 编排配置
+├── docker-compose.yml          # Docker Compose 编排配置（开发）
+├── docker-compose.prod.yml     # Docker Compose 编排配置（生产）
 ├── nginx.conf                  # Nginx 反向代理配置
 ├── .env.example                # 环境变量模板
 └── README.md                   # 本文件
@@ -183,10 +199,16 @@ go-stock-python/
 | 路由前缀 | 说明 |
 |----------|------|
 | `/api/stocks` | 股票行情查询、批量获取 |
-| `/api/ai` | AI 对话、流式推理（SSE） |
-| `/api/alerts` | 价格预警管理 |
+| `/api/funds` | 基金数据查询、自选基金管理 |
+| `/api/market` | 市场行情接口 |
+| `/api/agent` | Agent 对话、流式推理（SSE） |
+| `/api/ai_rag` | RAG 检索增强生成 |
+| `/api/news` | 新闻资讯查询 |
+| `/api/kline` | K 线数据接口 |
+| `/api/auth` | 用户认证（登录/注册） |
+| `/api/cron_tasks` | 定时任务管理 |
 | `/api/settings` | 系统配置管理 |
-| `/ws/` | WebSocket 实时推送 |
+| `/ws/{channel}` | WebSocket 实时推送（支持 stocks/news 等频道） |
 
 ---
 
@@ -254,6 +276,8 @@ docker image prune -f
 | `AI_MODEL_NAME` | ✅ | 使用的模型名称 |
 | `DATABASE_URL` | ✅ | PostgreSQL 数据库连接串 |
 | `REDIS_URL` | ❌ | Redis 连接串 |
+| `SECRET_KEY` | ✅（生产） | JWT 签名密钥 |
+| `AI_MODEL_CONFIG_ENCRYPTION_KEY` | ✅（生产） | 用户模型配置加密密钥 |
 | `LOG_LEVEL` | ❌ | 日志级别，默认 `INFO` |
 | `LOG_FORMAT` | ❌ | `text`（默认）或用于日志平台的 `json` |
 | `LOG_COLOR` | ❌ | 控制台日志是否使用 ANSI 颜色，默认开启 |
@@ -264,7 +288,8 @@ docker image prune -f
 | `LOG_LEVEL_OVERRIDES_STR` | ❌ | 按 logger 覆盖级别，如 `apscheduler=WARNING` |
 | `ACCESS_LOG_ENABLED` | ❌ | 是否记录 HTTP 访问日志 |
 | `ACCESS_LOG_EXCLUDE_PATHS_STR` | ❌ | 不记录成功访问日志的路径，默认 `/health` |
-| `DINGDING_WEBHOOK_URL` | ❌ | 钉钉机器人 Webhook（预警功能） |
+| `CORS_ORIGINS_STR` | ❌ | 允许的跨域来源，逗号分隔 |
+| `NEWS_CRAWL_INTERVAL_SECONDS` | ❌ | 新闻爬取间隔，默认 60 秒 |
 
 ---
 
