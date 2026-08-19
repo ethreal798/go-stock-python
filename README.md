@@ -234,6 +234,11 @@ docker-compose exec frontend sh
 # 查看实时日志
 docker-compose logs -f
 
+# 查看持久化的结构化日志（开发环境）
+tail -f logs/backend.log
+tail -f logs/agent-worker.log
+tail -f logs/scheduler-worker.log
+
 # 清理无用镜像
 docker image prune -f
 ```
@@ -249,6 +254,16 @@ docker image prune -f
 | `AI_MODEL_NAME` | ✅ | 使用的模型名称 |
 | `DATABASE_URL` | ✅ | PostgreSQL 数据库连接串 |
 | `REDIS_URL` | ❌ | Redis 连接串 |
+| `LOG_LEVEL` | ❌ | 日志级别，默认 `INFO` |
+| `LOG_FORMAT` | ❌ | `text`（默认）或用于日志平台的 `json` |
+| `LOG_COLOR` | ❌ | 控制台日志是否使用 ANSI 颜色，默认开启 |
+| `LOG_TIMEZONE` | ❌ | 日志时区，默认 `Asia/Shanghai` |
+| `LOG_TO_FILE` | ❌ | 是否持久化到日志文件，默认 `true` |
+| `LOG_DIR` | ❌ | 容器内日志目录，默认 `logs` |
+| `LOG_RETENTION_DAYS` | ❌ | 按天轮转后的保留天数，默认 30 天 |
+| `LOG_LEVEL_OVERRIDES_STR` | ❌ | 按 logger 覆盖级别，如 `apscheduler=WARNING` |
+| `ACCESS_LOG_ENABLED` | ❌ | 是否记录 HTTP 访问日志 |
+| `ACCESS_LOG_EXCLUDE_PATHS_STR` | ❌ | 不记录成功访问日志的路径，默认 `/health` |
 | `DINGDING_WEBHOOK_URL` | ❌ | 钉钉机器人 Webhook（预警功能） |
 
 ---
