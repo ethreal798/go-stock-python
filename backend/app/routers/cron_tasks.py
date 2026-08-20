@@ -2,7 +2,7 @@
 
 from fastapi import APIRouter, HTTPException
 
-from app.services.scheduler_service import build_default_jobs
+from app.services.scheduler_service import get_registered_jobs
 
 router = APIRouter(prefix="/cron-tasks", tags=["cron_tasks"])
 
@@ -10,7 +10,7 @@ router = APIRouter(prefix="/cron-tasks", tags=["cron_tasks"])
 @router.get("", summary="获取任务列表")
 async def list_cron_tasks() -> list[dict]:
     """获取所有定时任务。"""
-    return [{**job, "managed_by": "scheduler-worker"} for job in build_default_jobs()]
+    return [{**job, "managed_by": "scheduler-worker"} for job in get_registered_jobs()]
 
 
 # @router.post("", summary="创建定时任务")
@@ -37,7 +37,7 @@ async def list_cron_tasks() -> list[dict]:
 @router.get("/{job_id}", summary="获取任务详情")
 async def get_cron_task(job_id: str) -> dict:
     """获取指定定时任务详情。"""
-    job = next((job for job in build_default_jobs() if job["job_id"] == job_id), None)
+    job = next((job for job in get_registered_jobs() if job["job_id"] == job_id), None)
     if job is None:
         raise HTTPException(status_code=404, detail=f"Job '{job_id}' not found")
     return {**job, "managed_by": "scheduler-worker"}
