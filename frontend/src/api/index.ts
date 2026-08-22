@@ -46,7 +46,7 @@ request.interceptors.response.use(
   },
   (error) => {
     if (error.response) {
-      const status = error.response.status
+      const status = error.response.data.detail
       switch (status) {
         case 401:
           message.error('未授权，请重新登录')
@@ -61,7 +61,7 @@ request.interceptors.response.use(
           message.error('服务器内部错误')
           break
         default:
-          message.error(`请求失败: ${status}`)
+          message.error(status)
       }
     } else if (error.request) {
       message.error('网络连接失败，请检查网络')

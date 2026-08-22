@@ -288,14 +288,6 @@ const FundMarket: React.FC<FundMarketProps> = ({ onFollowSuccess }) => {
       ),
     },
     {
-      title: "单位净值",
-      width: 130,
-      render: (_, record) => {
-        const v = record.latest?.unit_nav;
-        return v != null ? v.toFixed(4) : "-";
-      },
-    },
-    {
       title: "累计净值",
       width: 130,
       render: (_, record) => {
@@ -313,21 +305,6 @@ const FundMarket: React.FC<FundMarketProps> = ({ onFollowSuccess }) => {
         const v = record.latest?.[growthField as keyof typeof record.latest];
         return renderGrowth(v as number | string | null | undefined);
       },
-    },
-    {
-      title: "近一年",
-      width: 130,
-      sorter: true,
-      sortOrder: sortField === "return_1y_pct" ? sortOrder : null,
-      render: (_, record) => renderGrowth(record.latest?.return_1y_pct),
-    },
-    {
-      title: "成立来",
-      width: 130,
-      sorter: true,
-      sortOrder: sortField === "return_since_inception_pct" ? sortOrder : null,
-      render: (_, record) =>
-        renderGrowth(record.latest?.return_since_inception_pct),
     },
     {
       title: "最新净值",
