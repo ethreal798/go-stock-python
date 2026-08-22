@@ -62,9 +62,7 @@ const menuItems: MenuProps["items"] = [
     key: "/news",
     icon: <NotificationOutlined />,
     label: "新闻资讯",
-    children: [
-      { key: "/news/flash", label: "快讯" },
-    ],
+    children: [{ key: "/news/flash", label: "快讯" }],
   },
   {
     key: "/fund",
@@ -127,7 +125,7 @@ const AppLayout: React.FC = () => {
       ? "基金详情"
       : pageTitleMap[location.pathname]) ??
     getTopMenuLabel(menuItems, location.pathname) ??
-    "Go-Stock 股票分析平台";
+    "StockMate";
 
   const userMenuItems: MenuProps["items"] = [
     {
@@ -172,10 +170,10 @@ const AppLayout: React.FC = () => {
         >
           <img
             src="/stock.svg"
-            alt="Go-Stock"
+            alt="StockMate"
             style={{ width: 20, height: 20, display: "block", flexShrink: 0 }}
           />
-          {!collapsed && <span>Go-Stock</span>}
+          {!collapsed && <span>StockMate</span>}
         </div>
         <Menu
           theme="light"
