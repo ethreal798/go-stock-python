@@ -56,7 +56,7 @@ const AgentSidebar: React.FC<AgentSidebarProps> = ({
             alt="StockMate"
             style={{ width: 20, height: 20, display: "block", flexShrink: 0 }}
           />
-          <span style={{ fontSize: 16, fontWeight: 600 }}>StockMate</span>
+          <span style={{ fontSize: 16, fontWeight: 600 }}>StockMate-Agent</span>
         </Space>
         <Tooltip title={isGuestMode ? "请登录后使用新建会话" : "新建会话"}>
           <Button
