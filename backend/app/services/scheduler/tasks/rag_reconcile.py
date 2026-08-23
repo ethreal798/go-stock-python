@@ -5,7 +5,6 @@ from __future__ import annotations
 import logging
 from typing import Any
 
-from app.config import settings
 from app.services.scheduler.task_registry import register_task
 from app.services.scheduler.tasks.news_crawl import _run_rag_pipeline_drain
 

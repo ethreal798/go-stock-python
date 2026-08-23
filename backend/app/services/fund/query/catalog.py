@@ -164,7 +164,6 @@ class FundCatalogQueryService:
             "fund_type": fund.type,
             "is_hb": fund.is_hb,
             "is_exchange": fund.is_exchange,
-
             "latest": cls._latest_payload(open_rank, exchange_rank, money_rank, category),
             "is_in_watchlist": is_in_watchlist,
         }

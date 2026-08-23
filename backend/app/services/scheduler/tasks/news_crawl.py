@@ -111,6 +111,4 @@ async def news_crawl(db, params: dict[str, Any]) -> None:
     total_new_count = await _execute_news_crawl(db, params)
 
     if total_new_count > 0 and settings.RAG_PIPELINE_SWITCH and settings.RAG_PIPELINE_ON_NEWS_CRAWL:
-        await _run_rag_pipeline_drain(
-            db, params, reason="news_crawl", total_new_count=total_new_count
-        )
+        await _run_rag_pipeline_drain(db, params, reason="news_crawl", total_new_count=total_new_count)

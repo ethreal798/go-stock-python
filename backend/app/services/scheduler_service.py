@@ -4,7 +4,6 @@
 由 ``task_registry`` 统一管理。
 """
 
-import asyncio
 import logging
 import time
 from typing import Optional

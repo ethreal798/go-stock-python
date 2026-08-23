@@ -13,6 +13,7 @@ FundTrendPeriod = Literal["1m", "3m", "6m", "1y", "3y", "5y", "ytd", "since_ince
 
 class FundBase(BaseModel):
     """基金基础信息。"""
+
     id: int = Field(..., description="基金主表对应id")
     code: str = Field(..., description="基金代码")
     name: str = Field(..., description="基金名称")

@@ -53,9 +53,7 @@ class FundRankingQueryService:
         """获取排序字段的 (db_column, label)。"""
         valid = SORT_FIELD_MAP.get(category, {})
         if sort not in valid:
-            raise ValueError(
-                f"分类 '{category}' 不支持排序字段 '{sort}'，"
-            )
+            raise ValueError(f"分类 '{category}' 不支持排序字段 '{sort}'，")
         return valid[sort]
 
     @staticmethod
@@ -63,9 +61,7 @@ class FundRankingQueryService:
         """获取周期字段的 (db_column, label)。"""
         valid = PERIOD_FIELD_MAP.get(category, {})
         if period not in valid:
-            raise ValueError(
-                f"分类 '{category}' 不支持周期 '{period}'，"
-            )
+            raise ValueError(f"分类 '{category}' 不支持周期 '{period}'，")
         return valid[period]
 
     # ================================================================
@@ -112,9 +108,7 @@ class FundRankingQueryService:
         direction = rank_sort_col.desc() if order == "desc" else rank_sort_col.asc()
 
         # 基础查询：INNER JOIN（排序字段 IS NOT NULL 已保证有排行数据）
-        base_query = select(Fund, rank_table).join(
-            rank_table, rank_table.fund_id == Fund.id
-        )
+        base_query = select(Fund, rank_table).join(rank_table, rank_table.fund_id == Fund.id)
 
         # WHERE: 排序字段 IS NOT NULL
         conditions = [rank_sort_col.is_not(None)]
@@ -129,9 +123,7 @@ class FundRankingQueryService:
         elif category == "exchange":
             conditions.append(Fund.is_exchange.is_(True))
         else:
-            conditions.append(
-                and_(Fund.is_hb.is_(False), Fund.is_exchange.is_(False))
-            )
+            conditions.append(and_(Fund.is_hb.is_(False), Fund.is_exchange.is_(False)))
 
         if len(conditions) > 1:
             base_query = base_query.where(and_(*conditions))
@@ -144,11 +136,7 @@ class FundRankingQueryService:
 
         # 2. 分页查询
         offset_val = (page - 1) * limit
-        page_query = (
-            base_query.order_by(direction, Fund.code)
-            .offset(offset_val)
-            .limit(limit)
-        )
+        page_query = base_query.order_by(direction, Fund.code).offset(offset_val).limit(limit)
         rows = list((await self.db.execute(page_query)).all())
 
         # 3. 查询自选集合
@@ -254,7 +242,5 @@ class FundRankingQueryService:
         """查询当前用户的基金自选代码。"""
         if user_id is None:
             return set()
-        statement = select(FundWatchlistItem.fund_code).where(
-            FundWatchlistItem.user_id == user_id
-        )
+        statement = select(FundWatchlistItem.fund_code).where(FundWatchlistItem.user_id == user_id)
         return set((await self.db.execute(statement)).scalars().all())
