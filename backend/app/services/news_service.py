@@ -10,8 +10,6 @@ from sqlalchemy.orm import selectinload
 
 from app.models.news import (
     NewsItem,
-    NewsItemEntity,
-    NewsItemRelation,
     NewsItemTopic,
     NewsSource,
 )
