@@ -137,6 +137,25 @@ def fetch_open_or_exchange_nav_frames(
     ]
 
 
+def fetch_open_or_exchange_nav_frames_by_range(
+    symbol: str,
+    start_date: date,
+    end_date: date,
+) -> list[dict[str, Any]]:
+    """获取开放式/场内基金指定日期范围的单位净值和累计净值走势。"""
+    raw_rows = _fetch_lsjz_rows(symbol, start_date=start_date, end_date=end_date)
+
+    return [
+        {
+            "data_date": raw.get("FSRQ"),
+            "unit_nav": raw.get("DWJZ"),
+            "accumulated_nav": raw.get("LJJZ"),
+            "daily_growth_pct": raw.get("JZZZL"),
+        }
+        for raw in raw_rows
+    ]
+
+
 def fetch_money_yield_frame(
     symbol: str,
 ) -> list[dict[str, Any]]:

@@ -19,6 +19,7 @@ from app.services.fund.sources.history import (
     fetch_money_yield_frame,
     fetch_money_yield_frame_by_range,
     fetch_open_or_exchange_nav_frames,
+    fetch_open_or_exchange_nav_frames_by_range,
 )
 
 logger = logging.getLogger(__name__)
@@ -159,6 +160,115 @@ class FundHistorySyncService:
             await self.db.commit()
 
         return {"funds": 1, "rows": len(values), "failed": 0}
+
+    async def sync_open_exchange_incremental(
+        self,
+        fund: Fund,
+    ) -> dict[str, int]:
+        """开放式/场内基金增量同步：仅拉取已有最新日期之后的新数据。"""
+        max_date_stmt = select(func.max(FundOpenExchangeNavHistory.data_date)).where(
+            FundOpenExchangeNavHistory.fund_id == fund.id,
+        )
+        max_date = (await self.db.execute(max_date_stmt)).scalar_one_or_none()
+
+        today = date.today()
+        if max_date is None:
+            # 无历史记录 → 全量初始化近 1 年
+            raw_rows = await asyncio.to_thread(fetch_open_or_exchange_nav_frames, fund.code)
+        else:
+            start_date = max_date + timedelta(days=1)
+            if start_date > today:
+                return {"funds": 1, "rows": 0, "failed": 0}
+            raw_rows = await asyncio.to_thread(
+                fetch_open_or_exchange_nav_frames_by_range, fund.code, start_date, today
+            )
+
+        values = self._normalize_rows(fund, raw_rows, fetched_at=datetime.now())
+
+        if values:
+            await self._upsert_history(FundOpenExchangeNavHistory, values)
+            await self.db.commit()
+
+        return {"funds": 1, "rows": len(values), "failed": 0}
+
+    async def sync_incremental_all(
+        self,
+        *,
+        concurrency: int = 4,
+        batch_size: int = 20,
+        retries: int = 2,
+    ) -> dict[str, int]:
+        """全量增量同步：遍历所有基金，按类型执行增量拉取。"""
+        if concurrency < 1 or batch_size < 1 or retries < 0:
+            raise ValueError("concurrency、batch_size 必须大于 0，retries 不能小于 0")
+
+        total = int((await self.db.execute(select(func.count(Fund.id)))).scalar_one())
+        result: dict[str, int] = {"funds": 0, "rows": 0, "failed": 0}
+        if total == 0:
+            logger.info("没有需要同步的基金")
+            return result
+
+        total_batches = ceil(total / batch_size)
+        semaphore = asyncio.Semaphore(concurrency)
+        last_id = 0
+        batch_index = 0
+        logger.info(
+            "开始增量同步：共 %s 只基金，分 %s 批，并发 %s",
+            total, total_batches, concurrency,
+        )
+
+        while result["funds"] < total:
+            batch_index += 1
+            statement = (
+                select(Fund)
+                .where(Fund.id > last_id)
+                .order_by(Fund.id)
+                .limit(min(batch_size, total - result["funds"]))
+            )
+            fund_batch = list((await self.db.execute(statement)).scalars().all())
+            if not fund_batch:
+                logger.warning(
+                    "游标提前结束：已处理 %s / %s 只",
+                    result["funds"], total,
+                )
+                break
+            last_id = fund_batch[-1].id
+
+            async def _sync_one_incremental(fund: Fund) -> dict[str, int]:
+                async with semaphore:
+                    try:
+                        if fund.is_hb:
+                            return await self.sync_money_incremental(fund)
+                        else:
+                            return await self.sync_open_exchange_incremental(fund)
+                    except Exception as exc:
+                        fund_type = "货币基金" if fund.is_hb else "其他基金"
+                        logger.warning(
+                            "基金 %s（%s）增量同步失败：%s",
+                            fund.code, fund_type, exc,
+                        )
+                        return {"funds": 1, "rows": 0, "failed": 1}
+
+            tasks = [_sync_one_incremental(fund) for fund in fund_batch]
+            responses = await asyncio.gather(*tasks, return_exceptions=True)
+
+            for fund, response in zip(fund_batch, responses):
+                if isinstance(response, Exception):
+                    result["failed"] += 1
+                    logger.warning(
+                        "基金 %s 增量同步异常：%s",
+                        fund.code, response,
+                    )
+                    continue
+                result["funds"] += response.get("funds", 1)
+                result["rows"] += response.get("rows", 0)
+                result["failed"] += response.get("failed", 0)
+
+        logger.info(
+            "增量同步完成：处理 %s 只，写入 %s 行，失败 %s 只",
+            result["funds"], result["rows"], result["failed"],
+        )
+        return result
 
     async def _sync_one(
         self,
