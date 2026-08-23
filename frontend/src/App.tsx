@@ -46,7 +46,7 @@ const pageTitleMap: Record<string, string> = {
   "/news/news": "新闻",
   "/news/flash": "快讯",
   "/fund": "我的关注",
-  "/fund/market": "基金市场",
+  "/fund/market": "基金排行",
   "/cron-tasks": "定时任务",
   "/settings": "AI 配置",
   "/settings/notify": "通知配置",
@@ -70,7 +70,7 @@ const menuItems: MenuProps["items"] = [
     label: "基金",
     children: [
       { key: "/fund", label: "我的关注" },
-      { key: "/fund/market", label: "基金市场" },
+      { key: "/fund/market", label: "基金排行" },
     ],
   },
   { key: "/cron-tasks", icon: <ClockCircleOutlined />, label: "定时任务" },
