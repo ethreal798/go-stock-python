@@ -63,7 +63,6 @@ const menuItems: MenuProps["items"] = [
     icon: <NotificationOutlined />,
     label: "新闻资讯",
     children: [
-      { key: "/news/news", label: "新闻" },
       { key: "/news/flash", label: "快讯" },
     ],
   },
