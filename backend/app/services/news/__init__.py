@@ -1,17 +1,13 @@
-"""多源快讯解析组件。"""
+"""多源快讯解析与抓取组件。"""
 
 from .cls_parser import parse_cls_item
+from .crawler import NewsCrawler, PARSERS
 from .dto import ParsedEntity, ParsedNewsItem, ParsedRelation, ParsedTopic
 from .sina_parser import parse_sina_item
 from .wscn_parser import parse_wscn_item
 
-PARSERS = {
-    "cls": parse_cls_item,
-    "wscn": parse_wscn_item,
-    "sina": parse_sina_item,
-}
-
 __all__ = [
+    "NewsCrawler",
     "PARSERS",
     "ParsedEntity",
     "ParsedNewsItem",
