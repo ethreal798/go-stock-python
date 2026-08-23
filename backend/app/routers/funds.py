@@ -8,6 +8,11 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.core.database import get_db
 from app.schemas.fund import (
     FundPerformanceTrendResponse,
+    FundRankCategory,
+    FundRankListResponse,
+    FundRankOrder,
+    FundRankPeriod,
+    FundRankSortField,
     FundResponse,
     FundTrendPeriod,
     FundWatchlistItemCreate,
@@ -15,6 +20,7 @@ from app.schemas.fund import (
 )
 from app.services.fund.command.watchlist import FundNotFoundError, FundWatchlistCommandService
 from app.services.fund.query.catalog import FundCatalogQueryService
+from app.services.fund.query.ranking import FundRankingQueryService
 from app.services.fund.query.watchlist import FundWatchlistQueryService
 from app.services.fund.query.performance_trend import (
     FundPerformanceTrendNotFoundError,
@@ -71,6 +77,10 @@ def get_fund_performance_trend_service(
 
 def get_fund_ranking_sync_service(db: AsyncSession = Depends(get_db)) -> FundRankingSyncService:
     return FundRankingSyncService(db)
+
+
+def get_fund_ranking_query_service(db: AsyncSession = Depends(get_db)) -> FundRankingQueryService:
+    return FundRankingQueryService(db)
 
 
 @router.get("/search", response_model=List[FundResponse], summary="搜索基金", response_model_exclude_unset=True)
@@ -183,7 +193,30 @@ async def sync_funds(
     return {"message": "基金排行同步完成", "counts": counts}
 
 
-@router.get("/", summary="获取基金最新排行数据")
-async def get_funds():
-    """根据前端不同条件  返回三类基金的数据"""
-    pass
+@router.get("/", response_model=FundRankListResponse, summary="获取基金排行", response_model_exclude_unset=True)
+async def get_funds(
+    category: FundRankCategory = Query("open", description="基金分类: open/money/exchange"),
+    sort: FundRankSortField = Query("1y", description="排序字段"),
+    period: Optional[FundRankPeriod] = Query(None, description="显示周期，不传时由 sort 推导"),
+    order: FundRankOrder = Query("desc", description="排序方向: asc/desc"),
+    page: int = Query(1, ge=1, description="页码"),
+    limit: int = Query(20, ge=1, le=100, description="每页数量"),
+    fund_type: Optional[str] = Query(None, description="基金类型过滤"),
+    current_user: Optional[User] = Depends(get_optional_current_user),
+    service: FundRankingQueryService = Depends(get_fund_ranking_query_service),
+) -> FundRankListResponse:
+    """获取基金排行列表，支持分类、排序、分页。"""
+    user_id = current_user.id if current_user else None
+    try:
+        return await service.get_rankings(
+            category=category,
+            sort=sort,
+            period=period,
+            order=order,
+            page=page,
+            limit=limit,
+            fund_type=fund_type,
+            user_id=user_id,
+        )
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc))
