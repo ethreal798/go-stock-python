@@ -259,6 +259,7 @@ class NewsService:
     # ------------------------------------------------------------------
 
     async def list_sources(self) -> list[NewsSourceResponse]:
+        """从消息来源表中查出启用配置"""
         result = await self.db.execute(
             select(NewsSource).where(NewsSource.enabled.is_(True)).order_by(NewsSource.sort_order, NewsSource.id)
         )
@@ -470,12 +471,16 @@ class NewsService:
     ):
         """工具函数 根据传入的参数对stmt添加过滤数据逻辑"""
         self._require_query_source(source)
+        # 1. 来源筛选
         stmt = stmt.join(NewsSource, NewsSource.id == NewsItem.source_id).where(NewsSource.code == source)
         start_time = self._period_start(period)
+        # 2. 时间周期筛选
         if start_time is not None:
             stmt = stmt.where(NewsItem.published_at >= start_time)
+        # 3. 是否重要筛选
         if important_only:
             stmt = stmt.where(NewsItem.is_source_important.is_(True))
+        # 4. 主题名筛选
         if topic_name:
             topic_filters = [
                 NewsItemTopic.news_item_id == NewsItem.id,
