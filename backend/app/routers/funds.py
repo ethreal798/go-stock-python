@@ -172,7 +172,7 @@ async def get_fund_performance_trend(
         raise HTTPException(status_code=status_code, detail=str(exc)) from exc
 
 
-@router.get("/{code}", response_model=FundResponse, summary="获取基金详情")
+@router.get("/{code}", response_model=FundResponse, summary="获取基金详情", response_model_exclude_unset=True)
 async def get_fund_detail(
     code: str,
     service: FundCatalogQueryService = Depends(get_fund_catalog_query_service),
