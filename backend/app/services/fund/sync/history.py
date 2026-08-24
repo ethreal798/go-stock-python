@@ -179,9 +179,7 @@ class FundHistorySyncService:
             start_date = max_date + timedelta(days=1)
             if start_date > today:
                 return {"funds": 1, "rows": 0, "failed": 0}
-            raw_rows = await asyncio.to_thread(
-                fetch_open_or_exchange_nav_frames_by_range, fund.code, start_date, today
-            )
+            raw_rows = await asyncio.to_thread(fetch_open_or_exchange_nav_frames_by_range, fund.code, start_date, today)
 
         values = self._normalize_rows(fund, raw_rows, fetched_at=datetime.now())
 
@@ -214,22 +212,22 @@ class FundHistorySyncService:
         batch_index = 0
         logger.info(
             "开始增量同步：共 %s 只基金，分 %s 批，并发 %s",
-            total, total_batches, concurrency,
+            total,
+            total_batches,
+            concurrency,
         )
 
         while result["funds"] < total:
             batch_index += 1
             statement = (
-                select(Fund)
-                .where(Fund.id > last_id)
-                .order_by(Fund.id)
-                .limit(min(batch_size, total - result["funds"]))
+                select(Fund).where(Fund.id > last_id).order_by(Fund.id).limit(min(batch_size, total - result["funds"]))
             )
             fund_batch = list((await self.db.execute(statement)).scalars().all())
             if not fund_batch:
                 logger.warning(
                     "游标提前结束：已处理 %s / %s 只",
-                    result["funds"], total,
+                    result["funds"],
+                    total,
                 )
                 break
             last_id = fund_batch[-1].id
@@ -245,7 +243,9 @@ class FundHistorySyncService:
                         fund_type = "货币基金" if fund.is_hb else "其他基金"
                         logger.warning(
                             "基金 %s（%s）增量同步失败：%s",
-                            fund.code, fund_type, exc,
+                            fund.code,
+                            fund_type,
+                            exc,
                         )
                         return {"funds": 1, "rows": 0, "failed": 1}
 
@@ -257,7 +257,8 @@ class FundHistorySyncService:
                     result["failed"] += 1
                     logger.warning(
                         "基金 %s 增量同步异常：%s",
-                        fund.code, response,
+                        fund.code,
+                        response,
                     )
                     continue
                 result["funds"] += response.get("funds", 1)
@@ -266,7 +267,9 @@ class FundHistorySyncService:
 
         logger.info(
             "增量同步完成：处理 %s 只，写入 %s 行，失败 %s 只",
-            result["funds"], result["rows"], result["failed"],
+            result["funds"],
+            result["rows"],
+            result["failed"],
         )
         return result
 
