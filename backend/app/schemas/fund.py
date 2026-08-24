@@ -14,15 +14,17 @@ FundTrendPeriod = Literal["1m", "3m", "6m", "1y", "3y", "5y", "ytd", "since_ince
 class FundBase(BaseModel):
     """基金基础信息。"""
 
+    id: int = Field(..., description="基金主表对应id")
     code: str = Field(..., description="基金代码")
     name: str = Field(..., description="基金名称")
-    type: Optional[str] = Field(None, description="基金类型")
+    fund_type: str = Field(..., description="基金类型")
+    is_hb: bool = Field(..., description="是否为货币基金")
+    is_exchange: bool = Field(..., description="是否为场内基金")
 
 
 class FundLatestResponse(BaseModel):
     """三个排行表的统一最新指标外壳。不同口径的字段按需返回。"""
 
-    metric_kind: Literal["nav", "money_yield", "exchange_rank"]
     data_date: Optional[date] = None
     unit_nav: Optional[float] = None
     accumulated_nav: Optional[float] = None
@@ -46,15 +48,8 @@ class FundLatestResponse(BaseModel):
 class FundResponse(FundBase):
     """基金详细信息响应。"""
 
-    id: int
-    category: str = Field("unknown", description="数据路由分类")
-    status: str = Field("unknown", description="排行可观测状态")
-    last_seen_data_date: Optional[date] = Field(None, description="最近一次排行数据日期")
-    last_seen_at: Optional[datetime] = Field(None, description="最近一次排行抓取时间")
     latest: Optional[FundLatestResponse] = Field(None, description="对应分类的最新排行指标")
     is_in_watchlist: Optional[bool] = Field(False, description="是否已加入自选")
-
-    model_config = {"from_attributes": True}
 
 
 class FundPerformanceTrendSeriesResponse(BaseModel):
@@ -96,7 +91,6 @@ class FundWatchlistItemResponse(BaseModel):
 
     id: int
     user_id: int
-    fund_code: str
     remark: Optional[str] = None
 
     # 嵌套基金基础信息
@@ -104,8 +98,6 @@ class FundWatchlistItemResponse(BaseModel):
 
     created_at: datetime
     updated_at: datetime
-
-    model_config = {"from_attributes": True}
 
 
 class FundWatchlistRequest(BaseModel):
@@ -115,5 +107,73 @@ class FundWatchlistRequest(BaseModel):
     fund_type: str  # 基金类型 比如 指数型股票
 
 
+# ============================================================
+# 基金排行
+# ============================================================
+
+FundRankCategory = Literal["open", "money", "exchange"]
+
+FundRankSortField = Literal[
+    "nav",
+    "accumulated_nav",
+    "1w",
+    "1m",
+    "3m",
+    "6m",
+    "1y",
+    "2y",
+    "3y",
+    "5y",
+    "ytd",
+    "since_inception",
+    "income_per_10k",
+    "annualized_7d",
+    "annualized_14d",
+    "annualized_28d",
+]
+
+FundRankPeriod = Literal[
+    "1w",
+    "1m",
+    "3m",
+    "6m",
+    "1y",
+    "2y",
+    "3y",
+    "5y",
+    "ytd",
+    "since_inception",
+]
+
+FundRankOrder = Literal["asc", "desc"]
+
+
+class FundRankItemResponse(BaseModel):
+    """排行列表中单条基金的响应。"""
+
+    code: str = Field(..., description="基金代码")
+    name: str = Field(..., description="基金名称")
+    type: Optional[str] = Field(None, description="基金类型")
+    category: str = Field(..., description="数据分类: open/money/exchange")
+    data_date: Optional[date] = Field(None, description="净值/收益日期")
+
+    # 完整最新指标（复用现有 schema）
+    latest: Optional[FundLatestResponse] = Field(None, description="基金最新指标")
+
+    # 自选状态
+    is_in_watchlist: bool = Field(False, description="是否已加入自选")
+
+    model_config = {"from_attributes": True}
+
+
 class FundRankListResponse(BaseModel):
-    pass
+    """基金排行分页响应。"""
+
+    items: list[FundRankItemResponse] = Field(..., description="排行列表")
+    total: int = Field(..., description="符合条件的总记录数")
+    page: int = Field(..., description="当前页码")
+    limit: int = Field(..., description="每页数量")
+    category: str = Field(..., description="基金分类")
+    sort: str = Field(..., description="排序字段")
+    period: str = Field(..., description="显示周期")
+    order: str = Field(..., description="排序方向: asc/desc")

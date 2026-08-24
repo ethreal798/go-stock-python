@@ -88,7 +88,6 @@ class FundCatalogQueryService:
         """根据基金类型组装其相关字段数据  目前纳入范围 场内/场外/货币"""
         if category == "money":
             rank = money_rank
-            metric_kind = "money_yield"
             fields = (
                 "income_per_10k",
                 "annualized_7d_pct",
@@ -106,7 +105,6 @@ class FundCatalogQueryService:
             )
         elif category == "exchange":
             rank = exchange_rank
-            metric_kind = "exchange_rank"
             fields = (
                 "unit_nav",
                 "accumulated_nav",
@@ -122,7 +120,6 @@ class FundCatalogQueryService:
             )
         else:
             rank = open_rank
-            metric_kind = "nav"
             fields = (
                 "unit_nav",
                 "accumulated_nav",
@@ -140,7 +137,6 @@ class FundCatalogQueryService:
         if rank is None:
             return None
         return {
-            "metric_kind": metric_kind,
             "data_date": rank.data_date,
             **{field: getattr(rank, field) for field in fields},
         }
@@ -165,7 +161,7 @@ class FundCatalogQueryService:
             "id": fund.id,
             "code": fund.code,
             "name": fund.name,
-            "type": fund.type,
+            "fund_type": fund.type,
             "is_hb": fund.is_hb,
             "is_exchange": fund.is_exchange,
             "latest": cls._latest_payload(open_rank, exchange_rank, money_rank, category),

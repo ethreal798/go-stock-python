@@ -1,9 +1,9 @@
 """APScheduler 定时任务服务。
 
-负责管理和调度定时任务，如行情刷新、预警检测等。
+负责管理和调度定时任务。任务通过装饰器注册，
+由 ``task_registry`` 统一管理。
 """
 
-import asyncio
 import logging
 import time
 from typing import Optional
@@ -14,35 +14,17 @@ from apscheduler.triggers.interval import IntervalTrigger
 
 from app.config import settings
 from app.core.database import async_session_factory
-from app.services.news_service import NewsService
-from app.services.rag.rag_pipeline_service import RagPipelineService
+from app.services.scheduler.task_registry import get_all_tasks, get_handler
 
 logger = logging.getLogger(__name__)
 
 
-def build_default_jobs() -> list[dict]:
-    """Return the jobs owned by the standalone scheduler worker."""
-    """构建默认任务"""
-    jobs = [
-        {
-            "job_id": "news_crawl_all",
-            "task_type": "news_crawl",
-            "trigger_config": {"interval_seconds": settings.NEWS_CRAWL_INTERVAL_SECONDS},
-            "params": {"source": "all"},
-            "enabled": settings.NEWS_CRAWL_INTERVAL_SECONDS > 0,
-        }
-    ]
-    if settings.RAG_RECONCILE_INTERVAL_SECONDS > 0:
-        jobs.append(
-            {
-                "job_id": "rag_reconcile",
-                "task_type": "rag_reconcile",
-                "trigger_config": {"interval_seconds": settings.RAG_RECONCILE_INTERVAL_SECONDS},
-                "params": {},
-                "enabled": settings.RAG_PIPELINE_SWITCH,
-            }
-        )
-    return jobs
+def get_registered_jobs() -> list[dict]:
+    """获取所有已注册的任务列表。
+
+    这是 ``build_default_jobs()`` 的装饰器化替代方案。
+    """
+    return get_all_tasks()
 
 
 class SchedulerService:
@@ -51,8 +33,6 @@ class SchedulerService:
     def __init__(self) -> None:
         self._scheduler = AsyncIOScheduler(timezone=settings.SCHEDULER_TIMEZONE)
         self._jobs: dict[str, dict] = {}
-        self._rag_pipeline_lock = asyncio.Lock()
-        self._last_rag_pipeline_run_at = 0.0
 
     # ----------------------------------------------------------
     # 调度器生命周期
@@ -81,15 +61,17 @@ class SchedulerService:
         trigger_config: dict,
         params: Optional[dict] = None,
         enabled: bool = True,
+        depends_on: Optional[list[str]] = None,
     ) -> dict:
         """添加定时任务。
 
         Args:
             job_id: 任务唯一 ID
-            task_type: 任务类型 (refresh_quotes / alert_check / news_crawl)
-            trigger_config: 触发器配置，如 {"interval_seconds": 30} 或 {"cron": "0 9 * * 1-5"}
+            task_type: 任务类型（与 job_id 一致）
+            trigger_config: 触发器配置，如 ``{"interval_seconds": 30}`` 或 ``{"cron": "0 9 * * 1-5"}``
             params: 任务参数
             enabled: 是否启用
+            depends_on: 依赖的其他任务 ID 列表
         """
         job_info = {
             "job_id": job_id,
@@ -97,6 +79,7 @@ class SchedulerService:
             "trigger_config": trigger_config,
             "params": params or {},
             "enabled": enabled,
+            "depends_on": depends_on or [],
         }
 
         if enabled:
@@ -180,114 +163,29 @@ class SchedulerService:
         )
 
     async def _execute_task(self, task_type: str, params: dict) -> None:
-        """执行定时任务的统一入口。"""
+        """执行定时任务的统一入口。
+
+        从 registry 获取 handler 并执行。
+        """
         started_at = time.perf_counter()
         logger.debug("Executing task: type=%s, params=%s", task_type, params)
 
+        handler = get_handler(task_type)
+        if handler is None:
+            logger.warning("No handler registered for task type: %s", task_type)
+            return
+
         async with async_session_factory() as db:
             try:
-                if task_type == "refresh_quotes":
-                    pass
-                elif task_type == "alert_check":
-                    pass
-                elif task_type == "news_crawl":
-                    total_new_count = await self._execute_news_crawl(db, params)
-                    if total_new_count > 0 and settings.RAG_PIPELINE_SWITCH:
-                        await self._run_rag_pipeline_after_news_crawl(db, params, total_new_count)
-                elif task_type == "rag_reconcile":
-                    await self._run_rag_reconcile(db, params)
-
+                await handler(db, params)
                 await db.commit()
             except Exception:
                 logger.exception(
-                    "Task failed: type=%s duration_ms=%.2f", task_type, (time.perf_counter() - started_at) * 1000
+                    "Task failed: type=%s duration_ms=%.2f",
+                    task_type,
+                    (time.perf_counter() - started_at) * 1000,
                 )
                 await db.rollback()
-
-    async def _execute_news_crawl(self, db, params: dict) -> int:
-        service = NewsService(db)
-        source = params.get("source", "all")
-
-        if source == "all":
-            results = await service.fetch_all_sources()
-            total_new_count = sum(results.values())
-            log = logger.info if total_new_count > 0 else logger.debug
-            log("News crawl completed: source=all, total_new_count=%s, results=%s", total_new_count, results)
-            return total_new_count
-
-        news_type = params.get("type", "flash")
-        total_new_count = await service.fetch_remote_news(source, source_type=news_type)
-        log = logger.info if total_new_count > 0 else logger.debug
-        log("News crawl completed: source=%s, total_new_count=%s", source, total_new_count)
-        return total_new_count
-
-    async def _run_rag_pipeline_after_news_crawl(self, db, params: dict, total_new_count: int) -> None:
-        if not settings.RAG_PIPELINE_ON_NEWS_CRAWL:
-            logger.debug("Skip RAG pipeline after news crawl: disabled")
-            return
-
-        await self._run_rag_pipeline_drain(db, params, reason="news_crawl", total_new_count=total_new_count)
-
-    async def _run_rag_reconcile(self, db, params: dict) -> None:
-        await self._run_rag_pipeline_drain(db, params, reason="reconcile")
-
-    async def _run_rag_pipeline_drain(
-        self,
-        db,
-        params: dict,
-        *,
-        reason: str,
-        total_new_count: int | None = None,
-    ) -> None:
-        if self._rag_pipeline_lock.locked():
-            logger.debug("Skip RAG pipeline: previous pipeline is still running, reason=%s", reason)
-            return
-
-        now = time.monotonic()
-        elapsed = now - self._last_rag_pipeline_run_at
-        # 当执行任务间隔小于配置的RAG流水线间隔的最小时间，则不执行流水线作业
-        if elapsed < settings.RAG_PIPELINE_MIN_INTERVAL_SECONDS:
-            logger.debug(
-                "Skip RAG pipeline: min interval not reached, reason=%s, elapsed=%.2fs, required=%ss",
-                reason,
-                elapsed,
-                settings.RAG_PIPELINE_MIN_INTERVAL_SECONDS,
-            )
-            return
-
-        async with self._rag_pipeline_lock:
-            self._last_rag_pipeline_run_at = time.monotonic()
-            pipeline_service = RagPipelineService(db)
-            result = await pipeline_service.run_news_pipeline_drain(
-                max_batches=params.get("rag_drain_max_batches", settings.RAG_PIPELINE_DRAIN_MAX_BATCHES),
-                max_seconds=params.get("rag_drain_max_seconds", settings.RAG_PIPELINE_DRAIN_MAX_SECONDS),
-                news_limit=params.get("rag_news_limit", settings.RAG_PIPELINE_NEWS_LIMIT),
-                news_type=params.get("rag_news_type", "all"),
-                relevant_only=params.get("rag_relevant_only", True),
-                chunk_limit=params.get("rag_chunk_limit", settings.RAG_PIPELINE_CHUNK_LIMIT),
-                max_chars=params.get("rag_max_chars", settings.RAG_PIPELINE_MAX_CHARS),
-                overlap_chars=params.get("rag_overlap_chars", settings.RAG_PIPELINE_OVERLAP_CHARS),
-                embed_limit=params.get("rag_embed_limit", settings.RAG_PIPELINE_EMBED_LIMIT),
-                embedding_model=params.get("rag_embedding_model"),
-            )
-
-            if result["success"]:
-                logger.info(
-                    "RAG pipeline completed: reason=%s, total_new_count=%s, result=%s",
-                    reason,
-                    total_new_count,
-                    result,
-                )
-                return
-
-            logger.warning(
-                "RAG pipeline failed: reason=%s, total_new_count=%s, failed_stage=%s, error=%s, result=%s",
-                reason,
-                total_new_count,
-                result["failed_stage"],
-                result["error"],
-                result,
-            )
 
 
 # 全局调度器实例

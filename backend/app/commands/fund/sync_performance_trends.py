@@ -1,8 +1,20 @@
 """基金累计收益率走势同步命令行入口。
 
-示例：
-    python -m app.commands.fund.sync_performance_trends --watchlist
+按需刷新指定基金的走势快照到 fund_performance_trend_latest 表。
+货币基金会走增量同步路径（从 fund_money_yield_history 查询）。
+
+开发环境运行：
+    cd backend
+    # 同步指定基金的多个周期
     python -m app.commands.fund.sync_performance_trends --fund-code 007339 --period 1y
+    python -m app.commands.fund.sync_performance_trends --fund-code 007339 --fund-code 000211 --period 1m --period 3m
+
+Docker 容器中运行：
+    # 开发模式（容器已启动，挂载了本地代码）
+    docker compose exec backend python -m app.commands.fund.sync_performance_trends --fund-code 007339 --period 1y
+
+    # 生产模式（临时启动一个容器执行后退出）
+    docker compose run --rm backend python -m app.commands.fund.sync_performance_trends --fund-code 007339 --period 1y
 """
 
 from __future__ import annotations

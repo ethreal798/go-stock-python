@@ -70,8 +70,13 @@ class FundRankingSyncService:
         result = await self.db.execute(select(Fund.id, Fund.code).where(Fund.code.in_(all_codes)))
         fund_ids = {code: fund_id for fund_id, code in result.all()}
         if len(fund_ids) != len(all_codes):
+            # 检查是否有缺失的基金代码 缺失原因是可能有新发基金，基金主表未同步但排行存在
             missing = sorted(set(all_codes) - set(fund_ids))
-            raise RuntimeError(f"Fund 表中缺少基金代码: {missing[:10]}")
+            logger.warning("Fund 表中缺少 %d 个基金代码，已跳过: %s", len(missing), missing[:10])
+            # 剔除缺失基金的记录，继续处理
+            open_rows = [r for r in open_rows if r["fund_code"] in fund_ids]
+            exchange_rows = [r for r in exchange_rows if r["fund_code"] in fund_ids]
+            money_rows = [r for r in money_rows if r["fund_code"] in fund_ids]
 
         # 2. 将各个类型排行榜数据进行入库
         await self._replace_latest(FundOpenRankLatest, open_rows, fund_ids)
@@ -80,7 +85,7 @@ class FundRankingSyncService:
 
         # 3. 统计本次抓取结果
         counts = {
-            "funds": len(all_codes),
+            "funds": len(fund_ids),
             "open": len(open_rows),
             "exchange": len(exchange_rows),
             "money": len(money_rows),
