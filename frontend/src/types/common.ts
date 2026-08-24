@@ -6,7 +6,7 @@ export interface PageResult<T> {
 }
 
 export interface ApiResponse<T = unknown> {
-  code: number;
-  message: string;
+  status: number;
+  message?: string;
   data: T;
 }

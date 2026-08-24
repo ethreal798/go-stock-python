@@ -1,5 +1,5 @@
 // src/pages/Fund/FundDetail.tsx
-import React, { useMemo, useState } from "react";
+import React, { useMemo, useState, useEffect } from "react";
 import {
   Breadcrumb,
   Card,
@@ -32,10 +32,9 @@ import {
 import { Link, useParams } from "react-router-dom";
 import ReactECharts from "echarts-for-react";
 import type { ColumnsType } from "antd/es/table";
-import dayjs from "dayjs";
-import { followFund, unfollowFund } from "@/api/fund";
+import { followFund, unfollowFund, getFundDetail } from "@/api/fund";
 import { useFundPerformance } from "@/hooks/useFundPerformance";
-import type { PerformanceSeries } from "@/types/fund";
+import type { PerformanceSeries, FundDetailResponse } from "@/types/fund";
 
 const { Paragraph, Text } = Typography;
 
@@ -72,6 +71,17 @@ const toNumber = (v: unknown): number => {
   if (v == null || v === "") return 0;
   const n = typeof v === "string" ? parseFloat(v) : (v as number);
   return Number.isFinite(n) ? n : 0;
+};
+
+const formatNullable = (
+  v: number | null | undefined,
+  digits = 2,
+  suffix = "%",
+): string => {
+  if (v == null) return "-";
+  const n = Number(v);
+  if (!Number.isFinite(n)) return "-";
+  return `${n.toFixed(digits)}${suffix}`;
 };
 
 const renderGrowth = (v: number | string | null | undefined, digits = 2) => {
@@ -205,8 +215,27 @@ const FundDetail: React.FC = () => {
   const [range, setRange] = useState<RangeKey>("year");
   const [isFollowed, setIsFollowed] = useState(false);
   const [followLoading, setFollowLoading] = useState(false);
+  const [detailData, setDetailData] = useState<FundDetailResponse | null>(null);
+  const [detailLoading, setDetailLoading] = useState(false);
 
   const fundCode = code || "005827";
+
+  useEffect(() => {
+    if (!fundCode) return;
+    setDetailLoading(true);
+    getFundDetail(fundCode)
+      .then((res) => {
+        const data = res.data as FundDetailResponse;
+        setDetailData(data);
+        
+        setIsFollowed(data.is_in_watchlist);
+      })
+      .catch(() => {
+        setDetailData(null);
+        
+      })
+      .finally(() => setDetailLoading(false));
+  }, [fundCode]);
 
   const handleToggleFollow = async () => {
     setFollowLoading(true);
@@ -372,16 +401,21 @@ const FundDetail: React.FC = () => {
     },
   ];
 
-  const latestNav = 2.3845;
-  const dayGrowth = 0.68;
-  const weekGrowth = 1.12;
-  const monthGrowth = -0.45;
-  const threeMonthGrowth = 5.23;
-  const sixMonthGrowth = 8.97;
-  const yearGrowth = 18.42;
-  const threeYearGrowth = 45.66;
-  const sinceInception = 138.42;
-  const benchmarkSince = 62.35;
+  const latest = detailData?.latest;
+  const isHb = detailData?.is_hb ?? false;
+
+  const unitNav = latest?.unit_nav;
+  const dailyGrowth = latest?.daily_growth_pct;
+  const incomePer10k = latest?.income_per_10k;
+  const annualized7d = latest?.annualized_7d_pct;
+
+  const weekGrowth = latest?.return_1w_pct;
+  const monthGrowth = latest?.return_1m_pct;
+  const threeMonthGrowth = latest?.return_3m_pct;
+  const sixMonthGrowth = latest?.return_6m_pct;
+  const yearGrowth = latest?.return_1y_pct;
+  const threeYearGrowth = latest?.return_3y_pct;
+  const sinceInception = latest?.return_since_inception_pct;
 
   return (
     <div style={{ paddingBottom: 20 }}>
@@ -403,10 +437,10 @@ const FundDetail: React.FC = () => {
         title={
           <Space size={16} align="center">
             <span style={{ fontSize: 20, fontWeight: 700, color: "#000" }}>
-              易方达蓝筹精选混合
+              {detailData?.name || "-"}
             </span>
-            <Tag color="geekblue">{code || "005827"}</Tag>
-            <Tag>混合型</Tag>
+            <Tag color="geekblue">{detailData?.code || fundCode}</Tag>
+            <Tag>{detailData?.fund_type || "-"}</Tag>
           </Space>
         }
         extra={
@@ -424,101 +458,257 @@ const FundDetail: React.FC = () => {
           </Space>
         }
       >
-        <Row gutter={[24, 20]} style={{ marginTop: 0 }}>
-          <Col span={6}>
-            <Statistic
-              title="最新净值（2026-08-11）"
-              value={latestNav}
-              precision={4}
-              valueStyle={{ fontSize: 26, fontWeight: 700 }}
-              suffix={
-                <span style={{ fontSize: 13, marginLeft: 8 }}>
-                  {renderGrowth(dayGrowth)}
-                </span>
-              }
-            />
-            <div style={{ marginTop: 4, fontSize: 12, color: "#8c8c8c" }}>
-              估算净值 {latestNav + 0.0032}（{dayjs().format("HH:mm")}）
-            </div>
-          </Col>
-          <Col span={6}>
-            <Statistic
-              title="近一年涨跌幅"
-              value={yearGrowth}
-              precision={2}
-              valueStyle={{
-                color: yearGrowth >= 0 ? "#f5222d" : "#52c41a",
-                fontSize: 22,
-                fontWeight: 700,
+        <Spin spinning={detailLoading}>
+          {!latest ? (
+            <div
+              style={{
+                textAlign: "center",
+                padding: "40px 0",
+                color: "#8c8c8c",
               }}
-              prefix={yearGrowth >= 0 ? "+" : ""}
-              suffix="%"
-            />
-            <div style={{ marginTop: 4, fontSize: 12, color: "#8c8c8c" }}>
-              同类排名 128 / 1,892（前 6.77%）
+            >
+              暂无数据
             </div>
-          </Col>
-          <Col span={6}>
-            <Statistic
-              title="近三年涨跌幅"
-              value={threeYearGrowth}
-              precision={2}
-              valueStyle={{
-                color: threeYearGrowth >= 0 ? "#f5222d" : "#52c41a",
-                fontSize: 22,
-                fontWeight: 700,
-              }}
-              prefix={threeYearGrowth >= 0 ? "+" : ""}
-              suffix="%"
-            />
-            <div style={{ marginTop: 4, fontSize: 12, color: "#8c8c8c" }}>
-              同类排名 205 / 1,520（前 13.49%）
-            </div>
-          </Col>
-          <Col span={6}>
-            <Statistic
-              title="成立来涨跌幅"
-              value={sinceInception}
-              precision={2}
-              valueStyle={{ color: "#f5222d", fontSize: 22, fontWeight: 700 }}
-              prefix="+"
-              suffix="%"
-            />
-            <div style={{ marginTop: 4, fontSize: 12, color: "#8c8c8c" }}>
-              基准 {benchmarkSince >= 0 ? "+" : ""}
-              {benchmarkSince.toFixed(2)}% · 成立日 2018-09-05
-            </div>
-          </Col>
-        </Row>
-
-        <Divider style={{ margin: "20px 0" }} />
-
-        <Row gutter={24}>
-          <Col span={24}>
-            <Space size={16} wrap style={{ marginBottom: 4 }}>
-              {[
-                { label: "近一周", v: weekGrowth },
-                { label: "近一月", v: monthGrowth },
-                { label: "近三月", v: threeMonthGrowth },
-                { label: "近六月", v: sixMonthGrowth },
-                { label: "近一年", v: yearGrowth },
-                { label: "近三年", v: threeYearGrowth },
-                { label: "成立来", v: sinceInception },
-              ].map((item) => (
-                <div key={item.label} style={{ minWidth: 92 }}>
-                  <div
-                    style={{ fontSize: 12, color: "#8c8c8c", marginBottom: 2 }}
-                  >
-                    {item.label}
-                  </div>
-                  <div style={{ fontSize: 15, fontWeight: 600 }}>
-                    {renderGrowth(item.v)}
-                  </div>
+          ) : isHb ? (
+            <Row gutter={[24, 20]} style={{ marginTop: 0 }}>
+              <Col span={6}>
+                <Statistic
+                  title="万份收益"
+                  value={incomePer10k ?? "-"}
+                  precision={incomePer10k != null ? 4 : undefined}
+                  valueStyle={{ fontSize: 26, fontWeight: 700 }}
+                  suffix={
+                    incomePer10k != null ? (
+                      <span style={{ fontSize: 13, marginLeft: 8 }}>元</span>
+                    ) : undefined
+                  }
+                />
+                <div style={{ marginTop: 4, fontSize: 12, color: "#8c8c8c" }}>
+                  7日年化 {formatNullable(annualized7d)}
                 </div>
-              ))}
-            </Space>
-          </Col>
-        </Row>
+              </Col>
+              <Col span={6}>
+                <Statistic
+                  title="近一年涨跌幅"
+                  value={
+                    yearGrowth != null ? Number(yearGrowth.toFixed(2)) : "-"
+                  }
+                  precision={yearGrowth != null ? 2 : undefined}
+                  valueStyle={{
+                    color:
+                      yearGrowth != null
+                        ? yearGrowth >= 0
+                          ? "#f5222d"
+                          : "#52c41a"
+                        : undefined,
+                    fontSize: 22,
+                    fontWeight: 700,
+                  }}
+                  prefix={yearGrowth != null && yearGrowth >= 0 ? "+" : ""}
+                  suffix="%"
+                />
+                <div style={{ marginTop: 4, fontSize: 12, color: "#8c8c8c" }}>
+                  14日年化 {formatNullable(latest?.annualized_14d_pct)}
+                </div>
+              </Col>
+              <Col span={6}>
+                <Statistic
+                  title="近三年涨跌幅"
+                  value={
+                    threeYearGrowth != null
+                      ? Number(threeYearGrowth.toFixed(2))
+                      : "-"
+                  }
+                  precision={threeYearGrowth != null ? 2 : undefined}
+                  valueStyle={{
+                    color:
+                      threeYearGrowth != null
+                        ? threeYearGrowth >= 0
+                          ? "#f5222d"
+                          : "#52c41a"
+                        : undefined,
+                    fontSize: 22,
+                    fontWeight: 700,
+                  }}
+                  prefix={
+                    threeYearGrowth != null && threeYearGrowth >= 0 ? "+" : ""
+                  }
+                  suffix="%"
+                />
+                <div style={{ marginTop: 4, fontSize: 12, color: "#8c8c8c" }}>
+                  28日年化 {formatNullable(latest?.annualized_28d_pct)}
+                </div>
+              </Col>
+              <Col span={6}>
+                <Statistic
+                  title="成立来涨跌幅"
+                  value={
+                    sinceInception != null
+                      ? Number(sinceInception.toFixed(2))
+                      : "-"
+                  }
+                  precision={sinceInception != null ? 2 : undefined}
+                  valueStyle={{
+                    color:
+                      sinceInception != null
+                        ? sinceInception >= 0
+                          ? "#f5222d"
+                          : "#52c41a"
+                        : undefined,
+                    fontSize: 22,
+                    fontWeight: 700,
+                  }}
+                  prefix={
+                    sinceInception != null && sinceInception >= 0 ? "+" : ""
+                  }
+                  suffix="%"
+                />
+                <div style={{ marginTop: 4, fontSize: 12, color: "#8c8c8c" }}>
+                  同类排名暂无
+                </div>
+              </Col>
+            </Row>
+          ) : (
+            <Row gutter={[24, 20]} style={{ marginTop: 0 }}>
+              <Col span={6}>
+                <Statistic
+                  title={`最新净值（${latest?.data_date ?? "-"}）`}
+                  value={unitNav ?? "-"}
+                  precision={unitNav != null ? 4 : undefined}
+                  valueStyle={{ fontSize: 26, fontWeight: 700 }}
+                  suffix={
+                    unitNav != null ? (
+                      <span style={{ fontSize: 13, marginLeft: 8 }}>
+                        {renderGrowth(dailyGrowth)}
+                      </span>
+                    ) : undefined
+                  }
+                />
+                <div style={{ marginTop: 4, fontSize: 12, color: "#8c8c8c" }}>
+                  累计净值 {formatNullable(latest?.accumulated_nav, 4)}
+                </div>
+              </Col>
+              <Col span={6}>
+                <Statistic
+                  title="近一年涨跌幅"
+                  value={
+                    yearGrowth != null ? Number(yearGrowth.toFixed(2)) : "-"
+                  }
+                  precision={yearGrowth != null ? 2 : undefined}
+                  valueStyle={{
+                    color:
+                      yearGrowth != null
+                        ? yearGrowth >= 0
+                          ? "#f5222d"
+                          : "#52c41a"
+                        : undefined,
+                    fontSize: 22,
+                    fontWeight: 700,
+                  }}
+                  prefix={yearGrowth != null && yearGrowth >= 0 ? "+" : ""}
+                  suffix="%"
+                />
+                <div style={{ marginTop: 4, fontSize: 12, color: "#8c8c8c" }}>
+                  同类排名暂无
+                </div>
+              </Col>
+              <Col span={6}>
+                <Statistic
+                  title="近三年涨跌幅"
+                  value={
+                    threeYearGrowth != null
+                      ? Number(threeYearGrowth.toFixed(2))
+                      : "-"
+                  }
+                  precision={threeYearGrowth != null ? 2 : undefined}
+                  valueStyle={{
+                    color:
+                      threeYearGrowth != null
+                        ? threeYearGrowth >= 0
+                          ? "#f5222d"
+                          : "#52c41a"
+                        : undefined,
+                    fontSize: 22,
+                    fontWeight: 700,
+                  }}
+                  prefix={
+                    threeYearGrowth != null && threeYearGrowth >= 0 ? "+" : ""
+                  }
+                  suffix="%"
+                />
+                <div style={{ marginTop: 4, fontSize: 12, color: "#8c8c8c" }}>
+                  同类排名暂无
+                </div>
+              </Col>
+              <Col span={6}>
+                <Statistic
+                  title="成立来涨跌幅"
+                  value={
+                    sinceInception != null
+                      ? Number(sinceInception.toFixed(2))
+                      : "-"
+                  }
+                  precision={sinceInception != null ? 2 : undefined}
+                  valueStyle={{
+                    color:
+                      sinceInception != null
+                        ? sinceInception >= 0
+                          ? "#f5222d"
+                          : "#52c41a"
+                        : undefined,
+                    fontSize: 22,
+                    fontWeight: 700,
+                  }}
+                  prefix={
+                    sinceInception != null && sinceInception >= 0 ? "+" : ""
+                  }
+                  suffix="%"
+                />
+                <div style={{ marginTop: 4, fontSize: 12, color: "#8c8c8c" }}>
+                  同类排名暂无
+                </div>
+              </Col>
+            </Row>
+          )}
+
+          <Divider style={{ margin: "20px 0" }} />
+
+          {latest && (
+            <Row gutter={24}>
+              <Col span={24}>
+                <Space size={16} wrap style={{ marginBottom: 4 }}>
+                  {[
+                    {
+                      label: "近一周",
+                      v: weekGrowth,
+                    },
+                    { label: "近一月", v: monthGrowth },
+                    { label: "近三月", v: threeMonthGrowth },
+                    { label: "近六月", v: sixMonthGrowth },
+                    { label: "近一年", v: yearGrowth },
+                    { label: "近三年", v: threeYearGrowth },
+                    { label: "成立来", v: sinceInception },
+                  ].map((item) => (
+                    <div key={item.label} style={{ minWidth: 92 }}>
+                      <div
+                        style={{
+                          fontSize: 12,
+                          color: "#8c8c8c",
+                          marginBottom: 2,
+                        }}
+                      >
+                        {item.label}
+                      </div>
+                      <div style={{ fontSize: 15, fontWeight: 600 }}>
+                        {item.v != null ? renderGrowth(item.v) : "-"}
+                      </div>
+                    </div>
+                  ))}
+                </Space>
+              </Col>
+            </Row>
+          )}
+        </Spin>
       </Card>
 
       <Card

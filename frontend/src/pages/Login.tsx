@@ -39,11 +39,10 @@ const Login: React.FC = () => {
       }
       navigate("/");
     } catch (error: any) {
-      console.log(error);
       if (error.response?.status === 401) {
-        message.error(error.response.data.detail || "邮箱或密码错误");
+        console.error(error.response.data.detail || "邮箱或密码错误");
       } else {
-        message.error(isRegister ? "注册失败" : "登录失败");
+        console.error(isRegister ? "注册失败" : "登录失败");
       }
     } finally {
       setLoading(false);

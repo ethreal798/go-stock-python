@@ -37,8 +37,13 @@ request.interceptors.request.use(
 // 响应拦截器
 request.interceptors.response.use(
   (response) => {
-    const res = response.data as ApiResponse
-    if (res.code !== undefined && res.code !== 0 && res.code !== 200) {
+    const res = response as ApiResponse
+    
+    // 后端可能返回 null（例如无数据的分页接口），视为业务成功，直接放行
+    if (res == null) {
+      return response
+    }
+    if (res.status !== 200) {
       message.error(res.message || '请求失败')
       return Promise.reject(new Error(res.message || '请求失败'))
     }
@@ -61,7 +66,7 @@ request.interceptors.response.use(
           message.error('服务器内部错误')
           break
         default:
-          message.error(`请求失败: ${status}`)
+          message.error(status)
       }
     } else if (error.request) {
       message.error('网络连接失败，请检查网络')

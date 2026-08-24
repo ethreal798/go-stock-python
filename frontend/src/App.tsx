@@ -46,7 +46,7 @@ const pageTitleMap: Record<string, string> = {
   "/news/news": "新闻",
   "/news/flash": "快讯",
   "/fund": "我的关注",
-  "/fund/market": "基金市场",
+  "/fund/market": "基金排行",
   "/cron-tasks": "定时任务",
   "/settings": "AI 配置",
   "/settings/notify": "通知配置",
@@ -62,9 +62,7 @@ const menuItems: MenuProps["items"] = [
     key: "/news",
     icon: <NotificationOutlined />,
     label: "新闻资讯",
-    children: [
-      { key: "/news/flash", label: "快讯" },
-    ],
+    children: [{ key: "/news/flash", label: "快讯" }],
   },
   {
     key: "/fund",
@@ -72,7 +70,7 @@ const menuItems: MenuProps["items"] = [
     label: "基金",
     children: [
       { key: "/fund", label: "我的关注" },
-      { key: "/fund/market", label: "基金市场" },
+      { key: "/fund/market", label: "基金排行" },
     ],
   },
   { key: "/cron-tasks", icon: <ClockCircleOutlined />, label: "定时任务" },
@@ -127,7 +125,7 @@ const AppLayout: React.FC = () => {
       ? "基金详情"
       : pageTitleMap[location.pathname]) ??
     getTopMenuLabel(menuItems, location.pathname) ??
-    "Go-Stock 股票分析平台";
+    "StockMate";
 
   const userMenuItems: MenuProps["items"] = [
     {
@@ -172,10 +170,10 @@ const AppLayout: React.FC = () => {
         >
           <img
             src="/stock.svg"
-            alt="Go-Stock"
+            alt="StockMate"
             style={{ width: 20, height: 20, display: "block", flexShrink: 0 }}
           />
-          {!collapsed && <span>Go-Stock</span>}
+          {!collapsed && <span>StockMate</span>}
         </div>
         <Menu
           theme="light"
