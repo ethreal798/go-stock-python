@@ -9,6 +9,9 @@ from contextlib import asynccontextmanager
 from fastapi import FastAPI, WebSocket, WebSocketDisconnect
 from fastapi.exceptions import RequestValidationError
 from fastapi.middleware.cors import CORSMiddleware
+from slowapi import Limiter
+from slowapi.errors import RateLimitExceeded
+from slowapi.middleware import SlowAPIMiddleware
 from starlette.exceptions import HTTPException
 from starlette.middleware import Middleware
 
@@ -21,6 +24,7 @@ from app.core.exception_handler import (
 )
 from app.core.logging import RequestLoggingMiddleware, setup_logging
 from app.core.middleware import ResponseWrapperMiddleware
+from app.core.rate_limiter import get_limiter, get_rate_limit_exception_handler
 from app.core.redis import close_redis
 from app.core.websocket import ws_manager
 from app.routers import (
@@ -67,12 +71,19 @@ async def lifespan(app: FastAPI):
 # 创建 FastAPI 应用实例
 # ============================================================
 
+# 初始化限流器（连接 Redis）
+limiter: Limiter = get_limiter()
+
 app = FastAPI(
     title=settings.APP_NAME,
     version=settings.APP_VERSION,
     description="stockmate 后端服务 - 股票分析应用",
     lifespan=lifespan,
 )
+
+# 将 limiter 绑定到 app，使装饰器可用
+app.state.limiter = limiter
+app.add_exception_handler(RateLimitExceeded, get_rate_limit_exception_handler())
 
 # ---- 注册全局异常处理器，统一错误响应格式 ----
 app.add_exception_handler(HTTPException, http_exception_handler)
@@ -95,6 +106,9 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+# ---- 速率限制中间件 ----
+app.add_middleware(SlowAPIMiddleware)
 
 # ---- 注册路由 ----
 app.include_router(auth.router, prefix=settings.API_PREFIX)

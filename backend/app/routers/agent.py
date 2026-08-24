@@ -26,7 +26,7 @@ from app.schemas.agent import (
 )
 from app.services.agent.agent_service import AgentService, TERMINAL_RUN_STATUSES
 from app.services.agent.event_stream import AgentEventStream
-from app.services.user_service import UserService
+from app.services.user.user_service import UserService
 
 router = APIRouter(prefix="/agent", tags=["AI 智能体"])
 

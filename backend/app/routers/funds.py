@@ -30,7 +30,7 @@ from app.services.fund.query.performance_trend import (
     FundPerformanceTrendUnsupportedError,
 )
 from app.services.fund.sync.ranking import FundRankingSyncService
-from app.services.user_service import UserService
+from app.services.user.user_service import UserService
 from app.routers.auth import oauth2_scheme, get_user_service
 from app.models.user import User
 
