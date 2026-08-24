@@ -53,4 +53,3 @@ class FundWatchlistCommandService:
             raise HTTPException(status_code=404, detail="基金自选记录不存在")
         await self.db.delete(item)
         await self.db.commit()
-

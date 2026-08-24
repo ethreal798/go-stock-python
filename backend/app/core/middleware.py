@@ -66,7 +66,7 @@ class ResponseWrapperMiddleware:
             if message["type"] == "http.response.start":
                 status_code = message["status"]
                 response_headers = message.get("headers", [])
-                
+
                 # 检查是否需要跳过包装
                 if status_code == 101:
                     skip_wrapping = True
@@ -74,12 +74,12 @@ class ResponseWrapperMiddleware:
                     content_type = self._get_content_type(response_headers)
                     if "text/event-stream" in content_type or "application/octet-stream" in content_type:
                         skip_wrapping = True
-                        
+
                 # 只有在跳过包装时才立即发送 start 消息
                 if skip_wrapping:
                     await send(message)
                     start_sent = True
-                    
+
             elif message["type"] == "http.response.body":
                 if skip_wrapping:
                     # 直接转发
@@ -94,13 +94,14 @@ class ResponseWrapperMiddleware:
                     # 所有 body 数据收集完成
                     try:
                         data = json.loads(body_bytes) if body_bytes else None
-                        
+
                         if not is_already_wrapped(data) and data is not None:
                             # 执行包装
                             from app.core.response import ApiResponse
+
                             wrapped = ApiResponse.success(data=data)
                             new_body = wrapped.model_dump_json().encode("utf-8")
-                            
+
                             # 如果 start 还没发送，发送新的 start
                             if not start_sent:
                                 new_headers = [
@@ -121,18 +122,22 @@ class ResponseWrapperMiddleware:
                                             value = value.encode("utf-8")
                                         new_headers.append((key, value))
 
-                                await send({
-                                    "type": "http.response.start",
-                                    "status": status_code,
-                                    "headers": new_headers,
-                                })
+                                await send(
+                                    {
+                                        "type": "http.response.start",
+                                        "status": status_code,
+                                        "headers": new_headers,
+                                    }
+                                )
                                 start_sent = True
-                            
+
                             # 发送包装后的 body
-                            await send({
-                                "type": "http.response.body",
-                                "body": new_body,
-                            })
+                            await send(
+                                {
+                                    "type": "http.response.body",
+                                    "body": new_body,
+                                }
+                            )
                             return
                     except (json.JSONDecodeError, UnicodeDecodeError):
                         # 非 JSON 响应，不包装
@@ -140,13 +145,15 @@ class ResponseWrapperMiddleware:
 
                     # 如果没有执行包装，需要先发送 start（如果还没发送）
                     if not start_sent:
-                        await send({
-                            "type": "http.response.start",
-                            "status": status_code,
-                            "headers": response_headers,
-                        })
+                        await send(
+                            {
+                                "type": "http.response.start",
+                                "status": status_code,
+                                "headers": response_headers,
+                            }
+                        )
                         start_sent = True
-                    
+
                     # 发送原始 body
                     await send(message)
 
