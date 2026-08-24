@@ -1,17 +1,38 @@
-# stockmate
+# 🎉 StockMate
 
-## 技术栈
+> 基于 Python + React 的智能股票监控与 AI 分析助手
+
+提供基金行情监控、AI 智能分析等核心功能，支持 Docker 一键部署。
+
+## ✨ 特性
+
+- 📈 **实时行情监控** — 股票/基金实时行情与 K 线图（lightweight-charts 高性能渲染）
+- 🤖 **AI 智能分析** — LiteLLM 统一多模型接口，SSE 流式对话体验
+- 💰 **基金管理** — 基金市场、搜索、自选、业绩走势一应俱全
+- 📰 **资讯速递** — 财经新闻与 7×24 快讯聚合
+
+## 🔗 地址链接
+
+- 🌐 在线站点：https://www.stockmate.top/
+- 🐙 GitHub 仓库：https://github.com/ethreal798/stockmate
+- 📖 API 文档：服务启动后访问 http://localhost/docs（Swagger UI）
+
+---
+
+## 🛠️ 技术栈
 
 ### 后端
 | 技术 | 版本 | 说明 |
-|------|------|----|
+|------|------|------|
 | Python | 3.12+ | 运行环境 |
 | FastAPI | 0.115 | 高性能异步 Web 框架 |
 | SQLAlchemy | 2.0 | 异步 ORM |
 | Alembic | 1.13 | 数据库迁移 |
 | Redis | 5.1 | 缓存 / 消息队列 |
 | APScheduler | 3.10 | 定时任务调度 |
+| LiteLLM | 1.48 | 多模型 AI 统一接口 |
 | SSE-Starlette | 2.1 | Server-Sent Events 流式推送 |
+| Playwright | 1.47 | 浏览器自动化（K 线截图等） |
 
 ### 前端
 | 技术 | 版本 | 说明 |
@@ -33,7 +54,7 @@
 
 ---
 
-## 快速开始
+## 🚀 快速开始
 
 ### 方式一：Docker Compose（推荐）
 
@@ -41,8 +62,8 @@
 
 ```bash
 # 1. 克隆项目
-git clone https://github.com/your-org/go-stock.git
-cd go-stock/go-stock-python
+git clone https://github.com/ethreal798/stockmate.git
+cd stockmate
 
 # 2. 复制并编辑环境变量
 cp .env.example .env
@@ -78,7 +99,7 @@ docker-compose down -v
 **前置条件：** Python 3.12+、Redis（本地运行或 Docker）
 
 ```bash
-cd stockmate/backend
+cd backend
 
 # 创建虚拟环境
 python -m venv .venv
@@ -89,6 +110,9 @@ source .venv/bin/activate
 
 # 安装依赖
 pip install -r requirements.txt
+
+# 安装 Playwright 浏览器（首次）
+playwright install chromium
 
 # 复制环境变量
 cp ../.env.example ../.env
@@ -108,7 +132,7 @@ uvicorn app.main:app --reload --host 0.0.0.0 --port 8000
 **前置条件：** Node.js 18+
 
 ```bash
-cd stockmate/frontend
+cd frontend
 
 # 安装依赖
 npm install
@@ -121,7 +145,7 @@ npm run dev
 
 ---
 
-## 项目结构
+## 📁 项目结构
 
 ```
 stockmate/
@@ -131,37 +155,16 @@ stockmate/
 │   │   ├── config.py           # 配置管理（从环境变量加载）
 │   │   ├── core/               # 核心模块
 │   │   │   ├── database.py     # 数据库连接与会话
-│   │   │   ├── redis.py        # Redis 客户端
-│   │   │   ├── logging.py      # 日志配置
-│   │   │   ├── sse.py          # SSE 工具
-│   │   │   ├── websocket.py    # WebSocket 管理
-│   │   │   ├── security.py     # 安全工具
-│   │   │   ├── crypto.py       # 加密工具
-│   │   │   └── url_safety.py   # URL 安全校验
+│   │   │   ├── redis_client.py # Redis 客户端
+│   │   │   └── scheduler.py    # 定时任务调度器
 │   │   ├── models/             # SQLAlchemy 数据模型
 │   │   ├── schemas/            # Pydantic 请求/响应模型
 │   │   ├── routers/            # API 路由（按业务拆分）
 │   │   │   ├── stocks.py       # 股票行情接口
-│   │   │   ├── funds.py        # 基金接口
-│   │   │   ├── market.py       # 市场行情接口
-│   │   │   ├── agent.py        # Agent 对话接口（SSE 流式）
-│   │   │   ├── ai_rag.py       # RAG 检索增强生成接口
-│   │   │   ├── news.py         # 新闻资讯接口
-│   │   │   ├── kline.py        # K 线数据接口
-│   │   │   ├── auth.py         # 认证接口
-│   │   │   ├── cron_tasks.py   # 定时任务管理接口
+│   │   │   ├── ai_chat.py      # AI 对话接口（SSE 流式）
+│   │   │   ├── alerts.py       # 价格预警接口
 │   │   │   └── settings.py     # 系统设置接口
-│   │   ├── services/           # 业务逻辑层
-│   │   │   ├── agent/          # Agent 相关服务
-│   │   │   ├── fund/           # 基金相关服务
-│   │   │   ├── news/           # 新闻解析服务
-│   │   │   ├── rag/            # RAG 检索服务
-│   │   │   └── ...             # 其他业务服务
-│   │   ├── workers/            # 后台 Worker
-│   │   │   ├── agent_run_worker.py
-│   │   │   └── scheduler_worker.py
-│   │   └── commands/           # 管理命令
-│   │       └── fund/           # 基金同步命令
+│   │   └── services/           # 业务逻辑层
 │   ├── alembic/                # 数据库迁移脚本
 │   ├── Dockerfile
 │   └── requirements.txt
@@ -177,8 +180,7 @@ stockmate/
 │   ├── vite.config.ts
 │   └── package.json
 │
-├── docker-compose.yml          # Docker Compose 编排配置（开发）
-├── docker-compose.prod.yml     # Docker Compose 编排配置（生产）
+├── docker-compose.yml          # Docker Compose 编排配置
 ├── nginx.conf                  # Nginx 反向代理配置
 ├── .env.example                # 环境变量模板
 └── README.md                   # 本文件
@@ -186,7 +188,7 @@ stockmate/
 
 ---
 
-## API 文档
+## 📚 API 文档
 
 启动服务后，访问以下地址查看交互式 API 文档：
 
@@ -195,23 +197,17 @@ stockmate/
 
 主要接口分组：
 
-| 路由前缀 | 说明                                      |
-|----------|-----------------------------------------|
-| `/api/stocks` | 股票行情查询、批量获取(待实现)                        |
-| `/api/funds` | 基金数据查询、自选基金管理                           |
-| `/api/market` | 市场行情接口（待实现）                             |
-| `/api/agent` | Agent 对话、流式推理（SSE）                      |
-| `/api/ai_rag` | RAG 检索增强生成                              |
-| `/api/news` | 新闻资讯查询                                  |
-| `/api/kline` | K 线数据接口（待实现）                            |
-| `/api/auth` | 用户认证（登录/注册）                             |
-| `/api/cron_tasks` | 定时任务管理（待实现）                             |
-| `/api/settings` | 系统配置管理                                  |
-| `/ws/{channel}` | WebSocket 实时推送（支持 stocks/news 等频道）（待实现） |
+| 路由前缀 | 说明 |
+|----------|------|
+| `/api/stocks` | 股票行情查询、批量获取 |
+| `/api/ai` | AI 对话、流式推理（SSE） |
+| `/api/alerts` | 价格预警管理 |
+| `/api/settings` | 系统配置管理 |
+| `/ws/` | WebSocket 实时推送 |
 
 ---
 
-## 开发指南
+## 💻 开发指南
 
 ### 数据库迁移
 
@@ -255,11 +251,6 @@ docker-compose exec frontend sh
 # 查看实时日志
 docker-compose logs -f
 
-# 查看持久化的结构化日志（开发环境）
-tail -f logs/backend.log
-tail -f logs/agent-worker.log
-tail -f logs/scheduler-worker.log
-
 # 清理无用镜像
 docker image prune -f
 ```
@@ -275,23 +266,10 @@ docker image prune -f
 | `AI_MODEL_NAME` | ✅ | 使用的模型名称 |
 | `DATABASE_URL` | ✅ | PostgreSQL 数据库连接串 |
 | `REDIS_URL` | ❌ | Redis 连接串 |
-| `SECRET_KEY` | ✅（生产） | JWT 签名密钥 |
-| `AI_MODEL_CONFIG_ENCRYPTION_KEY` | ✅（生产） | 用户模型配置加密密钥 |
-| `LOG_LEVEL` | ❌ | 日志级别，默认 `INFO` |
-| `LOG_FORMAT` | ❌ | `text`（默认）或用于日志平台的 `json` |
-| `LOG_COLOR` | ❌ | 控制台日志是否使用 ANSI 颜色，默认开启 |
-| `LOG_TIMEZONE` | ❌ | 日志时区，默认 `Asia/Shanghai` |
-| `LOG_TO_FILE` | ❌ | 是否持久化到日志文件，默认 `true` |
-| `LOG_DIR` | ❌ | 容器内日志目录，默认 `logs` |
-| `LOG_RETENTION_DAYS` | ❌ | 按天轮转后的保留天数，默认 30 天 |
-| `LOG_LEVEL_OVERRIDES_STR` | ❌ | 按 logger 覆盖级别，如 `apscheduler=WARNING` |
-| `ACCESS_LOG_ENABLED` | ❌ | 是否记录 HTTP 访问日志 |
-| `ACCESS_LOG_EXCLUDE_PATHS_STR` | ❌ | 不记录成功访问日志的路径，默认 `/health` |
-| `CORS_ORIGINS_STR` | ❌ | 允许的跨域来源，逗号分隔 |
-| `NEWS_CRAWL_INTERVAL_SECONDS` | ❌ | 新闻爬取间隔，默认 60 秒 |
+| `DINGDING_WEBHOOK_URL` | ❌ | 钉钉机器人 Webhook（预警功能） |
 
 ---
 
-## License
+## 📄 License
 
 MIT © go-stock contributors
