@@ -6,6 +6,7 @@ from fastapi import APIRouter, Depends, Query, HTTPException
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.database import get_db
+from app.core.response import ApiResponse
 from app.schemas.fund import (
     FundPerformanceTrendResponse,
     FundRankCategory,
@@ -137,12 +138,11 @@ async def remove_fund_from_watchlist(
     code: str,
     current_user: User = Depends(get_current_user),
     service: FundWatchlistCommandService = Depends(get_fund_watchlist_command_service),
-) -> dict:
+) -> ApiResponse:
     """从自选列表中移除基金。"""
-    success = await service.remove_from_watchlist(current_user.id, code)
-    if not success:
-        raise HTTPException(status_code=404, detail="基金自选记录不存在")
-    return {"message": "ok"}
+    await service.remove_from_watchlist(current_user.id, code)
+
+    return ApiResponse.success(msg="操作成功", data={})
 
 
 # ============================================================

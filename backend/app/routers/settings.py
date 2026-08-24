@@ -4,6 +4,7 @@ from fastapi import APIRouter, Body, Depends, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.database import get_db
+from app.core.response import ApiResponse
 from app.models.user import User
 from app.routers.auth import get_user_service, oauth2_scheme
 from app.schemas.settings import (
@@ -88,14 +89,14 @@ async def update_ai_model_config(
     return await service.update_config(current_user.id, config_id, config_in)
 
 
-@router.delete("/ai-models/{config_id}", status_code=status.HTTP_204_NO_CONTENT, summary="删除 AI 模型配置")
+@router.delete("/ai-models/{config_id}", summary="删除 AI 模型配置")
 async def delete_ai_model_config(
     config_id: int,
     current_user: User = Depends(get_current_user),
     service: AIModelConfigService = Depends(get_ai_model_config_service),
-) -> None:
+) -> ApiResponse:
     """软删除 AI 模型配置。"""
-    await service.delete_config(current_user.id, config_id)
+    return ApiResponse.success(msg="操作成功", data=await service.delete_config(current_user.id, config_id))
 
 
 @router.post(

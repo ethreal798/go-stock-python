@@ -7,11 +7,20 @@ import logging
 from contextlib import asynccontextmanager
 
 from fastapi import FastAPI, WebSocket, WebSocketDisconnect
+from fastapi.exceptions import RequestValidationError
 from fastapi.middleware.cors import CORSMiddleware
+from starlette.exceptions import HTTPException
+from starlette.middleware import Middleware
 
 from app.config import settings
 from app.core.database import close_db
+from app.core.exception_handler import (
+    generic_exception_handler,
+    http_exception_handler,
+    validation_exception_handler,
+)
 from app.core.logging import RequestLoggingMiddleware, setup_logging
+from app.core.middleware import ResponseWrapperMiddleware
 from app.core.redis import close_redis
 from app.core.websocket import ws_manager
 from app.routers import (
@@ -61,9 +70,19 @@ async def lifespan(app: FastAPI):
 app = FastAPI(
     title=settings.APP_NAME,
     version=settings.APP_VERSION,
-    description="python-stock 后端服务 - 股票分析应用",
+    description="stockmate 后端服务 - 股票分析应用",
     lifespan=lifespan,
 )
+
+# ---- 注册全局异常处理器，统一错误响应格式 ----
+app.add_exception_handler(HTTPException, http_exception_handler)
+app.add_exception_handler(RequestValidationError, validation_exception_handler)
+app.add_exception_handler(Exception, generic_exception_handler)
+
+# ---- 统一响应格式中间件 (必须在其他中间件之前添加，确保作为最内层) ----
+app.user_middleware = [
+    Middleware(ResponseWrapperMiddleware),
+] + app.user_middleware
 
 # Request ID, status code and latency are persisted without logging query strings.
 app.add_middleware(RequestLoggingMiddleware)
