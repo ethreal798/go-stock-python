@@ -2,7 +2,11 @@ import request from "./index";
 import type {
   FollowFund,
   FollowFundInfo,
+  FundRankingResponse,
+  FundSortKey,
+  FundCategoryKey,
   PerformanceTrendResponse,
+  FundDetailResponse,
 } from "@/types/fund";
 
 export type FundRangeKey =
@@ -37,6 +41,21 @@ export const searchFund = (params: {
   fund_type?: string;
 }) => request.get<FollowFundInfo[]>("/funds/search", { params });
 
+// 基金排行榜（FundMarket 页面主接口）
+export const getFundRanking = (params: {
+  category: FundCategoryKey;
+  sort?: FundSortKey;
+  order?: "asc" | "desc";
+  page?: number;
+  limit?: number;
+}) => request.get<FundRankingResponse>("/funds/", { params });
+
+// 获取基金详情
+export const getFundDetail = (code: string) =>
+  request.get<FundDetailResponse>(`/funds/${code}`);
+
 // 获取基金业绩走势
 export const getFundPerformanceTrend = (code: string, period: string) =>
-  request.get<PerformanceTrendResponse>(`/funds/${code}/performance-trend`, { params: { period } });
+  request.get<PerformanceTrendResponse>(`/funds/${code}/performance-trend`, {
+    params: { period },
+  });
