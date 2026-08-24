@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from fastapi import HTTPException
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -49,7 +50,7 @@ class FundWatchlistCommandService:
         )
         item = (await self.db.execute(statement)).scalar_one_or_none()
         if item is None:
-            return False
+            raise HTTPException(status_code=404, detail="基金自选记录不存在")
         await self.db.delete(item)
         await self.db.commit()
-        return True
+
