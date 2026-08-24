@@ -24,8 +24,7 @@ class FundWatchlistQueryService:
         output = []
         for item in items:
             fund = await self.catalog.get_fund_detail(item.fund_code)
-            if fund is not None:
-                fund["is_in_watchlist"] = True
+
             output.append(
                 {
                     "id": item.id,

@@ -8,7 +8,7 @@ import sys
 from app.core.database import close_db
 from app.core.logging import setup_logging
 from app.core.redis import close_redis
-from app.services.scheduler_service import build_default_jobs, scheduler_service
+from app.services.scheduler_service import get_registered_jobs, scheduler_service
 
 logger = logging.getLogger(__name__)
 
@@ -38,10 +38,13 @@ async def main() -> None:
             # 如果不支持（如 Windows 或部分环境），回退到线程安全的方式设置
             signal.signal(signal_name, lambda *_args: loop.call_soon_threadsafe(stop_event.set))
 
+    # 导入任务模块，触发 @register_task 装饰器注册
+    import app.services.scheduler.tasks  # noqa: F401
+
     scheduler_service.start()
-    for job in build_default_jobs():
+    for job in get_registered_jobs():
         await scheduler_service.add_job(**job)
-    logger.info("Scheduler worker ready: jobs=%s", [job["job_id"] for job in build_default_jobs() if job["enabled"]])
+    logger.info("Scheduler worker ready: jobs=%s", [job["job_id"] for job in get_registered_jobs() if job["enabled"]])
 
     try:
         await stop_event.wait()

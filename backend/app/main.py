@@ -37,6 +37,9 @@ async def lifespan(app: FastAPI):
     # ---- 启动 ----
     logger.info("Starting %s v%s ...", settings.APP_NAME, settings.APP_VERSION)
 
+    # 导入任务模块，触发 @register_task 装饰器注册
+    import app.services.scheduler.tasks  # noqa: F401
+
     yield  # 应用运行中
 
     # ---- 关闭 ----
