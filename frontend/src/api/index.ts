@@ -37,8 +37,13 @@ request.interceptors.request.use(
 // 响应拦截器
 request.interceptors.response.use(
   (response) => {
-    const res = response.data as ApiResponse
-    if (res.code !== undefined && res.code !== 0 && res.code !== 200) {
+    const res = response as ApiResponse
+    
+    // 后端可能返回 null（例如无数据的分页接口），视为业务成功，直接放行
+    if (res == null) {
+      return response
+    }
+    if (res.status !== 200) {
       message.error(res.message || '请求失败')
       return Promise.reject(new Error(res.message || '请求失败'))
     }
@@ -46,7 +51,7 @@ request.interceptors.response.use(
   },
   (error) => {
     if (error.response) {
-      const status = error.response.data.detail
+      const status = error.response.status
       switch (status) {
         case 401:
           message.error('未授权，请重新登录')
