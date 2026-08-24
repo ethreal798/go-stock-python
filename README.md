@@ -1,8 +1,25 @@
-# go-stock Python 版
+# 🎉 StockMate
 
-go-stock 的 Python + React 全栈重构版本，提供股票行情监控、AI 智能分析、价格预警等核心功能，支持 Docker 一键部署。
+> 基于 Python + React 的智能股票监控与 AI 分析助手
 
-## 技术栈
+提供基金行情监控、AI 智能分析等核心功能，支持 Docker 一键部署。
+
+## ✨ 特性
+
+- 📈 **实时行情监控** — 股票/基金实时行情与 K 线图（lightweight-charts 高性能渲染）
+- 🤖 **AI 智能分析** — LiteLLM 统一多模型接口，SSE 流式对话体验
+- 💰 **基金管理** — 基金市场、搜索、自选、业绩走势一应俱全
+- 📰 **资讯速递** — 财经新闻与 7×24 快讯聚合
+
+## 🔗 地址链接
+
+- 🌐 在线站点：https://www.stockmate.top/
+- 🐙 GitHub 仓库：https://github.com/ethreal798/stockmate
+- 📖 API 文档：服务启动后访问 http://localhost/docs（Swagger UI）
+
+---
+
+## 🛠️ 技术栈
 
 ### 后端
 | 技术 | 版本 | 说明 |
@@ -37,7 +54,7 @@ go-stock 的 Python + React 全栈重构版本，提供股票行情监控、AI �
 
 ---
 
-## 快速开始
+## 🚀 快速开始
 
 ### 方式一：Docker Compose（推荐）
 
@@ -45,8 +62,8 @@ go-stock 的 Python + React 全栈重构版本，提供股票行情监控、AI �
 
 ```bash
 # 1. 克隆项目
-git clone https://github.com/your-org/go-stock.git
-cd go-stock/go-stock-python
+git clone https://github.com/ethreal798/stockmate.git
+cd stockmate
 
 # 2. 复制并编辑环境变量
 cp .env.example .env
@@ -82,7 +99,7 @@ docker-compose down -v
 **前置条件：** Python 3.12+、Redis（本地运行或 Docker）
 
 ```bash
-cd go-stock-python/backend
+cd backend
 
 # 创建虚拟环境
 python -m venv .venv
@@ -115,7 +132,7 @@ uvicorn app.main:app --reload --host 0.0.0.0 --port 8000
 **前置条件：** Node.js 18+
 
 ```bash
-cd go-stock-python/frontend
+cd frontend
 
 # 安装依赖
 npm install
@@ -128,10 +145,10 @@ npm run dev
 
 ---
 
-## 项目结构
+## 📁 项目结构
 
 ```
-go-stock-python/
+stockmate/
 ├── backend/                    # FastAPI 后端
 │   ├── app/
 │   │   ├── main.py             # 应用入口，挂载路由和中间件
@@ -171,7 +188,7 @@ go-stock-python/
 
 ---
 
-## API 文档
+## 📚 API 文档
 
 启动服务后，访问以下地址查看交互式 API 文档：
 
@@ -190,7 +207,7 @@ go-stock-python/
 
 ---
 
-## 开发指南
+## 💻 开发指南
 
 ### 数据库迁移
 
@@ -253,6 +270,6 @@ docker image prune -f
 
 ---
 
-## License
+## 📄 License
 
 MIT © go-stock contributors
