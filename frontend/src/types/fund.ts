@@ -100,7 +100,7 @@ export type FundSortKey =
  */
 export type FundPeriodSortKey = Exclude<
   FundSortKey,
-  "accumulated_nav" | "unit_nav"
+  "accumulated_nav" | "unit_nav" | "annualized_7d_pct" | "income_per_10k"
 >;
 
 /**
