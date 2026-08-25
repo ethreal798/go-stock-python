@@ -79,6 +79,9 @@ class FundRankingSyncService:
             money_rows = [r for r in money_rows if r["fund_code"] in fund_ids]
 
         # 2. 将各个类型排行榜数据进行入库
+        logger.info(
+            f"开始入库 open: {len(open_rows)} 条, exchange: {len(exchange_rows)} 条, money: {len(money_rows)} 条",
+        )
         await self._replace_latest(FundOpenRankLatest, open_rows, fund_ids)
         await self._replace_latest(FundExchangeRankLatest, exchange_rows, fund_ids)
         await self._replace_latest(FundMoneyRankLatest, money_rows, fund_ids)
@@ -104,15 +107,22 @@ class FundRankingSyncService:
             return
         values = [{**row, "fund_id": fund_ids[row["fund_code"]]} for row in rows]
         update_columns = [key for key in values[0] if key not in {"fund_code", "created_at"}]
-        # 分批 Upsert（插入或更新）
-        for batch in iter_batches(values):
-            statement = pg_insert(model).values(batch)
-            await self.db.execute(
-                statement.on_conflict_do_update(
-                    index_elements=[model.fund_code],
-                    set_={column: getattr(statement.excluded, column) for column in update_columns},
+        try:
+            # 分批 Upsert（插入或更新）
+            for batch in iter_batches(values):
+                statement = pg_insert(model).values(batch)
+                await self.db.execute(
+                    statement.on_conflict_do_update(
+                        index_elements=[model.fund_code],
+                        set_={column: getattr(statement.excluded, column) for column in update_columns},
+                    )
                 )
+            # 数据清理（删除过时记录）
+            current_codes = [row["fund_code"] for row in rows]
+            await self.db.execute(delete(model).where(model.fund_code.not_in(current_codes)))
+        except Exception as exc:
+            logger.exception(
+                f"{model.__tablename__} 入库失败: rows={len(rows)}, "
+                f"样本keys={list(values[0].keys()) if values else []}, 异常={exc}"
             )
-        # 数据清理（删除过时记录）
-        current_codes = [row["fund_code"] for row in rows]
-        await self.db.execute(delete(model).where(model.fund_code.not_in(current_codes)))
+            raise
