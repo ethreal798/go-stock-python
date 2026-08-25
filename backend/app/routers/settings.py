@@ -16,7 +16,7 @@ from app.schemas.settings import (
     UserAIModelConfigUpdate,
 )
 from app.services.ai_model_config_service import AIModelConfigService
-from app.services.user_service import UserService
+from app.services.user.user_service import UserService
 
 router = APIRouter(prefix="/settings", tags=["settings"])
 

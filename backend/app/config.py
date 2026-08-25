@@ -60,7 +60,13 @@ class Settings(BaseSettings):
     # ---- 安全与认证配置 ----
     SECRET_KEY: str = ""
     ALGORITHM: str = "HS256"
-    ACCESS_TOKEN_EXPIRE_MINUTES: int = 60 * 24 * 7  # 默认 7 天
+    ACCESS_TOKEN_EXPIRE_MINUTES: int = 60  # Access Token 默认 1 小时
+    REFRESH_TOKEN_EXPIRE_DAYS: int = 7  # Refresh Token 默认 7 天
+    # Cookie 安全配置
+    COOKIE_SECURE: bool = False  # 生产环境设为 True (HTTPS only)
+    COOKIE_SAMESITE: str = "lax"  # Lax 允许跨站导航时发送 Cookie
+    ACCESS_TOKEN_COOKIE_NAME: str = "access_token"
+    REFRESH_TOKEN_COOKIE_NAME: str = "refresh_token"
 
     # ---- 数据库配置 ----
     DATABASE_URL: str = "postgresql+asyncpg://postgres:postgres@localhost:5432/go_stock"

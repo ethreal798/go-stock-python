@@ -28,6 +28,6 @@ class ApiResponse(BaseModel):
         return cls(code=1, msg=msg, data=data)
 
     @classmethod
-    def error(cls, msg: str = "请求失败", code: int = 0) -> "ApiResponse":
+    def error(cls, msg: str = "请求失败", code: int = 0, data: Any = None) -> "ApiResponse":
         """创建错误响应。"""
-        return cls(code=code, msg=msg, data={})
+        return cls(code=code, msg=msg, data=data if data is not None else {})
