@@ -11,13 +11,10 @@ import secrets
 from datetime import datetime, timedelta, timezone
 from typing import Any, Optional, Union
 
+import bcrypt
 from jose import JWTError, jwt
-from passlib.context import CryptContext
 
 from app.config import settings
-
-# 密码加密上下文
-pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
 
 # 新格式哈希前缀
 SHA256_PREFIX = "sha256$"
@@ -42,7 +39,7 @@ def verify_password(plain_password: str, hashed_password: str) -> bool:
         raise ValueError("密码哈希格式无效，缺少 sha256$ 前缀。" "请重新注册或联系管理员重置密码。")
     bcrypt_hash = hashed_password[len(SHA256_PREFIX) :]
     prehashed = _sha256_prehash(plain_password)
-    return pwd_context.verify(prehashed, bcrypt_hash)
+    return bcrypt.checkpw(prehashed.encode("utf-8"), bcrypt_hash.encode("utf-8"))
 
 
 def get_password_hash(password: str) -> str:
@@ -54,8 +51,8 @@ def get_password_hash(password: str) -> str:
     3. 返回 sha256$<bcrypt_hash> 格式
     """
     prehashed = _sha256_prehash(password)
-    bcrypt_hash = pwd_context.hash(prehashed)
-    return f"{SHA256_PREFIX}{bcrypt_hash}"
+    bcrypt_hash = bcrypt.hashpw(prehashed.encode("utf-8"), bcrypt.gensalt())
+    return f"{SHA256_PREFIX}{bcrypt_hash.decode('utf-8')}"
 
 
 def create_access_token(subject: Union[str, Any], expires_delta: Optional[timedelta] = None) -> str:
