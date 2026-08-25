@@ -39,11 +39,8 @@ def verify_password(plain_password: str, hashed_password: str) -> bool:
     哈希格式：sha256$<bcrypt_hash>
     """
     if not hashed_password.startswith(SHA256_PREFIX):
-        raise ValueError(
-            "密码哈希格式无效，缺少 sha256$ 前缀。"
-            "请重新注册或联系管理员重置密码。"
-        )
-    bcrypt_hash = hashed_password[len(SHA256_PREFIX):]
+        raise ValueError("密码哈希格式无效，缺少 sha256$ 前缀。" "请重新注册或联系管理员重置密码。")
+    bcrypt_hash = hashed_password[len(SHA256_PREFIX) :]
     prehashed = _sha256_prehash(plain_password)
     return pwd_context.verify(prehashed, bcrypt_hash)
 
