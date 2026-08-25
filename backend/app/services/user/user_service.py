@@ -15,6 +15,9 @@ from app.schemas.user import UserCreate
 
 logger = logging.getLogger(__name__)
 
+# 不存在用户时使用的 dummy 哈希（新格式），用于防止时序攻击
+_DUMMY_HASH = "sha256$2b$12$C9ixdp2MHMZvRqPWOfWzZOb6XkQiKqHg7KbQrOxP1nJqYHnJMxRWK"
+
 
 class UserService:
     """用户服务类，处理注册、登录及权限校验。"""
@@ -42,7 +45,7 @@ class UserService:
         if not user:
             # 对不存在的用户也执行 dummy 校验，使用固定哈希值
             # 使响应时间与存在用户时相近，防止时序攻击
-            verify_password(password, "$2b$12$C9ixdp2MHMZvRqPWOfWzZOb6XkQiKqHg7KbQrOxP1nJqYHnJMxRWK")
+            verify_password(password, _DUMMY_HASH)
             return None
         if not verify_password(password, user.hashed_password):
             return None

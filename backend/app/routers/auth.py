@@ -66,8 +66,7 @@ async def get_current_user(
     refresh_token_cookie: Optional[str] = Cookie(None, alias=settings.REFRESH_TOKEN_COOKIE_NAME),
     service: UserService = Depends(get_user_service),
 ) -> User:
-    """获取当前用户 — 支持 Cookie 和 Header 两种认证方式。
-
+    """获取当前用户
     若 Access Token 过期且存在有效 Refresh Token，自动续期。
     """
     credentials_exception = HTTPException(
