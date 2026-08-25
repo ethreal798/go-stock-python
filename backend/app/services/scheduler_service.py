@@ -147,7 +147,10 @@ class SchedulerService:
         if "interval_seconds" in trigger_config:
             trigger = IntervalTrigger(seconds=trigger_config["interval_seconds"])
         elif "cron" in trigger_config:
-            trigger = CronTrigger.from_crontab(trigger_config["cron"])
+            trigger = CronTrigger.from_crontab(
+                trigger_config["cron"],
+                timezone=settings.SCHEDULER_TIMEZONE,
+            )
         else:
             logger.warning("Unknown trigger config for job %s: %s", job_id, trigger_config)
             return
