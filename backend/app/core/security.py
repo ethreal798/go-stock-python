@@ -35,18 +35,17 @@ def _sha256_prehash(password: str) -> str:
 def verify_password(plain_password: str, hashed_password: str) -> bool:
     """校验明文密码与哈希值是否匹配。
 
-    支持两种格式：
-    - 新格式（sha256$ 前缀）：SHA-256 预哈希后再 bcrypt 校验
-    - 旧格式（无前缀）：直接 bcrypt 校验（向后兼容存量数据）
+    统一使用 SHA-256 预哈希方案，彻底解决 bcrypt 72 字节限制。
+    哈希格式：sha256$<bcrypt_hash>
     """
-    if hashed_password.startswith(SHA256_PREFIX):
-        # 新格式：提取 bcrypt 哈希部分，预哈希密码后校验
-        bcrypt_hash = hashed_password[len(SHA256_PREFIX) :]
-        prehashed = _sha256_prehash(plain_password)
-        return pwd_context.verify(prehashed, bcrypt_hash)
-    else:
-        # 旧格式：直接校验（向后兼容）
-        return pwd_context.verify(plain_password, hashed_password)
+    if not hashed_password.startswith(SHA256_PREFIX):
+        raise ValueError(
+            "密码哈希格式无效，缺少 sha256$ 前缀。"
+            "请重新注册或联系管理员重置密码。"
+        )
+    bcrypt_hash = hashed_password[len(SHA256_PREFIX):]
+    prehashed = _sha256_prehash(plain_password)
+    return pwd_context.verify(prehashed, bcrypt_hash)
 
 
 def get_password_hash(password: str) -> str:
