@@ -13,7 +13,7 @@ from app.core.database import async_session_factory, get_db
 from app.core.redis import get_redis
 from app.models.agent import AgentRun
 from app.models.user import User
-from app.routers.auth import get_user_service, oauth2_scheme
+from app.routers.auth import get_current_user
 from app.schemas.agent import (
     AgentMessageResponse,
     AgentModelOption,
@@ -26,7 +26,6 @@ from app.schemas.agent import (
 )
 from app.services.agent.agent_service import AgentService, TERMINAL_RUN_STATUSES
 from app.services.agent.event_stream import AgentEventStream
-from app.services.user.user_service import UserService
 
 router = APIRouter(prefix="/agent", tags=["AI 智能体"])
 
@@ -34,14 +33,6 @@ router = APIRouter(prefix="/agent", tags=["AI 智能体"])
 def get_agent_service(db: AsyncSession = Depends(get_db)) -> AgentService:
     """创建绑定当前数据库会话的 AgentService。"""
     return AgentService(db)
-
-
-async def get_current_user(
-    token: str = Depends(oauth2_scheme),
-    user_service: UserService = Depends(get_user_service),
-) -> User:
-    """解析访问令牌并返回当前用户。"""
-    return await user_service.get_current_user(token)
 
 
 @router.get(
