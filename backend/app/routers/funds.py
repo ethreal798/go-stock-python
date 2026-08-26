@@ -30,32 +30,10 @@ from app.services.fund.query.performance_trend import (
     FundPerformanceTrendUnsupportedError,
 )
 from app.services.fund.sync.ranking import FundRankingSyncService
-from app.services.user.user_service import UserService
-from app.routers.auth import oauth2_scheme, get_user_service
+from app.routers.auth import get_current_user, get_current_user_optional
 from app.models.user import User
 
 router = APIRouter(prefix="/funds", tags=["funds"])
-
-
-async def get_current_user(
-    token: str = Depends(oauth2_scheme),
-    user_service: UserService = Depends(get_user_service),
-) -> User:
-    """获取当前登录用户的依赖项。"""
-    return await user_service.get_current_user(token)
-
-
-async def get_optional_current_user(
-    token: Optional[str] = Depends(oauth2_scheme),
-    user_service: UserService = Depends(get_user_service),
-) -> Optional[User]:
-    """获取当前登录用户的依赖项（可选）。"""
-    if not token:
-        return None
-    try:
-        return await user_service.get_current_user(token)
-    except Exception:
-        return None
 
 
 def get_fund_catalog_query_service(db: AsyncSession = Depends(get_db)) -> FundCatalogQueryService:
@@ -89,7 +67,7 @@ async def search_funds(
     keyword: str = Query(..., description="搜索关键词(代码/名称)"),
     page: int = Query(1, ge=1, description="页码"),
     limit: int = Query(20, ge=1, le=100, description="每页数量"),
-    current_user: Optional[User] = Depends(get_optional_current_user),
+    current_user: Optional[User] = Depends(get_current_user_optional),
     service: FundCatalogQueryService = Depends(get_fund_catalog_query_service),
 ) -> List[FundResponse]:
     """搜索基金，支持代码和名称模糊匹配。"""
@@ -202,7 +180,7 @@ async def get_funds(
     page: int = Query(1, ge=1, description="页码"),
     limit: int = Query(20, ge=1, le=100, description="每页数量"),
     fund_type: Optional[str] = Query(None, description="基金类型过滤"),
-    current_user: Optional[User] = Depends(get_optional_current_user),
+    current_user: Optional[User] = Depends(get_current_user_optional),
     service: FundRankingQueryService = Depends(get_fund_ranking_query_service),
 ) -> FundRankListResponse:
     """获取基金排行列表，支持分类、排序、分页。"""

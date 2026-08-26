@@ -6,7 +6,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.core.database import get_db
 from app.core.response import ApiResponse
 from app.models.user import User
-from app.routers.auth import get_user_service, oauth2_scheme
+from app.routers.auth import get_current_user
 from app.schemas.settings import (
     AIModelConfigTestResponse,
     InlineAIModelConfigTestRequest,
@@ -16,17 +16,8 @@ from app.schemas.settings import (
     UserAIModelConfigUpdate,
 )
 from app.services.ai_model_config_service import AIModelConfigService
-from app.services.user.user_service import UserService
 
 router = APIRouter(prefix="/settings", tags=["settings"])
-
-
-async def get_current_user(
-    token: str = Depends(oauth2_scheme),
-    user_service: UserService = Depends(get_user_service),
-) -> User:
-    """获取当前登录用户。"""
-    return await user_service.get_current_user(token)
 
 
 def get_ai_model_config_service(db: AsyncSession = Depends(get_db)) -> AIModelConfigService:
