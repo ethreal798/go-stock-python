@@ -29,6 +29,7 @@ import {
 import { useNavigate, useLocation, Routes, Route } from "react-router-dom";
 import AppRouter from "./router";
 import Login from "@/pages/Login";
+import { logoutApi } from "@/api/auth";
 import { useAuthStore } from "@/stores/authStore";
 import "dayjs/locale/zh-cn";
 import dayjs from "dayjs";
@@ -118,8 +119,12 @@ const AppLayout: React.FC = () => {
   const [collapsed, setCollapsed] = useState(false);
   const navigate = useNavigate();
   const location = useLocation();
-  const { token_type, isAuthenticated, logout } = useAuthStore();
-
+  const { isAuthenticated, logout } = useAuthStore();
+  const handleLogout = async () => {
+    logout();//前端退出登录
+    await logoutApi();//后端退出登录
+    navigate("/login");
+  };
   const currentTitle =
     (location.pathname.startsWith("/fund/detail/")
       ? "基金详情"
@@ -132,10 +137,7 @@ const AppLayout: React.FC = () => {
       key: "logout",
       icon: <LogoutOutlined />,
       label: "退出登录",
-      onClick: () => {
-        logout();
-        navigate("/login");
-      },
+      onClick: () => handleLogout(),
     },
   ];
 
@@ -202,7 +204,7 @@ const AppLayout: React.FC = () => {
           </span>
 
           <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
-            {isAuthenticated && token_type ? (
+            {isAuthenticated ? (
               <Dropdown menu={{ items: userMenuItems }} placement="bottomRight">
                 <Space style={{ cursor: "pointer", padding: "0 8px" }}>
                   <Avatar
@@ -213,9 +215,9 @@ const AppLayout: React.FC = () => {
                   <Text
                     strong
                     style={{ maxWidth: 100 }}
-                    ellipsis={{ tooltip: token_type }}
+                    ellipsis={{ tooltip: "" }}
                   >
-                    {token_type}
+                    已登录
                   </Text>
                 </Space>
               </Dropdown>
